@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#1c1e16"/>
+  <g fill="none" stroke="#353a29" stroke-width="6">
+    <path d="M-10 430c80-40 150-20 230-60s170-60 300-20"/>
+    <path d="M-10 470c90-30 170-10 250-40s170-40 290-10"/>
+    <path d="M-10 390c70-50 130-40 200-80s150-90 330-60"/>
+  </g>
+  <!-- orejas -->
+  <g transform="rotate(-18 186 170)"><ellipse cx="186" cy="150" rx="40" ry="112" fill="#e3a63a"/><ellipse cx="186" cy="160" rx="20" ry="80" fill="#8a5d17"/></g>
+  <g transform="rotate(18 326 170)"><ellipse cx="326" cy="150" rx="40" ry="112" fill="#e3a63a"/><ellipse cx="326" cy="160" rx="20" ry="80" fill="#8a5d17"/></g>
+  <!-- cabeza -->
+  <path d="M256 196c62 0 98 30 98 84 0 40-14 70-22 104-6 26-34 46-76 46s-70-20-76-46c-8-34-22-64-22-104 0-54 36-84 98-84z" fill="#e3a63a"/>
+  <!-- hocico -->
+  <path d="M256 346c40 0 66 14 66 42 0 30-28 50-66 50s-66-20-66-50c0-28 26-42 66-42z" fill="#f2d9a4"/>
+  <ellipse cx="232" cy="396" rx="9" ry="13" fill="#3a2a10"/><ellipse cx="280" cy="396" rx="9" ry="13" fill="#3a2a10"/>
+  <!-- ojos -->
+  <circle cx="212" cy="282" r="12" fill="#14150f"/><circle cx="300" cy="282" r="12" fill="#14150f"/>
+  <!-- tupé -->
+  <path d="M226 206c10-26 22-36 30-36s20 10 30 36c-10-6-20-8-30-8s-20 2-30 8z" fill="#14150f"/>
+</svg>
