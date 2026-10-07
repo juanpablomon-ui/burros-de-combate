@@ -174,3 +174,52 @@ video.lector{width:100%;border-radius:8px;background:#000}
 .lista .item small{font-family:var(--mono);font-size:10px;color:var(--tenue);white-space:nowrap}
 .lista .item input:checked+span{color:var(--tenue);text-decoration:line-through}
 @media (max-width:420px){ .pestanas button{font-size:10px} }
+
+/* mapa */
+.ruta-modo{margin-bottom:12px}
+body.con-mapa main{max-width:none;padding:0}
+body.con-mapa .ruta-modo{position:absolute;z-index:1001;left:50%;transform:translateX(-50%);margin:8px 0 0;background:var(--panel);box-shadow:0 2px 10px #0008}
+#mapaCont{position:relative}
+.mapa-env{position:relative;height:calc(100dvh - 58px - 62px - env(safe-area-inset-bottom) - env(safe-area-inset-top))}
+@media (min-width:900px){ .mapa-env{height:calc(100dvh - 58px)} }
+#mapa{position:absolute;inset:0;background:#d8d4c4}
+.mapa-env.agregando #mapa{cursor:crosshair}
+.m-sup{position:absolute;z-index:1000;top:52px;left:56px;right:10px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.m-sup .seg{background:var(--panel);box-shadow:0 2px 10px #0008}
+.m-sup .seg button{padding:6px 9px;font-size:12px}
+.m-sup .btn{box-shadow:0 2px 10px #0008}
+.m-sup .btn.on{border-color:var(--ocre);color:var(--ocre)}
+.m-lectura{position:absolute;z-index:1000;top:8px;right:10px;background:#14150fdd;color:var(--texto);font-size:11px;padding:5px 8px;border-radius:6px;pointer-events:none;max-width:calc(100% - 20px)}
+body.con-mapa .m-lectura{top:auto;bottom:118px;right:10px}
+.m-cruz{position:absolute;z-index:999;left:50%;top:50%;width:22px;height:22px;margin:-11px 0 0 -11px;pointer-events:none;opacity:.55;
+  background:linear-gradient(#14150f,#14150f) center/2px 100% no-repeat,linear-gradient(#14150f,#14150f) center/100% 2px no-repeat}
+.m-inf{position:absolute;z-index:1000;left:10px;right:10px;bottom:10px;display:flex;flex-direction:column;gap:6px;pointer-events:none}
+.m-inf>*{pointer-events:auto}
+.m-res{background:#14150fe6;border:1px solid var(--linea);border-radius:8px;padding:7px 10px;font-size:12px;align-self:flex-start;max-width:100%}
+.m-res b{color:var(--ocre)}
+.m-acc{display:flex;gap:6px}
+.m-acc .btn{box-shadow:0 2px 10px #0008}
+.m-acc #mAgregar{flex:1}
+@media (min-width:700px){ .m-acc #mAgregar{flex:0 0 auto} }
+.m-hoja{position:absolute;z-index:1002;left:10px;right:10px;bottom:10px;max-width:420px;background:var(--panel);border:1px solid var(--ocre);border-radius:12px;padding:12px;box-shadow:0 6px 24px #000a;max-height:70%;overflow:auto}
+.m-hoja .cab{display:flex;gap:8px;align-items:center;margin-bottom:6px}
+.m-hoja .cab .ord{width:26px;height:26px;border-radius:50%;border:1px solid var(--ocre);color:var(--ocre);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;flex:0 0 auto}
+.m-hoja .cab input{font-weight:700}
+.m-hoja .nota{margin:4px 0 8px;font-size:11.5px}
+.m-pto{background:none;border:0}
+.m-pto .n{position:absolute;inset:0;border-radius:50%;background:#14150f;border:2px solid var(--ocre);color:var(--ocre);font:700 12px var(--mono);display:flex;align-items:center;justify-content:center;box-shadow:0 1px 6px #0009}
+.m-pto.ini .n{background:var(--ocre);color:#14150f}
+.m-pto.sel .n{background:#fff;color:#14150f;border-color:#fff;transform:scale(1.2)}
+.m-pto .et{position:absolute;left:30px;top:3px;white-space:nowrap;background:#14150fd9;color:var(--texto);font:11px var(--sans);padding:2px 6px;border-radius:4px;pointer-events:none}
+.m-pto .et b{color:var(--ocre2)}
+.m-gridlab{background:none;border:0;color:#1d3b8a;font:700 12px var(--mono);text-shadow:0 0 3px #fff,0 0 3px #fff;white-space:nowrap}
+.m-gridlab small{font-size:9px}
+.m-gridlab.v{transform:translateX(-50%)}
+.m-gridlab.h{transform:translateY(-50%)}
+.leaflet-container{font-family:var(--sans)}
+.leaflet-tooltip{font-size:12px}
+.calce{position:relative;max-height:50vh;overflow:auto;border:1px solid var(--linea);border-radius:8px;margin:8px 0}
+.calce img{display:block;max-width:100%;cursor:crosshair}
+.calce .mk{position:absolute;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;background:var(--rojo);color:#fff;font:700 12px var(--mono);display:flex;align-items:center;justify-content:center;pointer-events:none}
+.m-pto.multi .n{border-radius:13px;width:auto;min-width:26px;padding:0 6px;right:auto;font-size:11px}
+@media (max-width:520px){ .ruta-modo .largo{display:none} }

@@ -38,8 +38,9 @@
   let tAviso = null;
   function aviso(t){ const a = $('#aviso'); a.textContent = t; a.hidden = false; clearTimeout(tAviso); tAviso = setTimeout(()=>a.hidden = true, 2600); }
   const dlg = $('#dialogo');
-  function dialogo(html, alAbrir){ dlg.innerHTML = html; dlg.showModal(); dlg.querySelectorAll('[data-cerrar]').forEach(b=>b.onclick = ()=>dlg.close()); if(alAbrir) alAbrir(dlg); }
+  function dialogo(html, alAbrir){ dlg.innerHTML = html; if(!dlg.open) dlg.showModal(); dlg.querySelectorAll('[data-cerrar]').forEach(b=>b.onclick = ()=>dlg.close()); if(alAbrir) alAbrir(dlg); }
   dlg.addEventListener('close', ()=>{ if(dlg._parar) { dlg._parar(); dlg._parar = null; } });
+  const cerrarDialogo = ()=>dlg.open && dlg.close();
   function confirmar(txt, si){ dialogo(`<h3>${esc(txt)}</h3><div class="btns"><button class="btn peligro" id="dSi">Sí</button><button class="btn" data-cerrar>Cancelar</button></div>`,
     d=>d.querySelector('#dSi').onclick = ()=>{ dlg.close(); si(); }); }
   function descargar(nombre, texto, tipo){
@@ -54,6 +55,8 @@
   $('#pestanas').addEventListener('click', e=>{ const b = e.target.closest('button[data-v]'); if(b) ir(b.dataset.v); });
   function pintar(){
     const m = actual(); if(!m && S.v!=='marchas') S.v = 'marchas';
+    if(!(S.v==='ruta' && S.rutaModo!=='lista')) Mapa.cerrar();
+    document.body.classList.toggle('con-mapa', S.v==='ruta' && S.rutaModo!=='lista');
     document.querySelectorAll('#pestanas button').forEach(b=>{ b.classList.toggle('on', b.dataset.v===S.v); b.disabled = !m && b.dataset.v!=='marchas'; b.style.opacity = b.disabled ? .35 : 1; });
     $('#subtitulo').textContent = m ? m.nombre + (m.unidad ? ' · ' + m.unidad : '') : 'Planificación de marchas';
     ({marchas:vMarchas, ruta:vRuta, cuadro:vCuadro, perfil:vPerfil, lista:vLista, enviar:vEnviar})[S.v]();
@@ -78,7 +81,7 @@
       <div class="tarjeta nota">Las marchas quedan guardadas solo en este equipo. Guarda un respaldo para pasarlas a otro equipo o no perderlas.
         <div class="btns"><button class="btn" id="bResp">⬇ Guardar respaldo</button><button class="btn" id="bCargar">⬆ Cargar respaldo</button></div></div>
       <h2>Qué hace</h2>
-      <div class="tarjeta nota">Calcula el <b>cuadro de marcha</b> (distancia, desnivel, pendiente, rumbo magnético en grados y milésimas, tiempos, altos,
+      <div class="tarjeta nota">Marca la ruta <b>sobre el mapa o tu carta</b> (con cuadrícula UTM y cota automática) y calcula el <b>cuadro de marcha</b> (distancia, desnivel, pendiente, rumbo magnético en grados y milésimas, tiempos, altos,
         imprevistos y hora de llegada a cada punto), dibuja el <b>perfil del itinerario</b>, arma la <b>ficha de navegación</b> para imprimir y
         <b>envía el plan</b> al C2 (código de texto, QR, GPX, KML, GeoJSON o Excel).<br><br>
         Tiempos según la <b>Cartilla de Planificación de Marcha en Montaña (Escuela de Montaña, CRM 2013)</b>, el método MIDE / DIN 33466 o la
@@ -149,13 +152,17 @@
   }
 
   /* =====================================================================  RUTA  */
+  const apiMapa = {actual, guardar, punto, aviso, dialogo, cerrarDialogo, esc, f, calcular:m=>M.calcular(m), vistaMapa:null};
+  const selRuta = ()=>`<div class="seg ruta-modo"><button data-rm="mapa" class="${S.rutaModo!=='lista' ? 'on' : ''}">🗺 Mapa</button><button data-rm="lista" class="${S.rutaModo==='lista' ? 'on' : ''}">☰ Datos<span class="largo"> y puntos</span></button></div>`;
+  vista.addEventListener('click', e=>{ const b = e.target.closest('[data-rm]'); if(b){ S.rutaModo = b.dataset.rm; guardar(); pintar(); } });
   function vRuta(){
+    if(S.rutaModo!=='lista'){ vista.innerHTML = selRuta() + '<div id="mapaCont"></div>'; Mapa.abrir($('#mapaCont'), apiMapa); return; }
     const m = actual(), p = m.par, R = M.calcular(m);
     const opc = (o, sel)=>Object.entries(o).map(([k, n])=>`<option value="${k}"${k===sel ? ' selected' : ''}>${esc(n)}</option>`).join('');
     const vt = R.vel.tabla, pct = x=>Math.round((x||0)*1000)/10;
     const tropas = {normal:'Tropa normal', andina:'Tropa andina'};
     const terrenos = Object.fromEntries(Object.entries(M.TERRENOS).map(([k, v])=>[k, v.n]));
-    vista.innerHTML = `
+    vista.innerHTML = selRuta() + `
       <details class="tarjeta" ${m.puntos.some(x=>x.cota!=='') ? '' : 'open'}><summary>Datos de la marcha<span class="res">${esc(m.fecha ? m.fecha.split('-').reverse().join('-') : '')} ${esc(m.hora)}</span></summary>
         <div class="campos">
           <label class="c ancho">Nombre / itinerario<input data-m="nombre" value="${esc(m.nombre)}"></label>
@@ -229,7 +236,7 @@
       <h2>Puntos de control</h2>
       <p class="nota">En orden de marcha: PIM, PC1, PC2… (y el regreso si corresponde). Coordenadas UTM o geográficas (escribe <span class="mono">33 21 36</span> o <span class="mono">33.36</span>; sur y oeste se asumen). La cota es obligatoria.</p>
       <div id="puntos"></div>
-      <div class="btns"><button class="btn pri" id="bPunto">＋ Agregar punto</button><button class="btn" id="bRegreso">↩ Agregar regreso (misma ruta)</button><button class="btn" id="bVer">Ver cuadro de marcha ›</button></div>`;
+      <div class="btns"><button class="btn pri" id="bPunto">＋ Agregar punto</button><button class="btn" id="bRegreso">↩ Agregar regreso (misma ruta)</button><button class="btn" id="bCotas">⛰ Completar cotas desde el terreno</button><button class="btn" id="bVer">Ver cuadro de marcha ›</button></div>`;
     pintarPuntos(); actualizarCalculos();
     $('#bPunto').onclick = ()=>{ const u = m.puntos[m.puntos.length - 1];
       m.puntos.push(punto('PC' + m.puntos.length, u ? {tipo:u.tipo, zona:u.zona} : {})); guardar(); pintarPuntos(); actualizarCalculos();
@@ -238,6 +245,12 @@
       m.puntos.slice(0, -1).reverse().forEach(x=>m.puntos.push(Object.assign({}, x, {det:'', obs:x.obs ? 'Regreso — ' + x.obs : 'Regreso'})));
       guardar(); pintarPuntos(); actualizarCalculos(); aviso('↩ Regreso agregado'); };
     $('#bVer').onclick = ()=>ir('cuadro');
+    $('#bCotas').onclick = async()=>{
+      const R = M.calcular(m), faltan = m.puntos.map((x, i)=>i).filter(i=>(m.puntos[i].cota==='' || m.puntos[i].cotaAuto) && R.puntos[i].lat!==null && R.puntos[i].lat!==undefined && !isNaN(R.puntos[i].lat));
+      if(!faltan.length) return aviso('Todos los puntos tienen cota escrita');
+      aviso('Buscando ' + faltan.length + ' cota' + (faltan.length===1 ? '' : 's') + '…'); let n = 0;
+      for(const i of faltan){ const r = await DEM.cotaPunto(R.puntos[i].lat, R.puntos[i].lon); if(r){ Object.assign(m.puntos[i], {cota:Math.round(r.v), cotaAuto:true, cotaSrc:r.src}); n++; } }
+      guardar(); pintar(); aviso(n ? '✔ ' + n + ' cota' + (n===1 ? '' : 's') + ' del terreno (revísalas con la carta)' : 'Sin conexión: no se pudieron obtener las cotas'); };
   }
   function pintarPuntos(){
     const m = actual(), cont = $('#puntos'); if(!cont) return;
@@ -251,11 +264,11 @@
           <label class="c">Zona<input class="num" data-p="zona" inputmode="numeric" value="${esc(x.zona)}"></label>
           <label class="c">Este (m)<input class="num" data-p="e" inputmode="numeric" value="${esc(x.e)}" placeholder="354503"></label>
           <label class="c">Norte (m)<input class="num" data-p="n" inputmode="numeric" value="${esc(x.n)}" placeholder="6306601"></label>
-          <label class="c cota">Cota (m)<input class="num" data-p="cota" inputmode="numeric" value="${esc(x.cota)}"></label></div>`
+          <label class="c cota">Cota (m)${x.cotaAuto ? ' ≈' : ''}<input class="num" data-p="cota" inputmode="numeric" value="${esc(x.cota)}"></label></div>`
         : `<div class="coords geo">
           <label class="c">Latitud ${x.norte ? 'N' : 'S'}<input class="num" data-p="lat" inputmode="decimal" value="${esc(x.lat)}" placeholder="33 21 36"></label>
           <label class="c">Longitud ${x.este ? 'E' : 'W'}<input class="num" data-p="lon" inputmode="decimal" value="${esc(x.lon)}" placeholder="70 34 28"></label>
-          <label class="c cota">Cota (m)<input class="num" data-p="cota" inputmode="numeric" value="${esc(x.cota)}"></label></div>`}
+          <label class="c cota">Cota (m)${x.cotaAuto ? ' ≈' : ''}<input class="num" data-p="cota" inputmode="numeric" value="${esc(x.cota)}"></label></div>`}
         ${actual().par.metodo==='general' && i ? `<div class="extra" style="grid-template-columns:1fr"><label class="c">Vía desde el punto anterior<select data-p="via">${'<option value="">Igual que la marcha (' + esc(M.VIAS[actual().par.via]) + ')</option>' + Object.entries(M.VIAS).map(([k, n])=>`<option value="${k}"${x.via===k ? ' selected' : ''}>${n}</option>`).join('')}</select></label></div>` : ''}
         <div class="extra"><label class="c">Observaciones (punto característico)<input data-p="obs" value="${esc(x.obs)}" placeholder="puente, portezuelo, cruce…"></label>
           <label class="c">Detención (min)<input class="num" data-p="det" inputmode="numeric" value="${esc(x.det)}" placeholder="0"></label></div>
@@ -290,7 +303,7 @@
       else if(['velSub', 'velBaj', 'velLlano', 'velGeneral', 'decl', 'declVar'].includes(t.dataset.par)) v = v==='' ? null : String(v).replace(',', '.');
       if(t.dataset.par==='metodo'){ if(v==='general' && m.par.metodo!=='general') m.par.altos = 0; else if(v!=='general' && m.par.metodo==='general' && !m.par.altos) m.par.altos = 0.10; }
       m.par[t.dataset.par] = v; }
-    else if(t.dataset.p){ const i = +t.closest('.punto').dataset.i; m.puntos[i][t.dataset.p] = t.value; }
+    else if(t.dataset.p){ const i = +t.closest('.punto').dataset.i; m.puntos[i][t.dataset.p] = t.value; if(t.dataset.p==='cota'){ delete m.puntos[i].cotaAuto; delete m.puntos[i].cotaSrc; } }
     else return;
     guardar();
     if(t.dataset.redibujar!==undefined) return;   // lo redibuja el evento «change»
@@ -393,11 +406,20 @@
   }
 
   /* =====================================================================  PERFIL (ficha de itinerario)  */
-  function svgPerfil(R){
+  // perfil del terreno real (modelo digital) a lo largo de la ruta; se guarda en memoria por ruta
+  const terrenos = new Map();
+  const claveRuta = R=>R.tramos.map(t=>{ const a = R.puntos[t.iA], b = R.puntos[t.iB]; return a.lat.toFixed(5) + ',' + a.lon.toFixed(5) + '>' + b.lat.toFixed(5) + ',' + b.lon.toFixed(5); }).join('|');
+  function terrenoDe(R){
+    const k = claveRuta(R); if(terrenos.has(k)) return Promise.resolve(terrenos.get(k));
+    const pts = [R.puntos[R.tramos[0].iA]].concat(R.tramos.map(t=>R.puntos[t.iB]));
+    return DEM.perfil(pts, 25).then(pf=>{ if(pf){ const ini = [0].concat(R.tramos.map(t=>t.distAcum));
+      pf.forEach(p=>p.x = ini[p.tramo] + p.t*R.tramos[p.tramo].dist); } terrenos.set(k, pf); return pf; });
+  }
+  function svgPerfil(R, T){
     const ok = R.puntos.filter(p=>p.ok); if(R.tramos.length<1) return '';
     const xs = [0], W = 1000, iz = 78, de = 16, ar = 14, alto = 260, barras = [['Horario', 28], ['Distancia (km)', 28], ['Desnivel (m)', 28], ['Puntos', 40]];
     R.tramos.forEach(t=>xs.push(t.distAcum));
-    const D = R.res.dist || 1, cotas = ok.map(p=>p.cota), cmin = Math.min(...cotas), cmax = Math.max(...cotas), pad = Math.max(20, (cmax - cmin)*0.12);
+    const D = R.res.dist || 1, cotas = ok.map(p=>p.cota).concat(T ? T.map(p=>p.z) : []), cmin = Math.min(...cotas), cmax = Math.max(...cotas), pad = Math.max(20, (cmax - cmin)*0.12);
     const y0 = Math.floor((cmin - pad)/50)*50, y1 = Math.ceil((cmax + pad)/50)*50;
     const X = d=>iz + (W - iz - de)*d/D, Y = c=>ar + alto - alto*(c - y0)/(y1 - y0 || 1);
     // la ruta puede pasar varias veces por el mismo punto (ida y vuelta): los puntos del perfil son los de cada tramo
@@ -407,6 +429,8 @@
     const paso = [50, 100, 200, 250, 500, 1000].find(p=>(y1 - y0)/p<=7) || 1000;
     for(let c = Math.ceil(y0/paso)*paso; c<=y1; c += paso) s += `<line x1="${iz}" x2="${W - de}" y1="${Y(c)}" y2="${Y(c)}" stroke="#353a29" stroke-dasharray="2 4"/><text x="${iz - 6}" y="${Y(c) + 4}" text-anchor="end" font-size="11" fill="#a3a28c">${c}</text>`;
     // área y línea por tramo (color según pendiente)
+    if(T){ s += `<path d="M${X(0)},${Y(y0)} ${T.map(p=>`L${X(p.x).toFixed(1)},${Y(p.z).toFixed(1)}`).join(' ')} L${X(D)},${Y(y0)} Z" fill="#6f705e" fill-opacity=".28"/>`
+      + `<path d="M${T.map(p=>`${X(p.x).toFixed(1)},${Y(p.z).toFixed(1)}`).join(' L')}" fill="none" stroke="#a3a28c" stroke-width="1.6"/>`; }
     const area = `M${X(0)},${Y(y0)} ` + serie.map(p=>`L${X(p.d)},${Y(p.c)}`).join(' ') + ` L${X(D)},${Y(y0)} Z`;
     s += `<defs><linearGradient id="gA" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e3a63a" stop-opacity=".35"/><stop offset="1" stop-color="#e3a63a" stop-opacity=".03"/></linearGradient></defs><path d="${area}" fill="url(#gA)"/>`;
     const col = p=>{ const a = Math.abs(p); return a<0.05 ? '#8fbf5a' : a<0.15 ? '#e3c23a' : a<0.3 ? '#e3a63a' : '#e86a4c'; };
@@ -437,11 +461,25 @@
     const fuertes = R.tramos.filter(t=>Math.abs(t.pte)>=0.3);
     vista.innerHTML = `${encabezado(m, R).replace('CUADRO DE MARCHA', 'FICHA DE ITINERARIO')}
       <h2>Perfil del itinerario</h2>${kpis(R)}
-      <div class="perfil-env">${svgPerfil(R)}</div>
+      <div class="perfil-env" id="perfilSvg">${svgPerfil(R)}</div>
+      <p class="nota" id="terrenoTxt">Cargando el perfil real del terreno…</p>
       <p class="nota">Color de cada tramo según la pendiente: <span style="color:#8fbf5a">■</span> menos de 5 % · <span style="color:#e3c23a">■</span> 5–15 % · <span style="color:#e3a63a">■</span> 15–30 % · <span style="color:#e86a4c">■</span> 30 % o más.
         ${fuertes.length ? '<br>Tramos más exigentes: <b>' + fuertes.map(t=>esc(t.de) + ' → ' + esc(t.a) + ' (' + f(t.pte*100, 0) + ' %)').join(', ') + '</b>.' : ''}</p>
       <div class="btns no-imp"><button class="btn pri" id="bImp">🖨 Imprimir / PDF</button></div>`;
     $('#bImp').onclick = ()=>window.print();
+    terrenoDe(R).then(T=>{ const e = $('#terrenoTxt'); if(!e || S.v!=='perfil') return;
+      if(!T){ e.textContent = 'Sin conexión: no se pudo cargar el perfil real del terreno (se muestra la línea entre puntos).'; return; }
+      $('#perfilSvg').innerHTML = svgPerfil(R, T);
+      const d = DEM.desniveles(T, 5), extra = Math.max(0, d.sube - R.res.sube);
+      // pendiente máxima del terreno en tramos de ~100 m
+      let pmax = 0; for(let i=0, j=0; i<T.length; i++){ while(j<T.length && T[j].x - T[i].x<100) j++; if(j<T.length) pmax = Math.max(pmax, Math.abs(T[j].z - T[i].z)/(T[j].x - T[i].x)); }
+      // tramos donde el terreno se aparta de la línea recta entre puntos
+      const desv = R.tramos.map((t, k)=>{ const ps = T.filter(p=>p.tramo===k); let mx = 0; ps.forEach(p=>{ const z = t.cotaIni + (t.cotaFin - t.cotaIni)*p.t; mx = Math.max(mx, Math.abs(p.z - z)); }); return {t, mx}; })
+        .filter(x=>x.mx>=40);
+      e.innerHTML = `<span style="color:#a3a28c">■</span> Terreno real (modelo SRTM ~30 m): sube <b>${f(d.sube)} m</b> y baja <b>${f(d.baja)} m</b> (los puntos de control dan +${f(R.res.sube)}/−${f(R.res.baja)} m).
+        Pendiente máxima del terreno ≈ <b>${f(pmax*100, 0)} %</b>.` +
+        (extra>=30 || desv.length ? `<div class="alerta">${extra>=30 ? 'El terreno sube ' + f(extra) + ' m más de lo que muestran los puntos: el tiempo calculado puede quedar corto. ' : ''}${desv.length ? 'Agrega puntos de control donde cambia la pendiente en: <b>' + desv.map(x=>esc(x.t.de) + ' → ' + esc(x.t.a) + ' (se aparta ' + f(x.mx) + ' m)').join(', ') + '</b>. La cartilla pide tramos de igual pendiente.' : ''}</div>` : '');
+    });
   }
 
   /* =====================================================================  LISTA  */

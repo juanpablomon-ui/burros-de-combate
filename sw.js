@@ -1,7 +1,7 @@
 /* Guarda la app en el equipo para que funcione sin internet. Subir VERSION en cada cambio. */
-const VERSION = 'burros-0.1';
-const ARCHIVOS = ['./', 'index.html', 'estilos.css', 'calculo.js', 'intercambio.js', 'doctrina.js', 'app.js', 'manifest.webmanifest',
-  'lib/wmm.js', 'lib/qrcode-generator-2.0.4.js', 'lib/jsQR-1.4.0.js', 'iconos/icono.svg', 'iconos/icono-180.png', 'iconos/icono-192.png', 'iconos/icono-512.png'];
+const VERSION = 'burros-0.2';
+const ARCHIVOS = ['./', 'index.html', 'estilos.css', 'calculo.js', 'dem.js', 'mapa.js', 'intercambio.js', 'doctrina.js', 'app.js', 'manifest.webmanifest',
+  'lib/wmm.js', 'lib/leaflet-1.9.4.js', 'lib/leaflet-1.9.4.css', 'lib/qrcode-generator-2.0.4.js', 'lib/jsQR-1.4.0.js', 'iconos/icono.svg', 'iconos/icono-180.png', 'iconos/icono-192.png', 'iconos/icono-512.png'];
 self.addEventListener('install', e=>{ e.waitUntil(caches.open(VERSION).then(c=>c.addAll(ARCHIVOS))); self.skipWaiting(); });
 self.addEventListener('activate', e=>{ e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==VERSION).map(k=>caches.delete(k))))); self.clients.claim(); });
 // Primero la red (para recibir cambios); sin conexión, lo guardado.

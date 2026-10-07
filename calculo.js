@@ -49,6 +49,21 @@ const MARCHA = (function(){
     return {lat:lat + dp/rad, lon:lon + dl/rad};
   }
 
+  // WGS84 → datum de la carta (inversa por iteración; error < 1 mm)
+  function deWgs84(lat, lon, h, dat){
+    if(!DATUMS[dat] || DATUMS[dat]===W) return {lat, lon};
+    let g = {lat, lon};
+    for(let i=0; i<4; i++){ const w = aWgs84(g.lat, g.lon, h, dat); g = {lat:g.lat + (lat - w.lat), lon:g.lon + (lon - w.lon)}; }
+    return g;
+  }
+  // posición en el mapa (WGS84) → campos del punto en su sistema (UTM o geográficas) y datum de la marcha
+  function camposDesde(lat, lon, tipo, dat, zona){
+    const g = deWgs84(lat, lon, 0, dat);
+    if(tipo==='GEO') return {lat:Math.abs(g.lat).toFixed(6), lon:Math.abs(g.lon).toFixed(6), norte:g.lat>0 || undefined, este:g.lon>0 || undefined};
+    const u = llAUtm(g.lat, g.lon, zona || undefined, DATUMS[dat] || W);
+    return {zona:u.zona, e:Math.round(u.e), n:Math.round(u.n), norte:g.lat>0 || undefined};
+  }
+
   /* ---------- lectura de coordenadas de un punto ---------- */
   // p: {tipo:'UTM', zona, e, n} | {tipo:'GEO', lat, lon} (grados decimales; S y W en positivo como en las cartas, o con signo)
   //    | {tipo:'GEO', latG, latM, latS, lonG, lonM, lonS}
@@ -232,7 +247,7 @@ const MARCHA = (function(){
   const MGRS_LAT = 'CDEFGHJKLMNPQRSTUVWX';
   const banda = lat=>MGRS_LAT[Math.max(0, Math.min(19, Math.floor((lat + 80)/8)))];
 
-  return {VIAS, VEL_GENERAL, velGeneral, columna, CALOR, TRABAJOS, calor, DATUMS, TERRENOS, TABLA_VERTICAL, METODOS, llAUtm, utmALl, aWgs84, puntoWgs, velVertical, porDefecto, declinacion,
+  return {deWgs84, camposDesde, VIAS, VEL_GENERAL, velGeneral, columna, CALOR, TRABAJOS, calor, DATUMS, TERRENOS, TABLA_VERTICAL, METODOS, llAUtm, utmALl, aWgs84, puntoWgs, velVertical, porDefecto, declinacion,
     leerAng, tiempoTramo, calcular, horaAHoras, verDur, verHora, verGms, banda};
 })();
 if(typeof globalThis!=='undefined') globalThis.MARCHA = MARCHA;
