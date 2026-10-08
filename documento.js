@@ -9,7 +9,7 @@ const Documento = (function(){
   const $ = s=>document.querySelector(s);
   const SECCIONES = [['mapa', 'Mapa de la ruta (orden gráfica)'], ['perfil', 'Perfil del itinerario'], ['cuadro', 'Cuadro de marcha y navegación'],
     ['matriz', 'Matriz de eventos'], ['luz', 'Luz y visibilidad (sol, crepúsculos, luna)'], ['claves', 'Nombres clave y eventos para la radio'],
-    ['apoyo', 'Columna, calor y agua'], ['material', 'Material para la marcha'], ['lista', 'Lista de verificación']];
+    ['apoyo', 'Columna, calor y agua'], ['carga', 'Carga por hombre'], ['material', 'Material para la marcha'], ['lista', 'Lista de verificación']];
   // colores del documento: paleta (títulos, tarjetas, líneas), color de la ruta en el mapa
   const PALETAS = {oliva:'Verde oliva', azul:'Azul', gris:'Gris (blanco y negro)', arena:'Arena'};
   const RUTAS = {azul:['Azul', '#0b3d91'], rojo:['Rojo', '#b3261e'], negro:['Negro', '#111111'], magenta:['Magenta', '#b0127a']};
@@ -25,7 +25,7 @@ const Documento = (function(){
     return {formato:'militar', clasif:'RESERVADO', ejemplar:'1', ejemplares:'3', sup:'', propio:m.unidad || '', lugar:'', gdh:'',
       anexo:'', titulo:'ORDEN GRÁFICA DE MARCHA', sub:m.nombre || '', carta:'', elab:'', firmas:'', distrib:'', autor:'', org:m.unidad || '',
       hoja:'A4', orient:'v', escala:'auto', capa:'topo', curvas:true, grilla:true, paleta:'oliva', figuras:'claras', ruta:'azul',
-      sec:{mapa:true, perfil:true, cuadro:true, matriz:true, luz:true, claves:true, apoyo:false, material:true, lista:false}};
+      sec:{mapa:true, perfil:true, cuadro:true, matriz:true, luz:true, claves:true, apoyo:false, carga:true, material:true, lista:false}};
   }
 
   /* ---------- formulario ---------- */
@@ -117,7 +117,7 @@ const Documento = (function(){
     // resumen en tarjetas con ícono y número grande (las más importantes, destacadas)
     const ico = {dist:'<path d="M3 17h18M5 17V9m4 8v-4m4 4V7m4 10v-6"/>', des:'<path d="M2 20l7-11 4 6 3-4 6 9z"/>', par:'<circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/>',
       ter:'<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>', tot:'<path d="M9 2h6M12 8v5M12 22a8 8 0 1 0 0-16 8 8 0 0 0 0 16z"/>', met:'<circle cx="12" cy="12" r="9"/><path d="M12 7l3 8-3-2-3 2z"/>',
-      ev:'<path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/>', alt:'<path d="M6 4v16M18 4v16M6 12h12"/>'};
+      ev:'<path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/>', carga:'<path d="M7 7h10l2 14H5z"/><path d="M9 7a3 3 0 0 1 6 0"/>', alt:'<path d="M6 4v16M18 4v16M6 12h12"/>'};
     const tarj = (k, lab, val, sub, dest)=>`<div class="dr${dest ? ' dest' : ''}"><svg viewBox="0 0 24 24">${ico[k]}</svg><div><span>${lab}</span><b>${val}</b>${sub ? `<small>${sub}</small>` : ''}</div></div>`;
     const resumen = `<div class="doc-res">
       ${tarj('dist', 'Distancia', f(r.dist/1000, 2) + ' km', R.eventos.length + ' eventos', true)}
@@ -127,6 +127,7 @@ const Documento = (function(){
       ${tarj('des', 'Ascenso / descenso', '+' + f(r.sube) + ' / −' + f(r.baja) + ' m', r.alto ? 'punto más alto ' + esc(r.alto.nombre) + ' ' + f(r.alto.cota) + ' m' : '')}
       ${tarj('met', 'Método', esc(({montana:'Montaña', mide:'MIDE', general:'Marcha general'})[R.par.metodo] || ''), R.tramos.some(t=>t.noche) ? 'con tramos de noche' : 'de día')}
       ${tarj('ev', 'Eventos', R.eventos.length, R.eventos.map(i=>R.puntos[i].clave).filter(Boolean).slice(0, 4).join(' · ') + (R.eventos.length>4 ? '…' : ''))}
+      ${tarj('carga', 'Carga por hombre', f(R.carga ? R.carga.total : +R.par.carga || 0, 1) + ' kg', R.carga ? 'base ' + f(R.carga.base, 1) + ' + material ' + f(R.carga.indiv + R.carga.colect, 1) : 'escrita a mano')}
       ${tarj('alt', 'Altos / imprevistos', Math.round(R.par.altos*100) + ' % / ' + Math.round(R.par.imprev*100) + ' %', M.verDur(r.altos) + ' / ' + M.verDur(r.imprev))}</div>`;
     const fig = (html, id)=>d.figuras==='oscuras' ? `<div class="doc-osc"${id ? ` id="${id}"` : ''}>${html}</div>` : `<div class="doc-fig"${id ? ` id="${id}"` : ''}>${aClaro(html)}</div>`;
     const sec = (titulo, html, nueva)=>`<section class="doc-sec${nueva ? ' salto' : ''}"><h2 class="doc-h2">${titulo}</h2>${html}</section>`;
@@ -138,6 +139,7 @@ const Documento = (function(){
     if(S.luz) partes.push(sec('Luz y visibilidad', luz(m, R, fig), partes.length>0));
     if(S.claves) partes.push(sec('Nombres clave y eventos para la radio', claves(m, R), partes.length>0));
     if(S.apoyo) partes.push(sec('Columna, calor y agua', A.apoyo(R) || '<p>Sin datos de columna ni de calor (pestaña Puntos).</p>', partes.length>0));
+    if(S.carga) partes.push(sec('Carga por hombre', carga(m, R), partes.length>0));
     if(S.material) partes.push(sec('Material para la marcha', A.material(m, R), partes.length>0));
     if(S.lista) partes.push(sec('Lista de verificación', lista(m), partes.length>0));
     const firmas = mil ? `<div class="doc-firmas">${String(d.firmas || '').split(/\n+/).map(x=>x.trim()).filter(Boolean).map(x=>`<div><div class="linea"></div>${esc(x)}</div>`).join('')}</div>
@@ -250,6 +252,23 @@ const Documento = (function(){
       <p class="doc-nota">Luna en la noche: <b>${L.nombre}</b>, ${Math.round(L.ilum*100)} % iluminada; sale ${D.luna.sale.map(hh).join(' / ') || '—'}, se pone ${D.luna.pone.map(hh).join(' / ') || '—'}.
         ${R.tramos.some(t=>t.noche) ? 'Hay tramos que se hacen de noche (velocidad de noche).' : 'Toda la marcha se hace con luz.'}</p>
       ${fig(PantallaLuz.esquema(D, tSol, p0.lat, p0.lon, Object.assign({}, A)).svg)}`;
+  }
+  // carga por hombre: total, base, individual y colectivo repartido; detalle por elemento (kg por hombre)
+  function carga(m, R){
+    const esc = A.esc, f = A.f, pm = R.carga || (typeof pesoMaterial!=='undefined' ? pesoMaterial(m, R) : null);
+    if(!pm) return `<p>Carga escrita a mano: <b>${f(+R.par.carga || 0, 1)} kg</b> por hombre.</p>`;
+    const its = pm.items.filter(x=>x.porHombre>0.005);
+    return `<div class="doc-res doc-carga">
+        <div class="dr dest"><div><span>Total por hombre</span><b>${f(pm.total, 1)} kg</b><small>${R.carga ? 'usada en el cálculo de tiempos' : 'no usada en el cálculo (carga a mano ' + f(+R.par.carga || 0, 1) + ' kg)'}</small></div></div>
+        <div class="dr"><div><span>Peso base</span><b>${f(pm.base, 1)} kg</b><small>armamento, munición, casco, chaleco</small></div></div>
+        <div class="dr"><div><span>Material individual</span><b>${f(pm.indiv, 1)} kg</b><small>lo que lleva cada uno</small></div></div>
+        <div class="dr"><div><span>Colectivo repartido</span><b>${f(pm.colect, 1)} kg</b><small>entre ${pm.n} hombre${pm.n===1 ? '' : 's'}</small></div></div></div>
+      ${pm.total>36 ? '<p class="doc-nota"><b>Sobre la carga de combate habitual (27–36 kg).</b></p>' : ''}
+      <table class="t"><thead><tr><th class="tx">Elemento</th><th>Cantidad</th><th>kg c/u</th><th class="tx">Cómo se lleva</th><th>kg por hombre</th></tr></thead><tbody>
+        ${its.map(x=>`<tr><td class="tx">${esc(x.n)}</td><td>${f(x.q, x.q%1 ? 1 : 0)}</td><td>${f(x.kg, 2)}</td><td class="tx">${x.modo==='h' ? 'cada hombre (agua: hasta 3 L)' : x.modo==='i' ? 'individual' : 'colectivo, repartido'}</td><td><b>${f(x.porHombre, 2)}</b></td></tr>`).join('')}
+        <tr class="tot"><td class="tx">Peso base</td><td></td><td></td><td></td><td>${f(pm.base, 2)}</td></tr>
+        <tr class="tot"><td class="tx"><b>Total por hombre</b></td><td></td><td></td><td></td><td><b>${f(pm.total, 1)} kg</b></td></tr>
+      </tbody></table>`;
   }
   function claves(m, R){
     const esc = A.esc;

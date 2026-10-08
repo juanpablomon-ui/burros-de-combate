@@ -478,3 +478,4 @@ table.mat tr.hecho td b{color:var(--tenue);text-decoration:line-through}
 table.mat td.kg{width:120px} table.mat td.kg input{padding:5px 8px;font-size:13px;text-align:right}
 .tarjeta.carga h3{margin:0 0 10px}
 .doc-hoja table.mat td.kg{width:60px;text-align:right}
+.doc-res.doc-carga{grid-template-columns:repeat(4,1fr)} .doc-res.doc-carga .dr{display:block}
