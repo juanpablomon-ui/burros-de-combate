@@ -25,6 +25,8 @@ const Seguir = (function(){
   const dif = min=>{ const a = Math.round(Math.abs(min)); return a<1 ? 'a la hora' : (min>0 ? '▼ ' + a + ' min atrasado' : '▲ ' + a + ' min adelantado'); };
   const difCorta = min=>{ const a = Math.round(min); return (a>0 ? '+' : a<0 ? '−' : '±') + Math.abs(a) + ' min'; };
   const rotulo = p=>p.clave || p.nombre;   // por radio se usa el nombre clave
+  const verbo = ()=>String((A.actual().par || {}).verbo || 'PASANDO').toUpperCase();   // palabra elegida para informar el paso
+  const lineas = (k, def)=>String((A.actual().par || {})[k] || def).split(/\n+/).map(x=>x.trim()).filter(Boolean);
   function siguiente(m, P){ const E = m.ejec; for(let k=1; k<P.pts.length; k++) if(!E.llegadas[k]) return k; return null; }
 
   /* ---------- adelanto / atraso ---------- */
@@ -83,22 +85,30 @@ const Seguir = (function(){
     E.llegadas[k] = ahora();
     const d = (E.llegadas[k] - E.inicio)/60000 - P.pts[k].lleg*60, p = P.pts[k];
     if(navigator.vibrate) navigator.vibrate([200, 100, 200]);
-    A.aviso((auto ? '📍 ' : '✔ ') + 'PASANDO ' + rotulo(p) + ' — ' + dif(d));
+    A.aviso((auto ? '📍 ' : '✔ ') + verbo() + ' ' + rotulo(p) + ' — ' + dif(d));
     mensaje('PC', {pc:p.nombre, clave:p.clave || '', n:k, h:hh(E.llegadas[k]), dif:Math.round(d)});
     if(k===P.pts.length - 1) terminar(true); else { A.guardar(); pintar(); }
   }
   function alto(){
     const m = A.actual(), E = m.ejec;
     if(E.estado==='alto'){ const a = E.altos[E.altos.length - 1]; a.fin = ahora(); E.estado = 'marcha'; A.guardar(); A.aviso('▶ Se reanuda la marcha (alto de ' + dur(a.fin - a.ini) + ')'); return pintar(); }
+    const mot = lineas('motivosAlto', 'Alto horario\nComida\nLesionado');
     A.dialogo(`<h3>⏸ Alto</h3><p class="nota">¿Motivo del alto?</p>
-      <div class="btns">${['Alto horario', 'Comida', 'Lesionado', 'Reorganización', 'Orientación', 'Contacto', 'Otro'].map(x=>`<button class="btn" data-mot="${x}">${x}</button>`).join('')}</div>
-      <div class="btns"><button class="btn" data-cerrar>Cancelar</button></div>`, d=>d.querySelectorAll('[data-mot]').forEach(b=>b.onclick = ()=>{
-        E.altos.push({ini:ahora(), fin:null, motivo:b.dataset.mot, lat:pos && pos.lat, lon:pos && pos.lon}); E.estado = 'alto';
-        A.cerrarDialogo(); A.guardar(); if(b.dataset.mot!=='Alto horario') mensaje('ALTO', {mot:b.dataset.mot}); pintar(); }));
+      <div class="btns">${mot.map(x=>`<button class="btn" data-mot="${A.esc(x)}">${A.esc(x)}</button>`).join('')}</div>
+      <div class="campos" style="margin-top:10px"><label class="c ancho">Otro motivo<input id="aOtro" placeholder="escribir…"></label></div>
+      <div class="btns"><button class="btn pri" id="aOk">Registrar otro motivo</button><button class="btn" data-cerrar>Cancelar</button></div>`, d=>{
+      const poner = motivo=>{ if(!motivo) return;
+        E.altos.push({ini:ahora(), fin:null, motivo, lat:pos && pos.lat, lon:pos && pos.lon}); E.estado = 'alto';
+        A.cerrarDialogo(); A.guardar(); if(!/^alto horario$/i.test(motivo)) mensaje('ALTO', {mot:motivo}); pintar(); };
+      d.querySelectorAll('[data-mot]').forEach(b=>b.onclick = ()=>poner(b.dataset.mot));
+      d.querySelector('#aOk').onclick = ()=>poner(d.querySelector('#aOtro').value.trim()); });
   }
   function novedad(){
-    A.dialogo(`<h3>⚠ Novedad</h3><textarea id="nTxt" placeholder="Lesionado, ruta cortada, cambio de itinerario…" style="font-family:var(--sans);font-size:15px"></textarea>
+    A.dialogo(`<h3>⚠ Novedad</h3>
+      <div class="btns" style="margin:0 0 8px">${lineas('novedades', 'Lesionado\nRuta cortada').map(x=>`<button class="btn mini" data-nv="${A.esc(x)}">${A.esc(x)}</button>`).join('')}</div>
+      <textarea id="nTxt" placeholder="Toca una novedad preparada o escribe…" style="font-family:var(--sans);font-size:15px"></textarea>
       <div class="btns"><button class="btn pri" id="nOk">Registrar y preparar mensaje</button><button class="btn" data-cerrar>Cancelar</button></div>`, d=>{
+      d.querySelectorAll('[data-nv]').forEach(b=>b.onclick = ()=>{ const t = d.querySelector('#nTxt'); t.value = t.value.trim() ? t.value.trim() + ' — ' + b.dataset.nv : b.dataset.nv + ': '; t.focus(); });
       d.querySelector('#nOk').onclick = ()=>{ const t = d.querySelector('#nTxt').value.trim(); if(!t) return;
         const E = A.actual().ejec; E.nov.push({t:ahora(), txt:t, lat:pos && pos.lat, lon:pos && pos.lon}); A.guardar();
         mensaje('NOV', {txt:t}); A.cerrarDialogo(); pintar(); verMensaje(); }; });
@@ -118,7 +128,7 @@ const Seguir = (function(){
     const m = A.actual(), E = m.ejec, P = plan(m), at = atraso(m, P), quien = '«' + (m.nombre || 'marcha') + '»' + (m.unidad ? ' (' + m.unidad + ')' : '');
     const donde = pos ? ' — posición ' + utmTxt(pos) : '';
     const txt = ({INI:'INICIO DE MARCHA ' + quien + ' ' + hh(E.inicio),
-      PC:'PASANDO ' + (d.clave || d.pc) + ' — ' + quien + ' ' + d.h + ' (' + difCorta(d.dif) + ' respecto del plan)' + (d.clave ? ' [' + d.pc + ']' : ''),
+      PC:verbo() + ' ' + (d.clave || d.pc) + ' — ' + quien + ' ' + d.h + ' (' + difCorta(d.dif) + ' respecto del plan)' + (d.clave ? ' [' + d.pc + ']' : ''),
       ALTO:'ALTO NO PLANIFICADO ' + quien + ' — ' + d.mot,
       NOV:'NOVEDAD ' + quien + ' — ' + d.txt,
       POS:'POSICIÓN ' + quien + (at===null ? '' : ' — ' + dif(at)),
@@ -196,7 +206,7 @@ const Seguir = (function(){
   function pintarVivo(){
     const m = A.actual(), E = m && m.ejec; if(!E || E.estado==='fin' || !$('#seguir')) return; const P = plan(m);
     const k = siguiente(m, P), p = k!==null ? P.pts[k] : null, at = atraso(m, P), t = ahora(), c = $('#sCab');
-    const b = $('#sLleg'); if(b) b.textContent = p ? '✔ Pasando ' + rotulo(p) : '';
+    const b = $('#sLleg'); if(b) b.textContent = p ? '✔ ' + verbo() + ' ' + rotulo(p) : '';
     ficha(); mapaVivo();
     if(!c) return;
     let dist = '—', rumbo = '—', mils = '', fuera = '', eta = '';
@@ -231,7 +241,7 @@ const Seguir = (function(){
     const posTxt = (la, lo)=>la===undefined || la===null ? '' : utmTxt({lat:la, lon:lo});
     ev.push({t:E.inicio, real:true, ev:'Inicio de marcha', punto:P.pts[0].nombre, plan:E.inicio, dif:0, tipo:'ini'});
     P.pts.forEach((p, k)=>{ if(!k) return; const r = E.llegadas[k], pl = E.inicio + p.lleg*3600000;
-      ev.push({t:r>0 ? r : pl, real:r>0, ev:'Pasando ' + rotulo(p), punto:p.nombre, plan:pl, dif:r>0 ? (r - pl)/60000 : null, salta:r===-1, tipo:'pc'}); });
+      ev.push({t:r>0 ? r : pl, real:r>0, ev:verbo() + ' ' + rotulo(p), punto:p.nombre, plan:pl, dif:r>0 ? (r - pl)/60000 : null, salta:r===-1, tipo:'pc'}); });
     E.altos.forEach(a=>ev.push({t:a.ini, real:true, ev:'Alto — ' + a.motivo + (a.fin ? ' (' + dur(a.fin - a.ini) + ')' : ' (en curso)'), pos:posTxt(a.lat, a.lon), tipo:'alto'}));
     E.nov.forEach(n=>ev.push({t:n.t, real:true, ev:'Novedad — ' + n.txt, pos:posTxt(n.lat, n.lon), tipo:'nov'}));
     if(E.fin) ev.push({t:E.fin, real:true, ev:'Fin de marcha', punto:P.pts[P.pts.length - 1].nombre, tipo:'fin'});

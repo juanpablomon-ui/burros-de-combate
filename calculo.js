@@ -125,12 +125,27 @@ const MARCHA = (function(){
       'QUIRQUINCHO', 'HUILLÍN', 'COIPO', 'VIZCACHA', 'CARANCHO', 'TIUQUE', 'QUELTEHUE', 'PEUCO', 'LOICA', 'ZORZAL', 'CHERCÁN', 'DEGÚ', 'TRARO']},
     arboles:{n:'Árboles nativos (ALERCE, ARAUCARIA, COIGÜE…)', l:['ALERCE', 'ARAUCARIA', 'COIGÜE', 'RAULÍ', 'ROBLE', 'LENGA', 'ÑIRRE', 'CIPRÉS', 'MAÑÍO', 'QUILLAY', 'LITRE',
       'BOLDO', 'PEUMO', 'MAITÉN', 'CANELO', 'ULMO', 'LAUREL', 'TEPA', 'LUMA', 'ARRAYÁN', 'TAMARUGO', 'ESPINO', 'QUEULE', 'RUIL']},
+    volcanes:{n:'Volcanes de Chile (VILLARRICA, LLAIMA, OSORNO…)', l:['VILLARRICA', 'LLAIMA', 'OSORNO', 'CALBUCO', 'LÁSCAR', 'PARINACOTA', 'LONQUIMAY', 'ANTUCO',
+      'CHAITÉN', 'HUDSON', 'CORCOVADO', 'TUPUNGATITO', 'MAIPO', 'PUYEHUE', 'MOCHO', 'CHOSHUENCO', 'LANÍN', 'LLULLAILLACO', 'COPAHUE', 'CALLAQUI', 'SOLLIPULLI', 'QUETRUPILLÁN', 'MELIMOYU', 'YATE']},
+    rios:{n:'Ríos de Chile (LOA, ELQUI, MAIPO…)', l:['LOA', 'LLUTA', 'COPIAPÓ', 'HUASCO', 'ELQUI', 'LIMARÍ', 'CHOAPA', 'ACONCAGUA', 'MAIPO', 'MAPOCHO', 'CACHAPOAL', 'TINGUIRIRICA',
+      'MATAQUITO', 'MAULE', 'ÑUBLE', 'ITATA', 'LAJA', 'BIOBÍO', 'CAUTÍN', 'IMPERIAL', 'TOLTÉN', 'CALLE-CALLE', 'BUENO', 'MAULLÍN', 'PALENA', 'AYSÉN', 'BAKER', 'PASCUA', 'SERRANO']},
+    ciudades:{n:'Ciudades de Chile (ARICA, IQUIQUE, CALAMA…)', l:['ARICA', 'IQUIQUE', 'CALAMA', 'ANTOFAGASTA', 'COPIAPÓ', 'VALLENAR', 'SERENA', 'OVALLE', 'VALPARAÍSO', 'SANTIAGO',
+      'RANCAGUA', 'CURICÓ', 'TALCA', 'LINARES', 'CHILLÁN', 'CONCEPCIÓN', 'ANGOL', 'TEMUCO', 'VALDIVIA', 'OSORNO', 'PUERTO MONTT', 'CASTRO', 'COYHAIQUE', 'PUNTA ARENAS']},
+    batallas:{n:'Batallas (CHACABUCO, MAIPÚ, YUNGAY…)', l:['CHACABUCO', 'MAIPÚ', 'RANCAGUA', 'EL ROBLE', 'YUNGAY', 'PISAGUA', 'DOLORES', 'TARAPACÁ', 'TACNA', 'ARICA', 'CHORRILLOS',
+      'MIRAFLORES', 'SANGRA', 'CONCEPCIÓN', 'HUAMACHUCO', 'IQUIQUE', 'ANGAMOS', 'MEMBRILLAR', 'QUECHEREGUAS', 'TOPÁTER', 'LOS ÁNGELES', 'CALAMA']},
+    aves:{n:'Aves de Chile (CÓNDOR, CHUCAO, LOICA…)', l:['CÓNDOR', 'CHUCAO', 'LOICA', 'TRARO', 'CHUNCHO', 'PEQUÉN', 'HUET-HUET', 'RAYADITO', 'CHINCOL', 'DIUCA', 'TORDO', 'ZORZAL',
+      'TIUQUE', 'QUELTEHUE', 'CHERCÁN', 'PELÍCANO', 'PINGÜINO', 'FLAMENCO', 'CISNE', 'CARPINTERO', 'PICAFLOR', 'CACHUDITO', 'CHURRETE', 'BANDURRIA']},
+    numeros:{n:'Números (UNO, DOS, TRES…)', l:['UNO', 'DOS', 'TRES', 'CUATRO', 'CINCO', 'SEIS', 'SIETE', 'OCHO', 'NUEVE', 'DIEZ', 'ONCE', 'DOCE', 'TRECE', 'CATORCE', 'QUINCE',
+      'DIECISÉIS', 'DIECISIETE', 'DIECIOCHO', 'DIECINUEVE', 'VEINTE']},
     colores:{n:'Colores (ROJO, AZUL, VERDE…)', l:['ROJO', 'AZUL', 'VERDE', 'NEGRO', 'BLANCO', 'GRIS', 'ORO', 'PLATA', 'NARANJO', 'MORADO', 'CELESTE', 'CAFÉ', 'ROSADO',
       'GRANATE', 'OCRE', 'BRONCE', 'CARMÍN', 'TURQUESA', 'MARFIL', 'CARBÓN']},
+    propia:{n:'Lista propia (escrita por mí)', l:[]},
     ninguna:{n:'Sin nombres clave', l:[]}
   };
-  function claves(pts, lista){
-    const L = (CLAVES[lista] || CLAVES.otan).l, usadas = new Set(pts.map(p=>p.claveManual).filter(Boolean)), lugar = {}; let k = 0;
+  // palabras de la lista propia: una por línea o separadas por coma
+  const listaPropia = t=>String(t||'').split(/[\n,;]+/).map(x=>x.trim().toUpperCase()).filter(Boolean);
+  function claves(pts, lista, propia){
+    const L = lista==='propia' ? listaPropia(propia) : (CLAVES[lista] || CLAVES.otan).l, usadas = new Set(pts.map(p=>p.claveManual).filter(Boolean)), lugar = {}; let k = 0;
     const libre = ()=>{ if(!L.length) return ''; for(let v=0; v<500; v++, k++){ const c = L[k%L.length] + (k>=L.length ? ' ' + (Math.floor(k/L.length) + 1) : ''); if(!usadas.has(c)){ usadas.add(c); k++; return c; } } return ''; };
     pts.forEach((p, i)=>{
       const sitio = p.ok ? p.lat.toFixed(5) + ',' + p.lon.toFixed(5) : null;
@@ -189,7 +204,10 @@ const MARCHA = (function(){
     return {metodo:'montana', tropa:'normal', terreno:'sinNieve', carga:20, criterio:'min',
       velSub:null, velBaj:null,   // null = de la tabla
       velLlano:4, pteCr:0.05, altos:0.10, imprev:0.10,
-      claves:'otan',   // lista de nombres clave de los puntos
+      claves:'otan', clavesPropias:'',   // lista de nombres clave de los puntos
+      verbo:'PASANDO',                   // palabra para informar el paso por un punto («PASANDO ALFA»)
+      motivosAlto:'Alto horario\nComida\nLesionado\nReorganización\nOrientación\nAbastecimiento de agua\nContacto',
+      novedades:'Lesionado\nRezagado\nRuta cortada\nCambio de itinerario\nContacto con el enemigo\nSin enlace\nMaterial perdido',
       velGeneral:null, via:'camino', noche:false,   // marcha general: velocidad de la tabla ATP según vía y día/noche
       efectivo:'', filas:2, distHombres:null, unidades:1, distUnidades:null,   // columna
       wbgt:'', trabajo:'moderado',   // calor y agua
@@ -228,7 +246,7 @@ const MARCHA = (function(){
       const g = puntoWgs(p, dat), cota = num(p.cota);
       return {i, nombre:p.nombre || ('P' + (i + 1)), claveManual:String(p.clave || '').trim().toUpperCase(), obs:p.obs || '', det:(num(p.det)||0)/60, ok:!!g && !isNaN(cota), lat:g && g.lat, lon:g && g.lon, cota};
     });
-    claves(pts, par.claves);
+    claves(pts, par.claves, par.clavesPropias);
     const val = pts.filter(p=>p.ok);
     const zona = num(m.zona) || (val[0] ? Math.floor((val[0].lon + 180)/6) + 1 : 19);
     val.forEach(p=>Object.assign(p, {utm:llAUtm(p.lat, p.lon, zona)}));
@@ -290,7 +308,7 @@ const MARCHA = (function(){
   const MGRS_LAT = 'CDEFGHJKLMNPQRSTUVWX';
   const banda = lat=>MGRS_LAT[Math.max(0, Math.min(19, Math.floor((lat + 80)/8)))];
 
-  return {CLAVES, rumboEntre, sobreTramo, deWgs84, camposDesde, VIAS, VEL_GENERAL, velGeneral, columna, CALOR, TRABAJOS, calor, DATUMS, TERRENOS, TABLA_VERTICAL, METODOS, llAUtm, utmALl, aWgs84, puntoWgs, velVertical, porDefecto, declinacion,
+  return {CLAVES, listaPropia, rumboEntre, sobreTramo, deWgs84, camposDesde, VIAS, VEL_GENERAL, velGeneral, columna, CALOR, TRABAJOS, calor, DATUMS, TERRENOS, TABLA_VERTICAL, METODOS, llAUtm, utmALl, aWgs84, puntoWgs, velVertical, porDefecto, declinacion,
     leerAng, tiempoTramo, calcular, horaAHoras, verDur, verHora, verGms, banda};
 })();
 if(typeof globalThis!=='undefined') globalThis.MARCHA = MARCHA;

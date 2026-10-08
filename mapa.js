@@ -248,7 +248,7 @@ const Mapa = (function(){
         <label class="c">Cota (m)${p.cotaAuto ? ' <small>≈ ' + A.esc(p.cotaSrc || 'terreno') + '</small>' : ''}<input class="num" data-h="cota" inputmode="numeric" value="${A.esc(p.cota)}"></label>
         <label class="c">Detención (min)<input class="num" data-h="det" inputmode="numeric" value="${A.esc(p.det)}" placeholder="0"></label>
         ${i ? `<label class="c ancho">Nombre clave (vacío = automático)<input class="num clave" data-h="clave" value="${A.esc(p.clave || '')}" placeholder="${A.esc(g && g.clave || '')}" list="hClaves"></label>
-          <datalist id="hClaves">${(M.CLAVES[m.par.claves] || M.CLAVES.otan).l.map(c=>`<option value="${c}">`).join('')}</datalist>` : ''}
+          <datalist id="hClaves">${(m.par.claves==='propia' ? M.listaPropia(m.par.clavesPropias) : (M.CLAVES[m.par.claves] || M.CLAVES.otan).l).map(c=>`<option value="${c}">`).join('')}</datalist>` : ''}
         <label class="c ancho">Observaciones<input data-h="obs" value="${A.esc(p.obs)}" placeholder="puente, portezuelo, cruce…"></label>
       </div>
       ${t || s ? `<div class="mono nota">${t ? 'Desde ' + A.esc(t.de) + ': ' + A.f(t.dist) + ' m, ' + (t.dv>=0 ? '+' : '') + A.f(t.dv) + ' m, llega ' + M.verHora(t.llegada) : ''}${t && s ? '<br>' : ''}${s ? 'Al siguiente: rumbo <b>' + A.f(s.azM, 0) + '°</b> / ' + s.mils + ' ‰, ' + A.f(s.dist) + ' m' : ''}</div>` : ''}

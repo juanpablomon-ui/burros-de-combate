@@ -294,3 +294,7 @@ table.matriz td.ev{white-space:normal;min-width:150px}
 table.matriz tr.alto td.ev{color:var(--azul)} table.matriz tr.nov td.ev{color:var(--rojo)}
 table.matriz tr.ini td.ev,table.matriz tr.fin td.ev{color:var(--ocre);font-weight:700}
 table.matriz tr.pend td.ev{color:var(--tenue)}
+.clave-ev{font-family:var(--mono);font-size:12px;color:var(--suave);white-space:nowrap}
+.clave-ev b{color:#14150f;background:var(--ocre);border-radius:4px;padding:1px 5px;letter-spacing:.05em}
+.tc-ev{margin-top:8px}
+@media print{ .clave-ev b{background:none;color:#000;border:1px solid #000} }
