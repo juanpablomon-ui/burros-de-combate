@@ -475,3 +475,6 @@ table.mat td.cant{width:150px} table.mat td.cant input{padding:5px 8px;font-size
 table.mat td .s{display:block;font-size:11px;color:var(--tenue);font-weight:400;font-family:var(--sans)}
 table.mat tr.hecho td b{color:var(--tenue);text-decoration:line-through}
 .doc-hoja table.mat td.ck{width:18px;text-align:center} .doc-hoja table.mat td.cant{width:90px}
+table.mat td.kg{width:120px} table.mat td.kg input{padding:5px 8px;font-size:13px;text-align:right}
+.tarjeta.carga h3{margin:0 0 10px}
+.doc-hoja table.mat td.kg{width:60px;text-align:right}

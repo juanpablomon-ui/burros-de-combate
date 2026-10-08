@@ -109,10 +109,14 @@ const MARCHA = (function(){
              esquies: {10:[450, 450, 1200], 20:[350, 350, 1000], 30:[300, 300, 900]}}
   };
   // Velocidades de la tabla según tropa, terreno y carga. criterio 'min' (prudente, por defecto) | 'media' | 'max'
+  // la tabla trae 10, 20 y 30 kg: para cargas intermedias se interpola (bajo 10 kg se usa 10; sobre 30 kg se usa 30 y se avisa)
   function velVertical(tropa, terreno, carga, criterio){
     const t = (TABLA_VERTICAL[tropa] || {})[terreno]; if(!t) return null;
-    const c = [10, 20, 30].reduce((m, x)=>Math.abs(x - carga)<Math.abs(m - carga) ? x : m, 10), [s1, s2, b] = t[c];
-    return {sub:criterio==='max' ? s2 : criterio==='media' ? (s1 + s2)/2 : s1, baj:b, rango:s1===s2 ? String(s1) : s1 + '–' + s2, carga:c};
+    const k = Math.max(10, Math.min(30, num(carga) || 20)), c0 = k>=20 ? 20 : 10, c1 = c0 + 10, fr = (k - c0)/10;
+    const fila = c=>{ const [s1, s2, b] = t[c]; return {s:criterio==='max' ? s2 : criterio==='media' ? (s1 + s2)/2 : s1, s1, s2, b}; };
+    const a = fila(c0), z = fila(c1), it = (x, y)=>Math.round(x + (y - x)*fr);
+    const s1 = it(a.s1, z.s1), s2 = it(a.s2, z.s2);
+    return {sub:it(a.s, z.s), baj:it(a.b, z.b), rango:s1===s2 ? String(s1) : s1 + '–' + s2, carga:Math.round(k*10)/10, sobre30:num(carga)>30};
   }
 
   /* ---------- nombres clave de los puntos (para la radio: «PASANDO ALFA») ----------
@@ -217,6 +221,7 @@ const MARCHA = (function(){
       luz:'auto', redNoche:25,   // luz: 'auto' (según la hora de cada tramo) | 'dia' | 'noche'; reducción nocturna (%) para montaña y MIDE
       efectivo:'', filas:2, distHombres:null, unidades:1, distUnidades:null,   // columna
       wbgt:'', trabajo:'moderado',   // calor y agua
+      cargaMat:false, cargaBase:'',   // carga por hombre calculada desde el material (+ peso base: armamento, munición, casco, chaleco)
       declAuto:true, decl:0, declFecha:'', declVar:0};
   }
 
@@ -243,7 +248,9 @@ const MARCHA = (function(){
     if(par.metodo==='general'){ const via = vel.via || par.via, u = par.unidadTipo, base = velGeneral(via, noche, u);
       // velocidad escrita a mano = la de día; de noche se reduce en la misma proporción que la tabla
       const v = num(par.velGeneral) ? num(par.velGeneral)*(noche ? velGeneral(via, true, u)/velGeneral(via, false, u) : 1) : base;
-      return {t:dh/1000/v, como:'general', v}; }
+      // con carga sobre unos 18 kg, la velocidad baja ≈ 2 km cada 6 h por cada 4,5 kg extra (manual de marchas a pie de EE.UU.)
+      const extra = Math.max(0, (num(par.carga)||0) - 18.1), vf = par.cargaMat || par.cargaGeneral ? Math.max(v*0.5, v - extra/4.54*(2/6)) : v;
+      return {t:dh/1000/vf, como:'general', v:vf}; }
     const pte = dh>0 ? dv/dh : (dv ? Infinity*Math.sign(dv) : 0), cr = num(par.pteCr) || 0.05;
     if(pte>cr) return {t:dv/vel.sub, como:'subida'};
     if(pte< -cr) return {t:-dv/vel.baj, como:'bajada'};
@@ -252,7 +259,18 @@ const MARCHA = (function(){
 
   /* ---------- cálculo completo del cuadro de marcha ---------- */
   // m: {fecha:'AAAA-MM-DD', hora:'HH:MM', datum, zona (vacío = la del primer punto), par:{...}, puntos:[{nombre, tipo, ..., cota, obs}]}
+  // si la carga sale del material, primero se calcula la marcha con la carga escrita, con eso el material (agua según horas, etc.),
+  // y se vuelve a calcular con la carga resultante (dos vueltas bastan)
   function calcular(m){
+    const p = Object.assign(porDefecto(), m.par || {});
+    if(!p.cargaMat || typeof pesoMaterial==='undefined') return calcular0(m);
+    let R = calcular0(m), pm = null;
+    for(let i=0; i<2; i++){ pm = pesoMaterial(m, R); if(!pm) break; R = calcular0(Object.assign({}, m, {par:Object.assign({}, m.par, {carga:pm.total})})); }
+    if(pm){ R.carga = pesoMaterial(m, R); if(R.carga.total>36) R.avisos.push('Carga por hombre de ' + String(Math.round(R.carga.total*10)/10).replace('.', ',') + ' kg: sobre la carga de combate habitual (27–36 kg). Revisa el material o repártelo.');
+      if(p.metodo!=='general' && R.carga.total>30) R.avisos.push('La tabla de velocidades de montaña llega hasta 30 kg: con más carga el tiempo real será mayor.'); }
+    return R;
+  }
+  function calcular0(m){
     const par = Object.assign(porDefecto(), m.par || {}), dat = m.datum || 'WGS84';
     const vt = velVertical(par.tropa, par.terreno, par.carga, par.criterio) || velVertical('normal', 'sinNieve', par.carga, par.criterio);
     const vel = {sub:num(par.velSub) || vt.sub, baj:num(par.velBaj) || vt.baj, tabla:vt};

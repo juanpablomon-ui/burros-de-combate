@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.23', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.25', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -166,7 +166,8 @@
 
   /* =====================================================================  RUTA  */
   const apiMapa = {actual, guardar, punto, aviso, dialogo, cerrarDialogo, confirmar, copiar, descargar, esc, f, calcular:m=>M.calcular(m), vistaMapa:null,
-    M, evento:c=>evento(c), tablaCuadro:(m, R)=>tablaCuadro(m, R), apoyo:R=>apoyo(R), material:(m, R)=>htmlMaterial(m, R, true).html,
+    M, evento:c=>evento(c), tablaCuadro:(m, R)=>tablaCuadro(m, R), apoyo:R=>apoyo(R), material:(m, R)=>{ const pm = R.carga || pesoMaterial(m, R);
+      return (pm ? `<p class="doc-nota"><b>Carga por hombre: ${f(pm.total, 1)} kg</b> (base ${f(pm.base, 1)} + material individual ${f(pm.indiv, 1)} + colectivo repartido ${f(pm.colect, 1)}).</p>` : '') + htmlMaterial(m, R, true).html; },
     svgPerfil:(R, T, c)=>svgPerfil(R, T, c), terrenoDe:R=>terrenoDe(R), ir:v=>ir(v)};
   // documento para imprimir o PDF (orden gráfica militar o civil); se abre desde cada pantalla con la sección que corresponde
   function documento(secUnica){ const m = actual(); if(!m) return;
@@ -203,7 +204,7 @@
           ${p.metodo!=='general' ? `
           <label class="c">Tropa<select data-par="tropa" data-redibujar>${opc(tropas, p.tropa)}</select></label>
           <label class="c">Terreno / modalidad<select data-par="terreno" data-redibujar>${opc(terrenos, p.terreno)}</select></label>
-          <label class="c">Carga (kg)<select data-par="carga" data-redibujar data-numero>${opc({10:'10 kg', 20:'20 kg', 30:'30 kg'}, String(p.carga))}</select></label>
+          <label class="c">Carga por hombre (kg)${p.cargaMat ? ' <small>del material</small>' : ''}<input class="num" data-par="carga" data-redibujar inputmode="decimal" value="${p.cargaMat && R.carga ? f(R.carga.total, 1) : esc(p.carga)}" ${p.cargaMat ? 'disabled' : ''}></label>
           <label class="c">Valor de la tabla<select data-par="criterio" data-redibujar>${opc({min:'Menor (prudente)', media:'Promedio', max:'Mayor'}, p.criterio)}</select></label>
           <label class="c">Subida (m/h)<input class="num" data-par="velSub" inputmode="numeric" value="${esc(p.velSub||'')}" placeholder="${f(vt.sub)}"></label>
           <label class="c">Bajada (m/h)<input class="num" data-par="velBaj" inputmode="numeric" value="${esc(p.velBaj||'')}" placeholder="${f(vt.baj)}"></label>
@@ -216,7 +217,9 @@
           <label class="c">Altos (% del tiempo de marcha)<input class="num" data-par="altos" data-pct inputmode="decimal" value="${pct(p.altos)}"></label>
           <label class="c">Imprevistos (%)<input class="num" data-par="imprev" data-pct inputmode="decimal" value="${pct(p.imprev)}"></label>
         </div>
-        ${p.metodo!=='general' ? `<p class="nota">Tabla de velocidades de marcha vertical en montaña para ${esc(tropas[p.tropa].toLowerCase())}, ${esc(M.TERRENOS[p.terreno].n.toLowerCase())}, ${vt.carga} kg:
+        <p class="nota">${p.cargaMat ? `Carga calculada desde el <b>Material</b>: ${R.carga ? f(R.carga.total, 1) + ' kg por hombre' : '—'} (cambia la base o el material en Cuadro → Material).` : 'Escribe la carga por hombre, o calcúlala desde el material (Cuadro → Material).'}
+          ${p.metodo!=='general' ? ' La tabla trae 10, 20 y 30 kg: con otra carga se interpola.' : ' En marcha general, con carga sobre unos 18 kg la velocidad baja.'}</p>
+        ${p.metodo!=='general' ? `<p class="nota">Tabla de velocidades de marcha vertical en montaña para ${esc(tropas[p.tropa].toLowerCase())}, ${esc(M.TERRENOS[p.terreno].n.toLowerCase())}, ${f(vt.carga, 1)} kg:
           subida <b>${esc(vt.rango)} m/h</b>, bajada <b>${f(vt.baj)} m/h</b>.${p.terreno==='esquies' && p.tropa==='normal' ? ' <b>Esquíes: la tabla solo trae valores para tropa andina.</b>' : ''}
           Deja vacía la casilla para usar la tabla, o escribe otra velocidad si conoces el rendimiento real de tu unidad.</p>` : ''}
         ${p.metodo==='general' ? `<div class="tabla-env" style="margin:10px 0"><table class="t"><thead><tr><th class="tx">Velocidades ${esc(M.UNIDADES[p.unidadTipo].toLowerCase())} (km/h)</th>${Object.values(M.VIAS).map(v=>`<th>${esc(v)}</th>`).join('')}</tr></thead>
@@ -359,6 +362,7 @@
       if(t.dataset.pct) v = v==='' ? 0 : Number(String(v).replace(',', '.'))/100;
       else if(t.dataset.numero) v = Number(v);
       else if(['velSub', 'velBaj', 'velLlano', 'velGeneral', 'decl', 'declVar'].includes(t.dataset.par)) v = v==='' ? null : String(v).replace(',', '.');
+      else if(t.dataset.par==='carga'){ v = String(v).replace(',', '.'); m.par.cargaGeneral = true; }
       if(t.dataset.par==='luz') delete m.par.noche;
       if(t.dataset.par==='verboSel'){ m.par.verbo = v==='otra' ? '' : v; guardar(); return; }
       if(t.dataset.par==='verbo') v = String(v).toUpperCase();
@@ -593,8 +597,25 @@
       ${its.map(it=>{ const st = Mt[it.id] || {}; return `<tr class="${st.ok ? 'hecho' : ''}"><td class="tx ck">${papel ? (st.ok ? '☑' : '☐') : `<input type="checkbox" data-mt="${it.id}" ${st.ok ? 'checked' : ''}>`}</td>
         <td class="tx"><b>${esc(it.n)}</b>${it.nota ? `<span class="s">${esc(it.nota)}</span>` : ''}</td>
         <td class="cant">${papel ? esc(st.cant || it.auto) : `<input class="num" data-mc="${it.id}" value="${esc(st.cant || '')}" placeholder="${esc(it.auto)}">`}</td>
+        <td class="kg">${(()=>{ const pz = PESOS[it.id] || [0, 'c'], kg0 = it.propio!==undefined ? '' : pz[0], noCarga = pz[1]==='x';
+          return noCarga ? '<span class="s">no se carga</span>' : papel ? (st.kg || kg0) + ' kg' : `<input class="num" data-mk="${it.id}" value="${esc(st.kg || '')}" placeholder="${kg0} kg c/u" inputmode="decimal">`; })()}</td>
         ${papel ? '' : `<td>${it.propio!==undefined ? `<button class="btn mini peligro" data-mx="${it.propio}" aria-label="Quitar">✕</button>` : ''}</td>`}</tr>`; }).join('')}
       </tbody></table>`).join('')};
+  }
+  // carga por hombre: peso base + material individual + parte del colectivo; con la opción de usarla en el cálculo de tiempos
+  function cargaHtml(m, R){
+    const pm = R.carga || pesoMaterial(m, R); if(!pm) return '';
+    const top = pm.items.filter(x=>x.porHombre>0).slice(0, 5).map(x=>esc(x.n) + ' ' + f(x.porHombre, 1) + ' kg').join(' · ');
+    return `<div class="tarjeta carga"><h3>Carga por hombre</h3>
+      <div class="kpis">
+        <div class="kpi ocre"><div class="k">Total por hombre</div><div class="v">${f(pm.total, 1)} <small>kg</small></div></div>
+        <div class="kpi"><div class="k">Peso base</div><div class="v">${f(pm.base, 1)} <small>kg</small></div></div>
+        <div class="kpi"><div class="k">Material individual</div><div class="v">${f(pm.indiv, 1)} <small>kg</small></div></div>
+        <div class="kpi"><div class="k">Colectivo repartido</div><div class="v">${f(pm.colect, 1)} <small>kg</small></div></div></div>
+      <div class="campos"><label class="c">Peso base por hombre (kg)<input class="num" id="mtBase" inputmode="decimal" value="${esc(m.par.cargaBase || '')}" placeholder="armamento, munición, casco, chaleco"></label>
+        <label class="c ancho"><span><input type="checkbox" id="mtUsar" ${m.par.cargaMat ? 'checked' : ''} style="width:auto;vertical-align:middle"> <b>Usar esta carga en el cálculo de tiempos</b> (montaña y MIDE interpolan la tabla; en marcha general baja la velocidad sobre ~18 kg)</span></label></div>
+      <p class="nota">Más pesado por hombre: ${top || '—'}. El colectivo (radios, camillas, cuerdas, botiquines de grupo…) se reparte entre ${pm.hay ? pm.n + ' hombres' : '1 hombre: indica el efectivo en Puntos → Unidad y columna'}.
+        Los pesos son <b>sugeridos</b>: cámbialos en la columna «kg c/u». El agua de reabastecimiento en ruta no se suma.${pm.total>36 ? ' <b style="color:var(--rojo)">Sobre la carga de combate habitual (27–36 kg).</b>' : ''}</p></div>`;
   }
   function vMaterial(){
     const m = actual(), R = M.calcular(m);
@@ -605,15 +626,22 @@
       <div class="info">Calculado para <b>${H.c.hay ? H.c.n + ' hombres' : '1 hombre (indica el efectivo en Puntos → Unidad y columna)'}</b>, ${M.verDur(H.c.horas)} de marcha y ${f(H.c.km, 1)} km${H.c.noche ? ', con ' + Math.round(H.c.noche*100) + ' % de noche' : ''}.
         El agua sale de la tabla de calor (${H.c.calorDato ? 'con el índice WBGT indicado' : 'sin índice WBGT: se usa calor bajo'}); las demás cantidades son <b>sugerencias</b>: escribe la tuya si la orden dice otra cosa.
         Aparecen solo los elementos que corresponden (noche, montaña, nieve, calor).</div>
+      ${cargaHtml(m, R)}
       <div class="tarjeta">${H.html}</div>
-      <div class="tarjeta"><div class="campos"><label class="c ancho">Agregar otro elemento<input id="mtNuevo" placeholder="Ej: pala de campaña"></label><label class="c">Cantidad<input id="mtNuevoC" placeholder="Ej: 4"></label></div>
+      <div class="tarjeta"><div class="campos"><label class="c ancho">Agregar otro elemento<input id="mtNuevo" placeholder="Ej: pala de campaña"></label><label class="c">Cantidad<input id="mtNuevoC" placeholder="Ej: 4"></label><label class="c">kg c/u<input id="mtNuevoK" placeholder="Ej: 1,2" inputmode="decimal"></label></div>
         <div class="btns"><button class="btn" id="mtAgregar">＋ Agregar</button><button class="btn" id="mtLimpia">Desmarcar todo</button><button class="btn pri" id="mtDoc">📄 Documento con el material</button></div></div>`;
     const cuenta = ()=>$('#mtCuenta').innerHTML = `<b>${hechos()} de ${tot}</b> listos.`; cuenta();
     const Mt = ()=>m.material || (m.material = {});
     vista.querySelectorAll('[data-mt]').forEach(x=>x.onchange = ()=>{ const o = Mt()[x.dataset.mt] || (Mt()[x.dataset.mt] = {}); o.ok = x.checked; x.closest('tr').classList.toggle('hecho', x.checked); guardar(); cuenta(); });
-    vista.querySelectorAll('[data-mc]').forEach(x=>x.oninput = ()=>{ const o = Mt()[x.dataset.mc] || (Mt()[x.dataset.mc] = {}); o.cant = x.value; guardar(); });
+    let tC = null; const recarga = ()=>{ clearTimeout(tC); tC = setTimeout(()=>{ const y = window.scrollY, a = document.activeElement && document.activeElement.dataset; const foco = a && (a.mc ? '[data-mc="' + a.mc + '"]' : a.mk ? '[data-mk="' + a.mk + '"]' : document.activeElement.id ? '#' + document.activeElement.id : null);
+      pintar(); window.scrollTo(0, y); if(foco){ const e = vista.querySelector(foco); if(e){ e.focus(); const v = e.value; e.value = ''; e.value = v; } } }, 700); };
+    vista.querySelectorAll('[data-mc]').forEach(x=>x.oninput = ()=>{ const o = Mt()[x.dataset.mc] || (Mt()[x.dataset.mc] = {}); o.cant = x.value; guardar(); recarga(); });
+    vista.querySelectorAll('[data-mk]').forEach(x=>x.oninput = ()=>{ const o = Mt()[x.dataset.mk] || (Mt()[x.dataset.mk] = {}); o.kg = x.value; guardar(); recarga(); });
+    const b = $('#mtBase'); if(b) b.oninput = ()=>{ m.par.cargaBase = b.value; guardar(); recarga(); };
+    const u = $('#mtUsar'); if(u) u.onchange = ()=>{ m.par.cargaMat = u.checked; guardar(); pintar(); aviso(u.checked ? '✔ La carga del material se usa en el cálculo de tiempos' : 'La carga vuelve a ser la escrita a mano'); };
     vista.querySelectorAll('[data-mx]').forEach(x=>x.onclick = ()=>{ m.materialExtra.splice(+x.dataset.mx, 1); delete Mt()['x' + x.dataset.mx]; guardar(); pintar(); });
-    $('#mtAgregar').onclick = ()=>{ const n = $('#mtNuevo').value.trim(); if(!n) return; (m.materialExtra || (m.materialExtra = [])).push({n, cant:$('#mtNuevoC').value.trim()}); guardar(); pintar(); };
+    $('#mtAgregar').onclick = ()=>{ const n = $('#mtNuevo').value.trim(); if(!n) return; (m.materialExtra || (m.materialExtra = [])).push({n, cant:$('#mtNuevoC').value.trim()});
+      const k = $('#mtNuevoK').value.trim(); if(k){ const Mx = Mt(); Mx['x' + (m.materialExtra.length - 1)] = {kg:k}; } guardar(); pintar(); };
     $('#mtLimpia').onclick = ()=>{ Object.values(Mt()).forEach(o=>o.ok = false); guardar(); pintar(); };
     $('#mtDoc').onclick = ()=>documento('material');
   }
