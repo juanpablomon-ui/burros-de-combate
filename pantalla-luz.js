@@ -53,6 +53,47 @@ const PantallaLuz = (function(){
     return `<svg viewBox="0 0 ${W} ${y0 + hA + 34}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Luz del día de la marcha" style="font-family:var(--mono)">${s}</svg>`;
   }
 
+  /* esquema de crepúsculos: horizonte al centro, atardecer (vespertino) a la izquierda y amanecer (matutino) a la derecha; rayos a 0°,
+     6°, 9°, 12° y 18° bajo el horizonte con su sigla y la HORA REAL del día; el sol se ubica según la hora elegida en la barra.
+     Los ángulos del dibujo están agrandados (×2,2) para que se lean. */
+  function esquema(D, t, lat, lon){
+    const W = 1000, cx = 500, cy = 92, Lr = 315, k = 2.2, am = D.amanecer, at = D.atardecer;
+    const P = (dep, lado, r)=>{ const a = dep*k*Math.PI/180; return [cx + lado*(r || Lr)*Math.cos(a), cy + (r || Lr)*Math.sin(a)]; };   // lado −1 izquierda, +1 derecha
+    let s = '';
+    // cuñas de color entre los rayos
+    const cuna = (d1, d2, lado, col)=>{ const a = P(d1, lado), b = P(d2, lado); s += `<path d="M${cx},${cy} L${a[0]},${a[1]} L${b[0]},${b[1]} Z" fill="${col}" fill-opacity=".85"/>`; };
+    [-1, 1].forEach(l=>{ cuna(0, 6, l, COLOR.civil); cuna(6, 12, l, COLOR.nautico); cuna(12, 18, l, COLOR.astro); cuna(18, 24, l, COLOR.noche); });
+    // cielo de día y trayectoria del sol (de la salida, a la derecha, a la puesta, a la izquierda)
+    s += `<path d="M${cx - 260},${cy} A260,66 0 0 1 ${cx + 260},${cy}" fill="none" stroke="#f2c46b" stroke-width="2" stroke-dasharray="6 5" opacity=".7"/>
+      <path d="M${cx - 260},${cy} l12,-10 M${cx - 260},${cy} l16,4" stroke="#f2c46b" stroke-width="2" opacity=".7"/>
+      <text x="${cx + 262}" y="${cy - 8}" font-size="12" text-anchor="start" fill="#f2c46b">SALIDA ${hh(am.salida)}</text>
+      <text x="${cx - 262}" y="${cy - 8}" font-size="12" text-anchor="end" fill="#f2c46b">PUESTA ${hh(at.puesta)}</text>
+      <text x="${cx - 250}" y="16" font-size="13" font-weight="700" text-anchor="middle" fill="#ece8d8">CREPÚSCULO VESPERTINO</text>
+      <text x="${cx + 250}" y="16" font-size="13" font-weight="700" text-anchor="middle" fill="#ece8d8">CREPÚSCULO MATUTINO</text>
+      <line x1="40" x2="${W - 40}" y1="${cy}" y2="${cy}" stroke="#ece8d8" stroke-width="1.5"/><text x="${cx}" y="${cy - 82}" font-size="11" text-anchor="middle" fill="#a3a28c">HORIZONTE · 0°</text>`;
+    // rayos con sigla y hora
+    const rayos = [[6, 'C.C.V.', at.civil, 'C.C.M.', am.civil], [9, 'ÚLTIMA LUZ', at.ultimaLuz, 'PRIMERA LUZ', am.primeraLuz], [12, 'C.N.V.', at.nautico, 'C.N.M.', am.nautico], [18, 'C.A.V.', at.astro, 'C.A.M.', am.astro]];
+    rayos.forEach(([dep, sv, tv, sm, tm])=>{ const iz = P(dep, -1), de = P(dep, 1), luz = dep===9;
+      s += `<line x1="${cx}" y1="${cy}" x2="${iz[0]}" y2="${iz[1]}" stroke="#ece8d8" stroke-width="${luz ? 1 : 1.4}" stroke-dasharray="${luz ? '5 4' : ''}"/>
+        <line x1="${cx}" y1="${cy}" x2="${de[0]}" y2="${de[1]}" stroke="#ece8d8" stroke-width="${luz ? 1 : 1.4}" stroke-dasharray="${luz ? '5 4' : ''}"/>
+        <text x="${iz[0] - 6}" y="${iz[1] + 4}" font-size="12" text-anchor="end" fill="#ece8d8"><tspan font-weight="700">${sv} ${dep}°</tspan> <tspan fill="#f2c46b">${hh(tv)}</tspan></text>
+        <text x="${de[0] + 6}" y="${de[1] + 4}" font-size="12" text-anchor="start" fill="#ece8d8"><tspan fill="#f2c46b">${hh(tm)}</tspan> <tspan font-weight="700">${dep}° ${sm}</tspan></text>`; });
+    // duración de cada crepúsculo, al medio de su cuña
+    const durTxt = (d, lado, txt)=>{ const p = P(d, lado, Lr*0.62); s += `<text x="${p[0]}" y="${p[1] + 4}" font-size="11" text-anchor="middle" fill="#fff" stroke="#14150f" stroke-width="3" paint-order="stroke">${txt}</text>`; };
+    durTxt(3, -1, 'civil ' + dur(at.civil - at.puesta)); durTxt(15, -1, 'astron. ' + dur(at.astro - at.nautico)); durTxt(10.5, -1, 'náutico ' + dur(at.nautico - at.civil));
+    durTxt(3, 1, 'civil ' + dur(am.salida - am.civil)); durTxt(15, 1, 'astron. ' + dur(am.nautico - am.astro)); durTxt(10.5, 1, 'náutico ' + dur(am.civil - am.nautico));
+    // el sol a la hora elegida
+    const a = LUZ.sol(t, lat, lon).alt, mediodia = D.mediodia ? t>=D.mediodia : t.getHours()>=12;
+    let sx, sy, txt;
+    if(a>= -0.833){ const tS = am.salida ? am.salida.valueOf() : 0, tP = at.puesta ? at.puesta.valueOf() : 1, fr = Math.max(0, Math.min(1, (t - tS)/(tP - tS)));
+      const ang = Math.PI*fr; sx = cx + 260*Math.cos(ang); sy = cy - 66*Math.sin(ang); txt = 'sol ' + A.f(a, 0) + '° sobre el horizonte: día'; }
+    else { const dep = Math.min(23, -a), lado = mediodia ? -1 : 1, p = P(dep, lado, Lr*0.82); sx = p[0]; sy = p[1];
+      const c = LUZ.condicion(t, lat, lon), sig = {civil:'C', nautico:'N', astro:'A'}[c.tipo];
+      txt = 'sol ' + A.f(-a, 0) + '° bajo el horizonte: ' + LUZ.TIPOS[c.tipo].toLowerCase() + (sig ? ' (C.' + sig + '.' + (mediodia ? 'V.' : 'M.') + ')' : ''); }
+    s += `<circle cx="${sx}" cy="${sy}" r="13" fill="#f2c46b" stroke="#fff" stroke-width="2"/><circle cx="${sx}" cy="${sy}" r="20" fill="none" stroke="#f2c46b" stroke-opacity=".5" stroke-width="2"/>`;
+    return {svg:`<svg viewBox="0 0 ${W} ${cy + Lr*Math.sin(24*k*Math.PI/180) + 14}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Esquema de crepúsculos" style="font-family:var(--mono)">${s}</svg>`, txt};
+  }
+
   function pintar(vista, api){
     A = api; const m = A.actual(), R = A.calcular(m), p0 = R.puntos.find(p=>p.ok);
     if(!p0){ vista.innerHTML = `<div class="tarjeta vacio">Marca al menos el PIM para calcular la luz del lugar.</div>`; return; }
@@ -106,6 +147,11 @@ const PantallaLuz = (function(){
       </div>
 
       <div class="tarjeta"><h3>Crepúsculos</h3>
+        <div class="perfil-env luz-esq" id="lEsq"></div>
+        <div class="luz-barra"><span class="mono" id="lHora"></span><input type="range" id="lSol" min="0" max="${24*60 - 5}" step="5" aria-label="Hora para ubicar el sol"><span class="nota" id="lTxt"></span></div>
+        <p class="nota">Siglas: C.C. = crepúsculo civil · C.N. = náutico · C.A. = astronómico; V. = vespertino (atardecer) · M. = matutino (amanecer).
+          Junto a cada línea, la hora en que el sol llega a esa profundidad. Mueve la barra para ver dónde está el sol a cada hora.</p>
+        ${esDia && evs.some(e=>e.cond.tipo!=='dia' && !e.cond.oscuro) ? `<p class="nota">Eventos de la marcha en crepúsculo: <b>${evs.filter(e=>e.cond.tipo!=='dia' && !e.cond.oscuro).map(e=>A.esc(e.c || e.n) + ' ' + A.M.verHora(e.h) + ' (' + LUZ.TIPOS[e.cond.tipo].toLowerCase() + ')').join(' · ')}</b></p>` : ''}
         <div class="tabla-env"><table class="t luz-crep"><thead><tr><th class="tx">Período</th><th class="tx">Sol bajo el horizonte</th><th>Matutino (amanecer)</th><th>Vespertino (atardecer)</th><th class="tx">Qué permite</th></tr></thead><tbody>
           <tr><td class="tx"><i class="pz" style="background:${COLOR.astro}"></i><b>Astronómico</b></td><td class="tx">12° a 18°</td><td>${hh(am.astro)} – ${hh(am.nautico)}</td><td>${hh(at.nautico)} – ${hh(at.astro)}${sig(at.astro)}</td><td class="tx obs">Casi oscuridad: para efectos militares se considera noche.</td></tr>
           <tr><td class="tx"><i class="pz" style="background:${COLOR.nautico}"></i><b>Náutico</b></td><td class="tx">6° a 12°</td><td>${hh(am.nautico)} – ${hh(am.civil)}</td><td>${hh(at.civil)} – ${hh(at.nautico)}</td><td class="tx obs">Transición luz/oscuridad: la mayoría de los movimientos a pie sin dificultad, con poca observación del adversario.</td></tr>
@@ -124,6 +170,11 @@ const PantallaLuz = (function(){
         </tbody></table></div>
         <p class="nota">☀ día · ◐ crepúsculo · ☾ noche con luna · ● noche sin luna. Horas calculadas para el PIM; en una marcha larga cambian algunos minutos entre un extremo y otro.</p>
       </div>` : ''}`;
+    // barra del sol: parte en la hora de partida de la marcha (o el mediodía si se mira otro día)
+    const barra = vista.querySelector('#lSol'), t0d = LUZ.inicioDia(f);
+    const ponerSol = ()=>{ const mi = +barra.value, t = new Date(t0d + mi*60000), e = esquema(D, t, p0.lat, p0.lon);
+      vista.querySelector('#lEsq').innerHTML = e.svg; vista.querySelector('#lHora').textContent = hh(t); vista.querySelector('#lTxt').textContent = e.txt; };
+    barra.value = esDia && R.res.partida!==null ? Math.round((R.res.partida%24)*12)*5 : 12*60; barra.oninput = ponerSol; ponerSol();
     vista.querySelectorAll('[data-d]').forEach(b=>b.onclick = ()=>{ const n = +b.dataset.d; verFecha.f = n===0 ? m.fecha : sumaDias(verFecha.f, n); pintar(vista, api); });
   }
   return {pintar, dibujoLuna, grafico};

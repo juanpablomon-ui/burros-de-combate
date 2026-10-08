@@ -346,3 +346,10 @@ table.luz-crep td.obs{min-width:280px}
 .s-hud .bien{color:var(--verde)} .s-hud .ocre{color:var(--ocre)}
 .s-pie .btn.grande{margin:0;box-shadow:0 4px 18px #000a}
 .s-ayuda{margin:6px 2px 0;font-size:11px;color:var(--texto);text-shadow:0 1px 3px #000,0 0 6px #000;text-align:center}
+/* esquema de crepúsculos */
+.luz-esq{background:#101109;margin-bottom:8px}
+.luz-esq svg{min-width:680px}
+.luz-barra{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:4px 0 8px}
+.luz-barra input[type=range]{flex:1;min-width:200px;accent-color:var(--ocre);padding:0;border:0;background:none}
+.luz-barra #lHora{font-size:20px;font-weight:700;color:var(--ocre);min-width:58px}
+.luz-barra #lTxt{flex-basis:100%;margin:0}
