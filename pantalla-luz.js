@@ -177,6 +177,6 @@ const PantallaLuz = (function(){
     barra.value = esDia && R.res.partida!==null ? Math.round((R.res.partida%24)*12)*5 : 12*60; barra.oninput = ponerSol; ponerSol();
     vista.querySelectorAll('[data-d]').forEach(b=>b.onclick = ()=>{ const n = +b.dataset.d; verFecha.f = n===0 ? m.fecha : sumaDias(verFecha.f, n); pintar(vista, api); });
   }
-  return {pintar, dibujoLuna, grafico};
+  return {pintar, dibujoLuna, grafico:(f, lat, lon, R, api)=>{ if(api) A = api; return grafico(f, lat, lon, R); }, esquema:(D, t, lat, lon, api)=>{ if(api) A = api; return esquema(D, t, lat, lon); }};
 })();
 if(typeof globalThis!=='undefined') globalThis.PantallaLuz = PantallaLuz;

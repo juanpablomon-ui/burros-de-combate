@@ -353,3 +353,96 @@ table.luz-crep td.obs{min-width:280px}
 .luz-barra input[type=range]{flex:1;min-width:200px;accent-color:var(--ocre);padding:0;border:0;background:none}
 .luz-barra #lHora{font-size:20px;font-weight:700;color:var(--ocre);min-width:58px}
 .luz-barra #lTxt{flex-basis:100%;margin:0}
+
+/* ===== documento / orden gráfica (vista previa en hojas blancas e impresión) ===== */
+#docVista{position:fixed;inset:0;z-index:2000;background:#3a3c34;overflow:auto;padding:0 0 40px}
+body.con-doc{overflow:hidden}
+.doc-barra{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 14px;background:var(--fondo);border-bottom:1px solid var(--linea)}
+.doc-barra .nota{flex:1;min-width:160px}
+.doc-config{max-width:900px;margin:12px auto}
+.doc-secs{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:6px 14px}
+.doc-secs label{display:flex;gap:8px;align-items:center;font-size:14px;cursor:pointer}
+.doc-secs input{width:18px;height:18px;accent-color:var(--ocre)}
+.doc-paginas{margin:0 auto;padding:0 10px}
+.doc-paginas.vertical{max-width:210mm} .doc-paginas.apaisado{max-width:297mm}
+.doc-hoja{position:relative;background:#fff;color:#111;font-family:Helvetica,Arial,sans-serif;font-size:11px;line-height:1.35;padding:14mm 12mm;box-shadow:0 6px 30px #0008;margin:14px 0}
+.doc-hoja .doc-clasif{position:absolute;left:0;right:0;text-align:center;font-weight:700;font-size:12px;letter-spacing:.12em;color:#000}
+.doc-hoja .doc-clasif.arriba{top:5mm} .doc-hoja .doc-clasif.abajo{bottom:5mm}
+.doc-cab{display:flex;justify-content:space-between;gap:20px;font-size:10.5px;text-transform:uppercase;margin-bottom:8px}
+.doc-cab .der{text-align:right;font-weight:700;max-width:50%}
+.doc-cab.civ{text-transform:none;color:#555}
+.doc-tit{text-align:center;font-size:16px;margin:10px 0 2px;letter-spacing:.04em;text-decoration:underline}
+.doc-tit.civ{text-decoration:none;font-size:20px;letter-spacing:0}
+.doc-sub{text-align:center;font-size:12px;font-weight:700;margin-bottom:8px}
+.doc-ref{font-size:10.5px;margin:6px 0}
+.doc-ref.civ{color:#777;text-align:center;margin-top:14px}
+.doc-res{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:10px 0 14px}
+.doc-res .dr{display:flex;gap:8px;align-items:flex-start;border:1px solid #bbb;border-radius:6px;padding:7px 8px;background:#fafafa}
+.doc-res .dr svg{width:22px;height:22px;flex:0 0 auto;fill:none;stroke:#333;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;margin-top:2px}
+.doc-res span{display:block;font-size:8px;text-transform:uppercase;letter-spacing:.06em;color:#555}
+.doc-res b{display:block;font-size:15px;line-height:1.15;color:#111;font-variant-numeric:tabular-nums}
+.doc-res small{display:block;font-size:8.5px;color:#666;margin-top:1px}
+.doc-res .dr.dest{border:1.5px solid #111;background:#fff} .doc-res .dr.dest b{font-size:18px}
+/* civil: con color */
+.doc-hoja.civil .doc-res .dr{border:0;border-top:3px solid #c98a1f;background:#fbf6ec;border-radius:4px}
+.doc-hoja.civil .doc-res .dr.dest{border-top-color:#8a5d17;background:#f6ecd6} .doc-hoja.civil .doc-res .dr svg{stroke:#8a5d17}
+.doc-hoja.civil .doc-res .dr.dest b{color:#5a3c0b}
+.doc-hoja.civil .doc-h2{border-bottom-color:#c98a1f;color:#5a3c0b}
+.doc-hoja.civil .doc-tit{color:#5a3c0b}
+@media (max-width:640px){ .doc-res{grid-template-columns:repeat(2,1fr)} }
+.doc-hoja .doc-res .dr,.doc-hoja .doc-res .dr svg{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.doc-sec{margin-top:12px}
+.doc-sec.salto{break-before:page;page-break-before:always;padding-top:4mm}
+.doc-h2{font-size:12.5px;text-transform:uppercase;letter-spacing:.06em;border-bottom:1.5px solid #111;margin:0 0 6px;padding-bottom:2px;color:#111}
+.doc-h2::before{content:none}
+.doc-h3{font-size:11.5px;margin:10px 0 4px}
+.doc-nota{font-size:10px;color:#333;margin:5px 0}
+.doc-hoja .tabla-env{overflow:visible;border:0;background:none}
+.doc-hoja table.t{font-size:9.2px;width:100%;border-collapse:collapse;color:#111}
+.doc-hoja table.t th,.doc-hoja table.t td{border:1px solid #888;padding:2px 4px;background:#fff;color:#111;font-family:Helvetica,Arial,sans-serif}
+.doc-hoja table.t th{background:#eee;font-weight:700;color:#111}
+.doc-hoja table.t tr.sub td{color:#555;background:#fafafa}
+.doc-hoja table.t td .s{color:#666;font-size:8px}
+.doc-hoja table.t .sube{color:#a01818} .doc-hoja table.t .baja{color:#1a4f8a} .doc-hoja table.t .fuerte{color:#000;font-weight:700}
+.doc-hoja table.t tr.tot td{background:#eee;font-weight:700}
+.doc-hoja .clave-ev{color:#111} .doc-hoja .clave-ev b{background:none;color:#000;border:1px solid #000}
+.doc-hoja .luzico{color:#333}
+.doc-hoja .kpis{grid-template-columns:repeat(4,1fr)} .doc-hoja .kpi{background:#fff;border:1px solid #999;color:#111;padding:6px} .doc-hoja .kpi .v{font-size:14px;color:#111} .doc-hoja .kpi .k{color:#555}
+.doc-hoja .nota{color:#333} .doc-hoja .alerta{background:#fff3f0;color:#111}
+.doc-hoja h2:not(.doc-h2){color:#111;font-size:11px} .doc-hoja h2:not(.doc-h2)::before{content:none}
+.doc-osc{background:#14150f;border-radius:4px;padding:4px;margin:6px 0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.doc-osc svg{display:block;width:100%;height:auto}
+.doc-mapa{height:150mm;border:1px solid #333;background:#ddd}
+.apaisado .doc-mapa{height:120mm}
+.doc-mapa-pie{font-size:9.5px;margin:3px 0 6px;color:#222}
+.doc-mapa-pie .norte{font-weight:700}
+.doc-ev{background:#b3261e;border:2px solid #fff;border-radius:50%;box-shadow:0 0 0 1px #000}
+.doc-ev span{position:absolute;left:14px;top:-3px;white-space:nowrap;background:#fff;color:#000;font:700 10px Helvetica,Arial,sans-serif;padding:0 3px;border:1px solid #000}
+.doc-grid{background:none;border:0;color:#1d3b8a;font:700 10px Helvetica,Arial,sans-serif;text-shadow:0 0 2px #fff,0 0 2px #fff}
+.doc-firmas{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:16px 40px;margin:28px 0 10px}
+.doc-firmas>div{min-width:200px;text-align:center;font-size:10.5px;text-transform:uppercase}
+.doc-firmas .linea{border-top:1px solid #000;margin:30px 0 3px}
+.doc-distr{font-size:10px;margin-top:10px}
+.doc-lista{margin:0 0 6px 16px;padding:0;font-size:10.5px} .doc-lista li{list-style:none;margin:2px 0}
+.doc-hoja .leaflet-control-attribution{font-size:8px}
+@media print{
+  body.doc-imprimir{background:#fff}
+  body.doc-imprimir>*:not(#docVista){display:none!important}
+  body.doc-imprimir #docVista{position:static;overflow:visible;background:#fff;padding:0}
+  body.doc-imprimir .doc-barra,body.doc-imprimir .doc-config{display:none!important}
+  body.doc-imprimir .doc-paginas{max-width:none;padding:0}
+  body.doc-imprimir .doc-hoja{box-shadow:none;margin:0;padding:6mm 0 0}
+  body.doc-imprimir .doc-hoja .doc-clasif.arriba{position:fixed;top:-8mm} body.doc-imprimir .doc-hoja .doc-clasif.abajo{position:fixed;bottom:-10mm}
+  body.doc-imprimir .doc-mapa,body.doc-imprimir .doc-ev,body.doc-imprimir .doc-osc{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+/* documento: la tabla del cuadro debe caber en el ancho de la hoja */
+.doc-hoja table.t{table-layout:auto}
+.doc-hoja table.t th,.doc-hoja table.t td{white-space:normal;word-break:normal}
+.doc-hoja table.cmn{font-size:8px} .doc-hoja table.cmn th{font-size:7.5px}
+.doc-hoja table.cmn td .s{display:none}
+.doc-hoja table.cmn td.obs{min-width:0;max-width:90px}
+.doc-hoja .clave-ev{font-size:8px;white-space:nowrap} .doc-hoja .clave-ev b{padding:0 2px}
+.doc-hoja table.cmn .luzico{font-size:8px;margin-left:1px}
+.doc-blq{position:relative}
+.doc-mapa{position:relative;overflow:hidden}
+.doc-mapa-img{display:block;width:100%;height:100%;object-fit:cover}

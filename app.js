@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.18', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.21', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -166,8 +166,15 @@
 
   /* =====================================================================  RUTA  */
   const apiMapa = {actual, guardar, punto, aviso, dialogo, cerrarDialogo, confirmar, copiar, descargar, esc, f, calcular:m=>M.calcular(m), vistaMapa:null,
+    M, evento:c=>evento(c), tablaCuadro:(m, R)=>tablaCuadro(m, R), apoyo:R=>apoyo(R),
     svgPerfil:(R, T, c)=>svgPerfil(R, T, c), terrenoDe:R=>terrenoDe(R), ir:v=>ir(v)};
-  function vLuz(){ PantallaLuz.pintar(vista, Object.assign({}, apiMapa, {M, evento})); }
+  // documento para imprimir o PDF (orden gráfica militar o civil); se abre desde cada pantalla con la sección que corresponde
+  function documento(secUnica){ const m = actual(); if(!m) return;
+    if(secUnica){ m.doc = m.doc || {}; m.doc.sec = Object.assign({mapa:false, perfil:false, cuadro:false, matriz:false, luz:false, claves:false, apoyo:false, lista:false}, {[secUnica]:true}); }
+    Documento.abrir(apiMapa); }
+  function vLuz(){ PantallaLuz.pintar(vista, Object.assign({}, apiMapa, {M, evento}));
+    vista.insertAdjacentHTML('beforeend', '<div class="btns no-imp"><button class="btn pri" id="bImpL">📄 Documento con la luz y visibilidad</button></div>');
+    $('#bImpL').onclick = ()=>documento('luz'); }
   function vMapa(){ vista.innerHTML = '<div id="mapaCont"></div>'; Mapa.abrir($('#mapaCont'), apiMapa); }
   function vSeguir(){ vista.innerHTML = '<div id="seguirCont"></div>'; Seguir.abrir($('#seguirCont'), apiMapa); }
   function vRuta(){
@@ -426,6 +433,32 @@
   }
   // texto del evento para la radio: «PASANDO ALFA» (palabra elegida en Nombres clave)
   function evento(clave){ const m = actual(); return clave ? `<span class="clave-ev">${esc(((m.par && m.par.verbo) || 'PASANDO').toUpperCase())} <b>${esc(clave)}</b></span>` : ''; }
+  // tabla del cuadro de marcha y navegación (se usa en la pestaña Cuadro y en el documento)
+  function tablaCuadro(m, R){
+    const T = R.tramos, como = {subida:'↗', bajada:'↘', llano:'→', MIDE:'', general:''}, pteC = p=>Math.abs(p)>=0.3 ? 'fuerte' : '';
+    const filas = R.puntos.filter(p=>p.ok).map(p=>{ const ll = T.find(t=>t.iB===p.i), sig = T.find(t=>t.iA===p.i);
+      return {p, ll, sig, sal:ll ? ll.salida : R.res.partida + p.det, acum:ll ? ll.distAcum : 0, tac:ll ? ll.tAcum : 0}; });
+    const nombre = p=>p.ev ? '<b>' + esc(p.nombre) + '</b>' : '↳ quiebre';
+    const p0 = R.puntos.find(q=>q.ok), icoLuz = h=>{ if(!R.conLuz || h===null || h===undefined) return '';
+      const c = LUZ.condicion(new Date(LUZ.inicioDia(m.fecha) + h*36e5), p0.lat, p0.lon);
+      return `<span class="luzico" title="${LUZ.TIPOS[c.tipo]}${c.oscuro ? (c.conLuna ? ', con luna' : ', sin luna') : ''}">${c.tipo==='dia' ? '☀' : c.oscuro ? (c.conLuna ? '☾' : '●') : '◐'}</span>`; };
+    const obs = (p, ll)=>esc(p.obs) + (ll && ll.det ? (p.obs ? ' · ' : '') + 'detención ' + Math.round(ll.det*60) + ' min' : '');
+    return `
+      <div class="tabla-env solo-ancho"><table class="t cmn">
+        <thead><tr><th class="tx">Punto</th><th class="tx">Evento<br>(radio)</th><th>Hora<br>llegada</th><th>Hora<br>salida</th><th>Altitud<br>(m)</th>
+          <th class="sig">Rumbo al siguiente<br>(° / ‰)</th><th class="sig">Distancia<br>(m)</th><th class="sig">Desnivel<br>(m)</th><th class="sig">Pendiente</th><th class="sig">Tiempo</th>
+          <th>Dist. acum.<br>(km)</th><th>Tiempo<br>acum.</th><th class="tx">Observaciones</th></tr></thead>
+        <tbody>${filas.map(({p, ll, sig, sal, acum, tac})=>`<tr class="${p.ev ? '' : 'sub'}"><td class="tx">${nombre(p)}</td><td class="tx">${p.ev ? evento(p.clave) : ''}</td>
+          <td>${ll ? '<b>' + M.verHora(ll.llegada) + '</b>' + icoLuz(ll.llegada) : '—'}</td><td>${sig ? M.verHora(sal) : '—'}</td><td>${f(p.cota)}</td>
+          ${sig ? `<td class="sig"><b>${f(sig.azM, 0)}°</b> / ${sig.mils}<span class="s">cuad. ${f(sig.azC, 1)} · geo. ${f(sig.azG, 1)}</span></td><td class="sig">${f(sig.dist)}</td>
+            <td class="sig ${sig.dv>0 ? 'sube' : sig.dv<0 ? 'baja' : ''}">${sig.dv>0 ? '+' : ''}${f(sig.dv)}</td><td class="sig ${pteC(sig.pte)}">${f(sig.pte*100, 1)} %</td><td class="sig">${como[sig.como]||''} ${M.verDur(sig.t)}</td>`
+            : '<td class="sig">—</td><td class="sig"></td><td class="sig"></td><td class="sig"></td><td class="sig"></td>'}
+          <td>${f(acum/1000, 2)}</td><td>${ll ? M.verDur(tac) : '—'}</td><td class="obs tx">${obs(p, ll)}</td></tr>`).join('')}
+          <tr class="tot"><td class="tx">Total</td><td></td><td></td><td>${M.verHora(R.res.termino)}<span class="s">término</span></td><td></td><td class="sig"></td><td class="sig">${f(R.res.dist)}</td>
+            <td class="sig">+${f(R.res.sube)} / −${f(R.res.baja)}</td><td class="sig"></td><td class="sig">${M.verDur(R.res.marcha)}</td><td>${f(R.res.dist/1000, 2)}</td><td></td><td class="tx obs">término con altos, detenciones e imprevistos</td></tr>
+        </tbody></table></div>
+`;
+  }
   // CUADRO DE MARCHA Y NAVEGACIÓN: una fila por punto (eventos y quiebres). Del punto: horas, altitud y acumulados;
   // hacia el siguiente: rumbo, distancia, desnivel, pendiente y tiempo; al final, observaciones y el evento para la radio.
   function vCuadro(){
@@ -449,19 +482,7 @@
       ${R.avisos.map(a=>`<div class="alerta">${esc(a)}</div>`).join('')}
       ${R.res.lejos ? `<div class="alerta">Hay puntos a más de 4° del meridiano central de la zona ${R.zona}: revisa la zona UTM de trabajo.</div>` : ''}
       <h2>Cuadro de marcha y navegación</h2>
-      <div class="tabla-env solo-ancho"><table class="t cmn">
-        <thead><tr><th class="tx">Punto</th><th class="tx">Evento<br>(radio)</th><th>Hora<br>llegada</th><th>Hora<br>salida</th><th>Altitud<br>(m)</th>
-          <th class="sig">Rumbo al siguiente<br>(° / ‰)</th><th class="sig">Distancia<br>(m)</th><th class="sig">Desnivel<br>(m)</th><th class="sig">Pendiente</th><th class="sig">Tiempo</th>
-          <th>Dist. acum.<br>(km)</th><th>Tiempo<br>acum.</th><th class="tx">Observaciones</th></tr></thead>
-        <tbody>${filas.map(({p, ll, sig, sal, acum, tac})=>`<tr class="${p.ev ? '' : 'sub'}"><td class="tx">${nombre(p)}</td><td class="tx">${p.ev ? evento(p.clave) : ''}</td>
-          <td>${ll ? '<b>' + M.verHora(ll.llegada) + '</b>' + icoLuz(ll.llegada) : '—'}</td><td>${sig ? M.verHora(sal) : '—'}</td><td>${f(p.cota)}</td>
-          ${sig ? `<td class="sig"><b>${f(sig.azM, 0)}°</b> / ${sig.mils}<span class="s">cuad. ${f(sig.azC, 1)} · geo. ${f(sig.azG, 1)}</span></td><td class="sig">${f(sig.dist)}</td>
-            <td class="sig ${sig.dv>0 ? 'sube' : sig.dv<0 ? 'baja' : ''}">${sig.dv>0 ? '+' : ''}${f(sig.dv)}</td><td class="sig ${pteC(sig.pte)}">${f(sig.pte*100, 1)} %</td><td class="sig">${como[sig.como]||''} ${M.verDur(sig.t)}</td>`
-            : '<td class="sig">—</td><td class="sig"></td><td class="sig"></td><td class="sig"></td><td class="sig"></td>'}
-          <td>${f(acum/1000, 2)}</td><td>${ll ? M.verDur(tac) : '—'}</td><td class="obs tx">${obs(p, ll)}</td></tr>`).join('')}
-          <tr class="tot"><td class="tx">Total</td><td></td><td></td><td>${M.verHora(R.res.termino)}<span class="s">término</span></td><td></td><td class="sig"></td><td class="sig">${f(R.res.dist)}</td>
-            <td class="sig">+${f(R.res.sube)} / −${f(R.res.baja)}</td><td class="sig"></td><td class="sig">${M.verDur(R.res.marcha)}</td><td>${f(R.res.dist/1000, 2)}</td><td></td><td class="tx obs">término con altos, detenciones e imprevistos</td></tr>
-        </tbody></table></div>
+      ${tablaCuadro(m, R)}
       <div class="tramos-cel">${filas.map(({p, ll, sig, acum, tac})=>p.ev ? `<div class="tc"><div class="cab"><b>${esc(p.nombre)}</b><span class="hora">${ll ? M.verHora(ll.llegada) : 'sale ' + M.verHora(R.res.partida)}</span></div>
           ${sig ? `<div class="datos"><div><span>Rumbo al sig.</span><b class="rumbo">${f(sig.azM, 0)}°</b> <small>${sig.mils} ‰</small></div><div><span>Distancia</span>${f(sig.dist)} m</div><div><span>Tiempo</span>${M.verDur(sig.t)}</div>
             <div><span>Desnivel</span>${sig.dv>0 ? '+' : ''}${f(sig.dv)} m</div><div><span>Pendiente</span>${f(sig.pte*100, 1)} %</div><div><span>Acumulado</span>${f(acum/1000, 2)} km · ${M.verDur(tac)}</div></div>` : `<div class="nota">Término · ${f(acum/1000, 2)} km · ${M.verDur(tac)} de marcha</div>`}
@@ -472,8 +493,8 @@
       <p class="nota">Rumbos magnéticos con declinación ${f(R.decl.valor, 2)}° (${esc(R.decl.fuente)}) a la fecha de la marcha. Horas con ${Math.round(R.par.altos*100)} % de altos; los imprevistos (${M.verDur(R.res.imprev)}) quedan como reserva al final.
         Los quiebres (puntos de ruta) van en gris; los datos «al siguiente» son del tramo que sale de ese punto.
         ${R.conLuz ? 'Luz al llegar: ☀ día · ◐ crepúsculo · ☾ noche con luna · ● noche sin luna' + (R.tramos.some(t=>t.noche) ? '; los tramos de noche (☾/●) se calcularon con velocidad de noche' : '') + '. Detalle en la pestaña <b>Luz</b>.' : ''}</p>
-      <div class="btns no-imp"><button class="btn pri" id="bImp">🖨 Imprimir / PDF</button><button class="btn" id="bPerf">Ver perfil ›</button><button class="btn" id="bEnv">Enviar ›</button></div>`;
-    $('#bImp').onclick = ()=>window.print(); $('#bPerf').onclick = ()=>ir('perfil'); $('#bEnv').onclick = ()=>ir('enviar');
+      <div class="btns no-imp"><button class="btn pri" id="bImp">📄 Documento / orden gráfica</button><button class="btn" id="bPerf">Ver perfil ›</button><button class="btn" id="bEnv">Enviar ›</button></div>`;
+    $('#bImp').onclick = ()=>documento(); $('#bPerf').onclick = ()=>ir('perfil'); $('#bEnv').onclick = ()=>ir('enviar');
   }
 
   /* =====================================================================  PERFIL (ficha de itinerario)  */
@@ -543,8 +564,8 @@
       <p class="nota" id="terrenoTxt">Cargando el perfil real del terreno…</p>
       <p class="nota">Color de cada tramo según la pendiente: <span style="color:#8fbf5a">■</span> menos de 5 % · <span style="color:#e3c23a">■</span> 5–15 % · <span style="color:#e3a63a">■</span> 15–30 % · <span style="color:#e86a4c">■</span> 30 % o más.
         ${fuertes.length ? '<br>Tramos más exigentes: <b>' + fuertes.map(t=>esc(t.de) + ' → ' + esc(t.a) + ' (' + f(t.pte*100, 0) + ' %)').join(', ') + '</b>.' : ''}</p>
-      <div class="btns no-imp"><button class="btn pri" id="bImp">🖨 Imprimir / PDF</button></div>`;
-    $('#bImp').onclick = ()=>window.print();
+      <div class="btns no-imp"><button class="btn pri" id="bImp">📄 Documento con el perfil</button><button class="btn" id="bImp2">📄 Documento completo</button></div>`;
+    $('#bImp').onclick = ()=>documento('perfil'); $('#bImp2').onclick = ()=>documento();
     terrenoDe(R).then(T=>{ const e = $('#terrenoTxt'); if(!e || S.v!=='perfil') return;
       if(!T){ e.textContent = 'Sin conexión: no se pudo cargar el perfil real del terreno (se muestra la línea entre puntos).'; return; }
       $('#perfilSvg').innerHTML = svgPerfil(R, T);
@@ -565,12 +586,12 @@
     const m = actual(), L = m.lista || (m.lista = {}), tot = LISTA.reduce((a, g)=>a + g.items.length, 0), hechos = ()=>Object.values(L).filter(Boolean).length;
     vista.innerHTML = `<h2>Lista de verificación</h2><p class="nota" id="lCuenta"></p>` + LISTA.map(g=>`<h2>${esc(g.fase)}</h2><div class="tarjeta lista">` +
       g.items.map(([id, t, fuente])=>`<label class="item"><input type="checkbox" data-l="${id}" ${L[id] ? 'checked' : ''}><span>${esc(t)}${fuente ? ` <small>${esc(fuente)}</small>` : ''}</span></label>`).join('') + '</div>').join('') +
-      `<div class="btns no-imp"><button class="btn" id="bLimpia">Desmarcar todo</button><button class="btn" id="bImp">🖨 Imprimir</button></div>`;
+      `<div class="btns no-imp"><button class="btn" id="bLimpia">Desmarcar todo</button><button class="btn" id="bImp">📄 Documento con la lista</button></div>`;
     const cuenta = ()=>$('#lCuenta').innerHTML = `<b>${hechos()} de ${tot}</b> listos.`;
     cuenta();
     vista.querySelectorAll('[data-l]').forEach(c=>c.onchange = ()=>{ L[c.dataset.l] = c.checked; guardar(); cuenta(); });
     $('#bLimpia').onclick = ()=>{ m.lista = {}; guardar(); pintar(); };
-    $('#bImp').onclick = ()=>window.print();
+    $('#bImp').onclick = ()=>documento('lista');
   }
 
   /* =====================================================================  ENVIAR  */
@@ -593,7 +614,7 @@
         <button class="btn" data-arch="geojson"><b>GeoJSON</b><small>Sistemas C2 y SIG (QGIS, ArcGIS)</small></button>
         <button class="btn" data-arch="csv"><b>Excel (CSV)</b><small>Cuadro de marcha para anexar a la OPORD</small></button>
         <button class="btn" data-arch="json"><b>Marcha (JSON)</b><small>Para abrirla en otro equipo con esta app</small></button>
-        <button class="btn" id="bImp"><b>🖨 Imprimir / PDF</b><small>Cuadro de marcha y navegación</small></button>
+        <button class="btn" id="bImp"><b>📄 Documento / orden gráfica</b><small>Militar o civil: mapa, perfil, cuadro, matriz, luz… para imprimir o PDF</small></button>
       </div>
       <h2>Vínculo con el C2 TOQUI</h2>
       <div class="tarjeta nota">
@@ -614,7 +635,7 @@
       if(k==='geojson') descargar(nombreArchivo(m, 'geojson'), BDC.geojson(m, R), 'application/geo+json');
       if(k==='csv') descargar(nombreArchivo(m, 'csv'), BDC.csv(m, R), 'text/csv;charset=utf-8');
       if(k==='json') descargar(nombreArchivo(m, 'json'), JSON.stringify({app:'burros', v:1, marchas:[m]}, null, 1), 'application/json'); });
-    $('#bImp').onclick = ()=>{ ir('cuadro'); setTimeout(()=>window.print(), 300); };
+    $('#bImp').onclick = ()=>documento();
   }
 
   /* ---------- inicio ---------- */
