@@ -237,6 +237,20 @@ const MARCHA = (function(){
         conv:ref ? ref.utm.conv : null, lejos:val.some(p=>Math.abs(p.lon - (zona*6 - 183))>4)}};
   }
 
+  /* ---------- rumbo y distancia entre dos posiciones (para seguir la marcha con GPS) ---------- */
+  // mismo método que el cuadro: cuadrícula UTM de la zona de trabajo, convergencia y declinación
+  function rumboEntre(a, b, zona, decl){
+    const A = llAUtm(a.lat, a.lon, zona), B = llAUtm(b.lat, b.lon, zona), dE = B.e - A.e, dN = B.n - A.n, dg = Math.hypot(dE, dN);
+    const azC = dg ? (Math.atan2(dE, dN)/rad + 360)%360 : 0, azG = (azC + A.conv + 360)%360, azM = (azG - (decl||0) + 360)%360;
+    return {dist:dg/((A.k + B.k)/2), azC, azG, azM, mils:Math.round(azM*6400/360)%6400};
+  }
+  // proyección de una posición sobre un tramo A→B (en metros locales): fracción recorrida (0–1) y distancia a la línea
+  function sobreTramo(p, a, b){
+    const k = Math.cos(a.lat*rad)*111320, q = 110540, ax = 0, ay = 0, bx = (b.lon - a.lon)*k, by = (b.lat - a.lat)*q, px = (p.lon - a.lon)*k, py = (p.lat - a.lat)*q;
+    const L2 = bx*bx + by*by, t = L2 ? Math.max(0, Math.min(1, (px*bx + py*by)/L2)) : 0;
+    return {t, d:Math.hypot(px - (ax + t*bx), py - (ay + t*by))};
+  }
+
   /* ---------- formatos ---------- */
   function horaAHoras(s){ const r = /^(\d{1,2}):?(\d{2})$/.exec(String(s||'').trim()); return r ? +r[1] + r[2]/60 : null; }
   function verDur(h){ if(h===null || h===undefined || isNaN(h)) return '—'; const m = Math.round(h*60); return m<60 ? m + ' min' : Math.floor(m/60) + ' h ' + String(m%60).padStart(2, '0') + ' min'; }
@@ -247,7 +261,7 @@ const MARCHA = (function(){
   const MGRS_LAT = 'CDEFGHJKLMNPQRSTUVWX';
   const banda = lat=>MGRS_LAT[Math.max(0, Math.min(19, Math.floor((lat + 80)/8)))];
 
-  return {deWgs84, camposDesde, VIAS, VEL_GENERAL, velGeneral, columna, CALOR, TRABAJOS, calor, DATUMS, TERRENOS, TABLA_VERTICAL, METODOS, llAUtm, utmALl, aWgs84, puntoWgs, velVertical, porDefecto, declinacion,
+  return {rumboEntre, sobreTramo, deWgs84, camposDesde, VIAS, VEL_GENERAL, velGeneral, columna, CALOR, TRABAJOS, calor, DATUMS, TERRENOS, TABLA_VERTICAL, METODOS, llAUtm, utmALl, aWgs84, puntoWgs, velVertical, porDefecto, declinacion,
     leerAng, tiempoTramo, calcular, horaAHoras, verDur, verHora, verGms, banda};
 })();
 if(typeof globalThis!=='undefined') globalThis.MARCHA = MARCHA;

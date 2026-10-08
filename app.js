@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y ficha de navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.3', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -53,13 +53,20 @@
   /* ---------- navegación ---------- */
   function ir(v){ S.v = v; guardar(); pintar(); window.scrollTo(0, 0); }
   $('#pestanas').addEventListener('click', e=>{ const b = e.target.closest('button[data-v]'); if(b) ir(b.dataset.v); });
+  // Perfil y Lista van dentro de la pestaña Cuadro
+  const PESTANA = {perfil:'cuadro', lista:'cuadro'};
+  const subCuadro = ()=>`<div class="seg subv no-imp">${[['cuadro', 'Cuadro de marcha'], ['perfil', 'Perfil'], ['lista', 'Lista']].map(([k, n])=>`<button data-sv="${k}" class="${S.v===k ? 'on' : ''}">${n}</button>`).join('')}</div>`;
+  vista.addEventListener('click', e=>{ const b = e.target.closest('[data-sv]'); if(b) ir(b.dataset.sv); });
   function pintar(){
     const m = actual(); if(!m && S.v!=='marchas') S.v = 'marchas';
-    if(!(S.v==='ruta' && S.rutaModo!=='lista')) Mapa.cerrar();
-    document.body.classList.toggle('con-mapa', S.v==='ruta' && S.rutaModo!=='lista');
-    document.querySelectorAll('#pestanas button').forEach(b=>{ b.classList.toggle('on', b.dataset.v===S.v); b.disabled = !m && b.dataset.v!=='marchas'; b.style.opacity = b.disabled ? .35 : 1; });
+    if(!({marchas:1, mapa:1, ruta:1, cuadro:1, perfil:1, lista:1, seguir:1, enviar:1})[S.v]) S.v = 'marchas';
+    if(S.v!=='mapa') Mapa.cerrar();
+    if(S.v!=='seguir') Seguir.cerrar();
+    document.body.classList.toggle('con-mapa', S.v==='mapa');
+    document.querySelectorAll('#pestanas button').forEach(b=>{ b.classList.toggle('on', b.dataset.v===(PESTANA[S.v] || S.v)); b.disabled = !m && b.dataset.v!=='marchas'; b.style.opacity = b.disabled ? .35 : 1; });
     $('#subtitulo').textContent = m ? m.nombre + (m.unidad ? ' · ' + m.unidad : '') : 'Planificación de marchas';
-    ({marchas:vMarchas, ruta:vRuta, cuadro:vCuadro, perfil:vPerfil, lista:vLista, enviar:vEnviar})[S.v]();
+    ({marchas:vMarchas, mapa:vMapa, ruta:vRuta, cuadro:vCuadro, perfil:vPerfil, lista:vLista, seguir:vSeguir, enviar:vEnviar})[S.v]();
+    if(PESTANA[S.v] || S.v==='cuadro') vista.insertAdjacentHTML('afterbegin', subCuadro());
   }
 
   /* =====================================================================  MARCHAS  */
@@ -86,14 +93,15 @@
         <b>envía el plan</b> al C2 (código de texto, QR, GPX, KML, GeoJSON o Excel).<br><br>
         Tiempos según la <b>Cartilla de Planificación de Marcha en Montaña (Escuela de Montaña, CRM 2013)</b>, el método MIDE / DIN 33466 o la
         <b>marcha general</b> (velocidades, columna y tiempo de paso de ATP 3-21.18 Foot Marches, 2025). Agua y calor según TB MED 507 (2022). Lista de verificación antes, durante y después.
-        Declinación magnética automática con el modelo WMM2025 (NOAA).<br><br>App no oficial: verifica siempre los resultados con la carta.</div>`;
+        Declinación magnética automática con el modelo WMM2025 (NOAA).<br><br>App no oficial: verifica siempre los resultados con la carta.
+        <div class="mono" style="margin-top:8px;color:var(--tenue)">Versión ${VERSION}</div></div>`;
     vista.querySelectorAll('[data-abrir]').forEach(d=>d.onclick = e=>{
       const b = e.target.closest('button');
       if(b && b.dataset.dup){ const o = JSON.parse(JSON.stringify(S.marchas.find(x=>x.id===b.dataset.dup))); o.nombre += ' (copia)'; nueva(o); return pintar(); }
       if(b && b.dataset.borra){ const x = S.marchas.find(x=>x.id===b.dataset.borra);
         return confirmar('¿Borrar la marcha «' + x.nombre + '»? No se puede deshacer.', ()=>{ S.marchas = S.marchas.filter(y=>y!==x); if(S.actual===x.id) S.actual = null; guardar(); pintar(); }); }
-      S.actual = d.dataset.abrir; ir('ruta'); });
-    $('#bNueva').onclick = ()=>{ nueva(); ir('ruta'); };
+      S.actual = d.dataset.abrir; ir('mapa'); });
+    $('#bNueva').onclick = ()=>{ nueva(); ir('mapa'); };
     $('#bEjemplo').onclick = ()=>{ ejemplo(); ir('cuadro'); };
     $('#bImportar').onclick = importarArchivo;
     $('#bRecibir').onclick = recibir;
@@ -115,7 +123,7 @@
       const sinCota = pts.filter(p=>p.cota==='').length;
       nueva({nombre:nombre.replace(/\.(gpx|kml)$/i, ''), puntos:pts.map(p=>punto(p.nombre, {tipo:'GEO', lat:Math.abs(p.lat).toFixed(6), lon:Math.abs(p.lon).toFixed(6),
         norte:p.lat>0 || undefined, este:p.lon>0 || undefined, cota:p.cota}))});
-      ir('ruta'); aviso('✔ ' + pts.length + ' puntos importados' + (sinCota ? ' — completa la cota de ' + sinCota : ''));
+      ir('mapa'); aviso('✔ ' + pts.length + ' puntos importados' + (sinCota ? ' — completa la cota de ' + sinCota : ''));
     });
   }
 
@@ -152,17 +160,16 @@
   }
 
   /* =====================================================================  RUTA  */
-  const apiMapa = {actual, guardar, punto, aviso, dialogo, cerrarDialogo, esc, f, calcular:m=>M.calcular(m), vistaMapa:null};
-  const selRuta = ()=>`<div class="seg ruta-modo"><button data-rm="mapa" class="${S.rutaModo!=='lista' ? 'on' : ''}">🗺 Mapa</button><button data-rm="lista" class="${S.rutaModo==='lista' ? 'on' : ''}">☰ Datos<span class="largo"> y puntos</span></button></div>`;
-  vista.addEventListener('click', e=>{ const b = e.target.closest('[data-rm]'); if(b){ S.rutaModo = b.dataset.rm; guardar(); pintar(); } });
+  const apiMapa = {actual, guardar, punto, aviso, dialogo, cerrarDialogo, confirmar, copiar, descargar, esc, f, calcular:m=>M.calcular(m), vistaMapa:null};
+  function vMapa(){ vista.innerHTML = '<div id="mapaCont"></div>'; Mapa.abrir($('#mapaCont'), apiMapa); }
+  function vSeguir(){ vista.innerHTML = '<div id="seguirCont"></div>'; Seguir.abrir($('#seguirCont'), apiMapa); }
   function vRuta(){
-    if(S.rutaModo!=='lista'){ vista.innerHTML = selRuta() + '<div id="mapaCont"></div>'; Mapa.abrir($('#mapaCont'), apiMapa); return; }
     const m = actual(), p = m.par, R = M.calcular(m);
     const opc = (o, sel)=>Object.entries(o).map(([k, n])=>`<option value="${k}"${k===sel ? ' selected' : ''}>${esc(n)}</option>`).join('');
     const vt = R.vel.tabla, pct = x=>Math.round((x||0)*1000)/10;
     const tropas = {normal:'Tropa normal', andina:'Tropa andina'};
     const terrenos = Object.fromEntries(Object.entries(M.TERRENOS).map(([k, v])=>[k, v.n]));
-    vista.innerHTML = selRuta() + `
+    vista.innerHTML = `<div class="btns" style="margin:0 0 12px"><button class="btn" id="bAlMapa">🗺 Ver y editar la ruta en el mapa</button></div>
       <details class="tarjeta" ${m.puntos.some(x=>x.cota!=='') ? '' : 'open'}><summary>Datos de la marcha<span class="res">${esc(m.fecha ? m.fecha.split('-').reverse().join('-') : '')} ${esc(m.hora)}</span></summary>
         <div class="campos">
           <label class="c ancho">Nombre / itinerario<input data-m="nombre" value="${esc(m.nombre)}"></label>
@@ -244,7 +251,7 @@
     $('#bRegreso').onclick = ()=>{ if(m.puntos.length<2) return aviso('Primero ingresa la ida');
       m.puntos.slice(0, -1).reverse().forEach(x=>m.puntos.push(Object.assign({}, x, {det:'', obs:x.obs ? 'Regreso — ' + x.obs : 'Regreso'})));
       guardar(); pintarPuntos(); actualizarCalculos(); aviso('↩ Regreso agregado'); };
-    $('#bVer').onclick = ()=>ir('cuadro');
+    $('#bVer').onclick = ()=>ir('cuadro'); $('#bAlMapa').onclick = ()=>ir('mapa');
     $('#bCotas').onclick = async()=>{
       const R = M.calcular(m), faltan = m.puntos.map((x, i)=>i).filter(i=>(m.puntos[i].cota==='' || m.puntos[i].cotaAuto) && R.puntos[i].lat!==null && R.puntos[i].lat!==undefined && !isNaN(R.puntos[i].lat));
       if(!faltan.length) return aviso('Todos los puntos tienen cota escrita');
@@ -541,5 +548,15 @@
 
   /* ---------- inicio ---------- */
   pintar();
-  if('serviceWorker' in navigator && location.protocol!=='file:') navigator.serviceWorker.register('sw.js').catch(()=>{});
+  // actualización automática: se busca una versión nueva al abrir y al volver a la app; si la hay, se ofrece recargar
+  if('serviceWorker' in navigator && location.protocol!=='file:'){
+    const habia = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.register('sw.js', {updateViaCache:'none'}).then(reg=>{
+      const buscar = ()=>reg.update().catch(()=>{});
+      document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) buscar(); }); setInterval(buscar, 5*60000);
+    }).catch(()=>{});
+    navigator.serviceWorker.addEventListener('controllerchange', ()=>{ if(!habia) return;
+      const b = document.createElement('button'); b.className = 'nueva-version'; b.textContent = '⟳ Hay una versión nueva — tocar para actualizar';
+      b.onclick = ()=>location.reload(); document.body.appendChild(b); });
+  }
 })();
