@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.31', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.35', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -171,7 +171,7 @@
   /* =====================================================================  RUTA  */
   const apiMapa = {actual, guardar, punto, aviso, dialogo, cerrarDialogo, confirmar, copiar, descargar, esc, f, calcular:m=>M.calcular(m), vistaMapa:null,
     M, evento:c=>evento(c), tablaCuadro:(m, R)=>tablaCuadro(m, R), apoyo:R=>apoyo(R), material:(m, R)=>{ const pm = R.carga || pesoMaterial(m, R);
-      return (pm ? `<p class="doc-nota"><b>Carga por hombre: ${f(pm.total, 1)} kg</b> (base ${f(pm.base, 1)} + material individual ${f(pm.indiv, 1)} + colectivo repartido ${f(pm.colect, 1)}).</p>` : '') + htmlMaterial(m, R, true).html; },
+      return (pm ? `<p class="doc-nota"><b>Carga por hombre: ${f(pm.total, 1)} kg</b> (1.ª línea ${f(pm.lineas[1], 1)} + 2.ª línea ${f(pm.lineas[2], 1)} + 3.ª línea ${f(pm.lineas[3], 1)}${pm.sinMochila ? ', <b>se deja</b>' : ''}${pm.base ? ' + otro peso ' + f(pm.base, 1) : ''}).</p>` : '') + htmlMaterial(m, R, true).html; },
     svgPerfil:(R, T, c)=>svgPerfil(R, T, c), terrenoDe:R=>terrenoDe(R), ir:v=>ir(v)};
   // documento para imprimir o PDF (orden gráfica militar o civil); se abre desde cada pantalla con la sección que corresponde
   function documento(secUnica){ const m = actual(); if(!m) return;
@@ -644,29 +644,58 @@
         return {id, n, auto:String(v), nota:nota(c)}; }).filter(Boolean);
       return its.length ? {g:g.g, its} : null; }).filter(Boolean);
     if(extra.length) filas.push({g:'Otros (agregados por mí)', its:extra.map((x, i)=>({id:'x' + i, n:x.n, auto:x.cant || '', nota:'', propio:i}))});
+    if(!papel) return {c, filas, html:fichasMaterial(m, R, filas)};
     return {c, filas, html:filas.map(({g, its})=>`<h3 class="${papel ? 'doc-h3' : 'mat-g'}">${esc(g)}</h3><table class="t mat"><tbody>
       ${its.map(it=>{ const st = Mt[it.id] || {}; return `<tr class="${st.ok ? 'hecho' : ''}"><td class="tx ck">${papel ? (st.ok ? '☑' : '☐') : `<input type="checkbox" data-mt="${it.id}" ${st.ok ? 'checked' : ''}>`}</td>
         <td class="tx"><b>${esc(it.n)}</b>${it.nota ? `<span class="s">${esc(it.nota)}</span>` : ''}</td>
         <td class="cant">${papel ? esc(st.cant || it.auto) : `<input class="num" data-mc="${it.id}" value="${esc(st.cant || '')}" placeholder="${esc(it.auto)}">`}</td>
         <td class="kg">${(()=>{ const pz = PESOS[it.id] || [0, 'c'], kg0 = it.propio!==undefined ? '' : pz[0], noCarga = pz[1]==='x';
           return noCarga ? '<span class="s">no se carga</span>' : papel ? (st.kg || kg0) + ' kg' : `<input class="num" data-mk="${it.id}" value="${esc(st.kg || '')}" placeholder="${kg0} kg c/u" inputmode="decimal">`; })()}</td>
+        <td class="lin">${(PESOS[it.id] || [0, 'c'])[1]==='x' ? '' : papel ? LINEAS[lineaDe(m, it.id)] : `<select data-ml="${it.id}" aria-label="Línea">${[1, 2, 3, 4].map(l=>`<option value="${l}"${lineaDe(m, it.id)===l ? ' selected' : ''}>${l}.ª</option>`).join('')}</select>`}</td>
         ${papel ? '' : `<td>${it.propio!==undefined ? `<button class="btn mini peligro" data-mx="${it.propio}" aria-label="Quitar">✕</button>` : ''}</td>`}</tr>`; }).join('')}
       </tbody></table>`).join('')};
+  }
+  // unidad de medida de una cantidad («4,5 L», «6 pares», «3» = unidades) y su nombre en singular para el peso
+  const UNI1 = {L:'L', pares:'par', 'juego(s)':'juego', juegos:'juego', sobres:'sobre', 'kit(s)':'kit', equipos:'equipo', u:'unidad'};
+  const unidadDe = t=>{ const x = /^[\d.,+\s]+(.*)$/.exec(String(t || '').trim()); const u = x && x[1].trim(); return u || 'u'; };
+  // en pantalla: una ficha por elemento, del ancho del teléfono: cantidad con su unidad × kg por unidad = kg (total y por hombre)
+  function fichasMaterial(m, R, filas){
+    const Mt = m.material || {}, pm = R.carga || pesoMaterial(m, R), porId = {}; (pm ? pm.items : []).forEach(x=>porId[x.id] = x);
+    return filas.map(({g, its})=>`<h3 class="mat-g">${esc(g)}</h3><div class="mat-lista">${its.map(it=>{
+      const st = Mt[it.id] || {}, pz = PESOS[it.id] || [0, 'c'], noCarga = pz[1]==='x', kg0 = it.propio!==undefined ? '' : pz[0];
+      const u = unidadDe(st.cant || it.auto), u1 = UNI1[u] || u.replace(/s$/, ''), x = porId[it.id], n = pm ? pm.n : 1;
+      const total = x ? x.q*x.kg : 0, num0 = String(it.auto).replace(/[^\d.,+].*$/, '').trim() || it.auto;
+      const pesoTxt = noCarga ? '<span class="mf-nc">no se carga</span>' : x ? `<b>${f(x.porHombre, x.porHombre<1 ? 2 : 1)} kg</b><small>por hombre</small>` : '';
+      return `<div class="mf${st.ok ? ' hecho' : ''}">
+        <label class="mf1"><input type="checkbox" data-mt="${it.id}" ${st.ok ? 'checked' : ''}><span class="mf-n"><b>${esc(it.n)}</b>${it.nota ? `<small>${esc(it.nota)}</small>` : ''}</span><span class="mf-kg">${pesoTxt}</span></label>
+        <div class="mf2"><span class="mf-c"><input class="num" data-mc="${it.id}" value="${esc(st.cant || '')}" placeholder="${esc(num0)}" inputmode="decimal" aria-label="Cantidad"><em>${esc(u==='u' ? 'unid.' : u)}</em></span>
+          ${noCarga ? '' : `<span class="mf-x">×</span><span class="mf-c"><input class="num" data-mk="${it.id}" value="${esc(st.kg || '')}" placeholder="${String(kg0).replace(".", ",")}" inputmode="decimal" aria-label="kg por ${esc(u1)}"><em>${u1==='unidad' ? 'kg c/u' : 'kg/' + esc(u1)}</em></span>
+          <span class="mf-x">=</span><span class="mf-t">${f(total, total<10 ? 1 : 0)} kg${x && x.modo!=='h' && n>1 ? ' <small>en total</small>' : ''}</span>
+          <select data-ml="${it.id}" aria-label="Línea">${[1, 2, 3, 4].map(l=>`<option value="${l}"${lineaDe(m, it.id)===l ? ' selected' : ''}>${l===4 ? '4.ª (vehículo)' : l + '.ª línea'}</option>`).join('')}</select>`}
+          ${it.propio!==undefined ? `<button class="btn mini peligro" data-mx="${it.propio}" aria-label="Quitar">✕</button>` : ''}</div>
+        ${x && x.modo==='h' && x.q>3 ? '<div class="mf-s">cada hombre carga hasta 3 L (' + f(x.porHombre, 1) + ' kg); el resto se reabastece en ruta</div>' : x && x.modo==='c' && n>1 ? `<div class="mf-s">de grupo: ${f(total, 1)} kg repartidos entre ${n} hombres</div>` : ''}</div>`; }).join('')}</div>`).join('');
   }
   // carga por hombre: peso base + material individual + parte del colectivo; con la opción de usarla en el cálculo de tiempos
   function cargaHtml(m, R){
     const pm = R.carga || pesoMaterial(m, R); if(!pm) return '';
     const top = pm.items.filter(x=>x.porHombre>0).slice(0, 5).map(x=>esc(x.n) + ' ' + f(x.porHombre, 1) + ' kg').join(' · ');
+    const L = LIMITES_CARGA, ref = (v, lim)=>`<div class="s" style="color:var(--${v>lim ? 'rojo' : 'verde'})">${v>lim ? 'sobre' : 'bajo'} la referencia de ${lim} kg</div>`;
     return `<div class="tarjeta carga"><h3>Carga por hombre</h3>
       <div class="kpis">
-        <div class="kpi ocre"><div class="k">Total por hombre</div><div class="v">${f(pm.total, 1)} <small>kg</small></div></div>
-        <div class="kpi"><div class="k">Peso base</div><div class="v">${f(pm.base, 1)} <small>kg</small></div></div>
-        <div class="kpi"><div class="k">Material individual</div><div class="v">${f(pm.indiv, 1)} <small>kg</small></div></div>
-        <div class="kpi"><div class="k">Colectivo repartido</div><div class="v">${f(pm.colect, 1)} <small>kg</small></div></div></div>
-      <div class="campos"><label class="c">Peso base por hombre (kg)<input class="num" id="mtBase" inputmode="decimal" value="${esc(m.par.cargaBase || '')}" placeholder="armamento, munición, casco, chaleco"></label>
-        <label class="c ancho"><span><input type="checkbox" id="mtUsar" ${m.par.cargaMat ? 'checked' : ''} style="width:auto;vertical-align:middle"> <b>Usar esta carga en el cálculo de tiempos</b> (montaña y MIDE interpolan la tabla; en marcha general baja la velocidad sobre ~18 kg)</span></label></div>
-      <p class="nota">Más pesado por hombre: ${top || '—'}. El colectivo (radios, camillas, cuerdas, botiquines de grupo…) se reparte entre ${pm.hay ? pm.n + ' hombres' : '1 hombre: indica el efectivo en Puntos → Unidad y columna'}.
-        Los pesos son <b>sugeridos</b>: cámbialos en la columna «kg c/u». El agua de reabastecimiento en ruta no se suma.${pm.total>36 ? ' <b style="color:var(--rojo)">Sobre la carga de combate habitual (27–36 kg).</b>' : ''}</p></div>`;
+        <div class="kpi ocre"><div class="k">Total por hombre</div><div class="v">${f(pm.total, 1)} <small>kg</small></div><div class="s">${pm.sinMochila ? 'sin mochila (se deja la 3.ª línea)' : 'con mochila'}</div></div>
+        ${[1, 2, 3].map(l=>`<div class="kpi"${l===3 && pm.sinMochila ? ' style="opacity:.5"' : ''}><div class="k">${LINEAS[l]}</div><div class="v">${f(pm.lineas[l], 1)} <small>kg</small></div><div class="s">${esc(LINEAS_TXT[l])}${l===3 && pm.sinMochila ? ' · <b>se deja</b>' : ''}</div></div>`).join('')}</div>
+      <div class="kpis">
+        <div class="kpi"><div class="k">Carga de combate (1.ª + 2.ª)</div><div class="v">${f(pm.combate, 1)} <small>kg</small></div>${ref(pm.combate, L.combate)}</div>
+        <div class="kpi"><div class="k">Carga de marcha (1.ª + 2.ª + 3.ª)</div><div class="v">${f(pm.marcha, 1)} <small>kg</small></div>${pm.marcha>L.marcha + 21 ? '<div class="s" style="color:var(--rojo)">carga de emergencia: marcha lenta, evitar el contacto</div>' : ref(pm.marcha, L.marcha)}</div></div>
+      <p class="nota">Límites <b>referenciales</b> (manual de marchas a pie de EE.UU.): carga de combate hasta unos ${L.combate} kg; carga de marcha de aproximación hasta unos ${L.marcha} kg.
+        ${pm.lineas[4] ? `4.ª línea (vehículo o apoyo): ${f(pm.lineas[4], 1)} kg por hombre, <b>no se suma</b>.` : '4.ª línea: lo que va en vehículos o con el apoyo logístico; no la carga el hombre (elige «4.ª» en un elemento para dejarlo ahí).'}</p>
+      <div class="campos">
+        <label class="c ancho"><span><input type="checkbox" id="mtMochila" ${m.par.sinMochila ? 'checked' : ''} style="width:auto;vertical-align:middle"> <b>Se deja la mochila</b> (la marcha se hace solo con la 1.ª y 2.ª línea; p. ej. carrera de combate o asalto)</span></label>
+        <label class="c ancho"><span><input type="checkbox" id="mtUsar" ${m.par.cargaMat ? 'checked' : ''} style="width:auto;vertical-align:middle"> <b>Usar esta carga en el cálculo de tiempos</b> (y en el calor)</span></label>
+        <label class="c">Otro peso por hombre (kg)<input class="num" id="mtBase" inputmode="decimal" value="${esc(m.par.cargaBase || '')}" placeholder="no listado"></label></div>
+      <p class="nota">El fusil, la munición, el casco y los chalecos ahora están en la lista (Armamento y protección). Usa «Otro peso» solo para lo que no esté en la lista${+String(m.par.cargaBase || '').replace(',', '.')>0 ? ` — <b style="color:var(--ocre)">si ahí habías escrito el fusil, casco y chaleco, bórralo para no contarlos dos veces</b>` : ''}.
+        Material de grupo repartido: ${f(pm.colect, 1)} kg por hombre, entre ${pm.hay ? pm.n + ' hombres' : '1 hombre: indica el efectivo en Puntos → Unidad y columna'}. Más pesado por hombre: ${top || '—'}.
+        Los pesos son <b>sugeridos</b>: cámbialos en «kg» de cada elemento. El agua de reabastecimiento en ruta no se suma.</p></div>`;
   }
   function vMaterial(){
     const m = actual(), R = M.calcular(m);
@@ -683,12 +712,14 @@
         <div class="btns"><button class="btn" id="mtAgregar">＋ Agregar</button><button class="btn" id="mtLimpia">Desmarcar todo</button><button class="btn pri" id="mtDoc">📄 Documento con el material</button></div></div>`;
     const cuenta = ()=>$('#mtCuenta').innerHTML = `<b>${hechos()} de ${tot}</b> listos.`; cuenta();
     const Mt = ()=>m.material || (m.material = {});
-    vista.querySelectorAll('[data-mt]').forEach(x=>x.onchange = ()=>{ const o = Mt()[x.dataset.mt] || (Mt()[x.dataset.mt] = {}); o.ok = x.checked; x.closest('tr').classList.toggle('hecho', x.checked); guardar(); cuenta(); });
+    vista.querySelectorAll('[data-mt]').forEach(x=>x.onchange = ()=>{ const o = Mt()[x.dataset.mt] || (Mt()[x.dataset.mt] = {}); o.ok = x.checked; x.closest('tr,.mf').classList.toggle('hecho', x.checked); guardar(); cuenta(); });
     let tC = null; const recarga = ()=>{ clearTimeout(tC); tC = setTimeout(()=>{ const y = window.scrollY, a = document.activeElement && document.activeElement.dataset; const foco = a && (a.mc ? '[data-mc="' + a.mc + '"]' : a.mk ? '[data-mk="' + a.mk + '"]' : document.activeElement.id ? '#' + document.activeElement.id : null);
       pintar(); window.scrollTo(0, y); if(foco){ const e = vista.querySelector(foco); if(e){ e.focus(); const v = e.value; e.value = ''; e.value = v; } } }, 700); };
     vista.querySelectorAll('[data-mc]').forEach(x=>x.oninput = ()=>{ const o = Mt()[x.dataset.mc] || (Mt()[x.dataset.mc] = {}); o.cant = x.value; guardar(); recarga(); });
+    vista.querySelectorAll('[data-ml]').forEach(x=>x.onchange = ()=>{ const o = Mt()[x.dataset.ml] || (Mt()[x.dataset.ml] = {}); o.linea = +x.value; guardar(); const y = window.scrollY; pintar(); window.scrollTo(0, y); });
     vista.querySelectorAll('[data-mk]').forEach(x=>x.oninput = ()=>{ const o = Mt()[x.dataset.mk] || (Mt()[x.dataset.mk] = {}); o.kg = x.value; guardar(); recarga(); });
     const b = $('#mtBase'); if(b) b.oninput = ()=>{ m.par.cargaBase = b.value; guardar(); recarga(); };
+    const mo = $('#mtMochila'); if(mo) mo.onchange = ()=>{ m.par.sinMochila = mo.checked; guardar(); const y = window.scrollY; pintar(); window.scrollTo(0, y); };
     const u = $('#mtUsar'); if(u) u.onchange = ()=>{ m.par.cargaMat = u.checked; guardar(); pintar(); aviso(u.checked ? '✔ La carga del material se usa en el cálculo de tiempos' : 'La carga vuelve a ser la escrita a mano'); };
     vista.querySelectorAll('[data-mx]').forEach(x=>x.onclick = ()=>{ m.materialExtra.splice(+x.dataset.mx, 1); delete Mt()['x' + x.dataset.mx]; guardar(); pintar(); });
     $('#mtAgregar').onclick = ()=>{ const n = $('#mtNuevo').value.trim(); if(!n) return; (m.materialExtra || (m.materialExtra = [])).push({n, cant:$('#mtNuevoC').value.trim()});

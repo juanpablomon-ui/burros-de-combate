@@ -43,6 +43,13 @@ if(typeof globalThis!=='undefined') globalThis.LISTA = LISTA;
    montana, nieve, terreno, aguaH (L por hombre por hora), calorCat, unidades (de marcha), carga}. Las cantidades son SUGERENCIAS:
    el agua sale de la tabla de calor; el resto se ajusta según la orden. Ids fijos (las marcas y cantidades se guardan en m.material). */
 const MATERIAL = [
+  {g:'Armamento y protección', items:[
+    ['fusil', 'Fusil (con correa y accesorios)', c=>c.n, c=>'1 por hombre; las armas de apoyo se agregan en «Otros»'],
+    ['cargad', 'Cargadores con munición', c=>c.n*6, c=>'6 por hombre (dotación sugerida: ajústala)'],
+    ['granada', 'Granadas de mano', c=>0, c=>'si la misión lo exige: escribe la cantidad total'],
+    ['casco', 'Casco', c=>c.n, c=>'1 por hombre'],
+    ['chaleco', 'Chaleco antibalas con placas', c=>c.n, c=>'escribe 0 si no se usa'],
+    ['portaf', 'Chaleco o arnés portafuegos', c=>c.n, c=>'donde va la 2.ª línea']]},
   {g:'Agua y alimentación', items:[
     ['agua', 'Agua por hombre', c=>String(Math.ceil((c.aguaH*c.horas + 1)*2)/2).replace('.', ',') + ' L', c=>'≈ ' + c.aguaH.toFixed(2).replace('.', ',') + ' L/h × ' + c.horas.toFixed(1).replace('.', ',') + ' h + 1 L de reserva' + (c.calorDato ? '' : ' (sin índice de calor: se usa calor bajo)')],
     ['aguaT', 'Agua total de la unidad', c=>c.hay ? Math.ceil(c.n*(c.aguaH*c.horas + 1)) + ' L' : null, c=>'para ' + c.n + ' hombres'],
@@ -108,28 +115,40 @@ if(typeof globalThis!=='undefined'){ globalThis.MATERIAL = MATERIAL; globalThis.
 /* Peso de cada elemento del material (kg por unidad, SUGERIDOS y editables en m.material[id].kg) y cómo se carga:
    'h' = cantidad por hombre (agua: se cargan hasta 3 L, 1 kg por litro) · 'i' = individual (1 por hombre, cantidad total de la unidad)
    · 'c' = colectivo (se reparte entre todos) · 'x' = no se carga (personas, planes, agua de reabastecimiento, totales). */
-const PESOS = {agua:[1, 'h'], aguaT:[0, 'x'], cantimp:[0.15, 'i'], reabast:[0, 'x'], potab:[0.1, 'c'], sales:[0.01, 'i'], racion:[0.7, 'i'], colac:[0.25, 'i'],
+const PESOS = {fusil:[4, 'i'], cargad:[0.5, 'i'], granada:[0.4, 'i'], casco:[1.4, 'i'], chaleco:[8, 'i'], portaf:[1.2, 'i'], agua:[1, 'h'], aguaT:[0, 'x'], cantimp:[0.15, 'i'], reabast:[0, 'x'], potab:[0.1, 'c'], sales:[0.01, 'i'], racion:[0.7, 'i'], colac:[0.25, 'i'],
   botInd:[0.3, 'i'], botGrp:[2.5, 'c'], socorr:[0, 'x'], camilla:[7, 'c'], pies:[0.3, 'c'], calcet:[0.1, 'i'], manta:[0.06, 'c'], solar:[0.1, 'c'], evac:[0, 'x'],
   carta:[0.05, 'c'], brujula:[0.1, 'c'], gps:[0.25, 'c'], bateria:[0.25, 'c'], cuadro:[0.02, 'c'], reloj:[0, 'x'], marcador:[0.05, 'c'],
   radio:[1.5, 'c'], batRad:[0.5, 'c'], claves:[0.01, 'c'], silbato:[0.02, 'c'],
   mochila:[2, 'i'], poncho:[0.6, 'i'], abrigo:[0.8, 'i'], gorro:[0.2, 'i'], lentes:[0.05, 'i'], sombrero:[0.1, 'i'],
   linterna:[0.2, 'i'], luzquim:[0.03, 'c'], pilas:[0.1, 'i'], vision:[0.6, 'c'],
   bastones:[0.5, 'i'], polainas:[0.3, 'i'], raquetas:[2, 'i'], esquies:[4.5, 'i'], cuerda:[3.5, 'c'], pala:[1.5, 'c']};
+/* Líneas de equipo: 1.ª en el cuerpo (supervivencia: agua, botiquín, navegación), 2.ª chaleco o arnés (combate: ración, radio, pilas),
+   3.ª mochila (sustento: abrigo, poncho, material de grupo). Cada elemento trae una línea sugerida; se cambia en la tabla (m.material[id].linea). */
+const LINEAS = {1:'1.ª línea', 2:'2.ª línea', 3:'3.ª línea', 4:'4.ª línea'};
+const LINEAS_TXT = {1:'en el cuerpo: supervivencia', 2:'arma y portafuegos: combate', 3:'mochila: sostenimiento', 4:'vehículo o apoyo logístico: no la carga el hombre'};
+// límites de referencia (manual de marchas a pie de EE.UU.): carga de combate ≈ 22 kg (48 lb), carga de marcha de aproximación ≈ 33 kg (72 lb)
+const LIMITES_CARGA = {combate:22, marcha:33};
+const LINEA_DE = {casco:1, chaleco:1, fusil:2, cargad:2, granada:2, portaf:2, agua:1, cantimp:1, sales:1, botInd:1, carta:1, brujula:1, gps:1, cuadro:1, marcador:1, claves:1, silbato:1, lentes:1, sombrero:1, gorro:1, linterna:1, luzquim:1, polainas:1, bastones:1,
+  racion:2, colac:2, potab:2, radio:2, batRad:2, bateria:2, pilas:2, vision:2, manta:2};   // el resto: 3.ª línea
+const lineaDe = (m, id)=>{ const l = +((m.material || {})[id] || {}).linea; return l>=1 && l<=4 ? l : LINEA_DE[id] || 3; };
 const numCant = v=>{ const x = String(v===undefined || v===null ? '' : v).replace(',', '.').match(/\d+(\.\d+)?/); return x ? +x[0] : 0; };
-// carga por hombre = peso base + material individual + parte del material colectivo; null si no hay material
+// carga por hombre = otro peso escrito (`par.cargaBase`) + lo que se lleva de la 1.ª, 2.ª y 3.ª línea (la 3.ª no, si se deja la mochila:
+// `par.sinMochila`); la 4.ª línea (vehículo) es solo referencia y no se suma. null si no hay material
 function pesoMaterial(m, R){
   if(typeof contextoMaterial==='undefined') return null;
   const c = contextoMaterial(m, R), Mt = m.material || {}, base = numCant((m.par || {}).cargaBase), items = [];
   MATERIAL.forEach(g=>g.items.forEach(([id, n, cant])=>{ const v = cant(c); if(v===null || v===undefined) return;
     const st = Mt[id] || {}, q = numCant(st.cant || v), [kg0, modo] = PESOS[id] || [0, 'x'], kg = st.kg!==undefined && st.kg!=='' ? numCant(st.kg) : kg0;
     const porHombre = modo==='h' ? Math.min(q, 3)*kg : modo==='x' ? 0 : q*kg/c.n;
-    items.push({id, n, kg, modo, q, porHombre}); }));
+    items.push({id, n, kg, modo, q, porHombre, linea:lineaDe(m, id)}); }));
   (m.materialExtra || []).forEach((x, i)=>{ const st = Mt['x' + i] || {}, q = numCant(st.cant || x.cant) || 1, kg = numCant(st.kg);
-    items.push({id:'x' + i, n:x.n, kg, modo:'c', q, porHombre:q*kg/c.n}); });
-  const indiv = items.filter(x=>x.modo==='h' || x.modo==='i').reduce((a, x)=>a + x.porHombre, 0), colect = items.filter(x=>x.modo==='c').reduce((a, x)=>a + x.porHombre, 0);
-  return {base, indiv, colect, total:Math.round((base + indiv + colect)*10)/10, n:c.n, hay:c.hay, items:items.sort((a, b)=>b.porHombre - a.porHombre)};
+    items.push({id:'x' + i, n:x.n, kg, modo:'c', q, porHombre:q*kg/c.n, linea:lineaDe(m, 'x' + i)}); });
+  const sinMochila = !!(m.par || {}).sinMochila, lineas = {1:0, 2:0, 3:0, 4:0}; items.forEach(x=>{ if(x.modo!=='x') lineas[x.linea] += x.porHombre; });
+  const lleva = x=>x.linea<=2 || (x.linea===3 && !sinMochila);
+  const indiv = items.filter(x=>(x.modo==='h' || x.modo==='i') && lleva(x)).reduce((a, x)=>a + x.porHombre, 0), colect = items.filter(x=>x.modo==='c' && lleva(x)).reduce((a, x)=>a + x.porHombre, 0);
+  return {base, indiv, colect, lineas, sinMochila, combate:base + lineas[1] + lineas[2], marcha:base + lineas[1] + lineas[2] + lineas[3], total:Math.round((base + indiv + colect)*10)/10, n:c.n, hay:c.hay, items:items.sort((a, b)=>b.porHombre - a.porHombre)};
 }
-if(typeof globalThis!=='undefined'){ globalThis.PESOS = PESOS; globalThis.pesoMaterial = pesoMaterial; }
+if(typeof globalThis!=='undefined'){ globalThis.PESOS = PESOS; globalThis.pesoMaterial = pesoMaterial; globalThis.LINEAS = LINEAS; globalThis.LIMITES_CARGA = LIMITES_CARGA; globalThis.LINEAS_TXT = LINEAS_TXT; globalThis.lineaDe = lineaDe; }
 
 /* Siglas y términos que usa la app (tarjeta en Marchas) */
 const GLOSARIO = [
