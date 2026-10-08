@@ -318,3 +318,9 @@ table.t tr.conq:hover td{background:#22251b}
 tr.abierto .plie{transform:rotate(90deg)}
 @media print{ .solo-imp table.t tr.sub{display:table-row} .plie{display:none} }
 .subv{flex-wrap:wrap}
+/* cuadro de marcha y navegación: columnas «al siguiente» levemente destacadas */
+table.cmn th.sig{background:#2a2d20}
+table.cmn td.sig{background:#ffffff05}
+table.cmn tr.sub td.sig{background:#ffffff03}
+.tc.quiebre{padding:6px 12px;font-size:12px;color:var(--tenue);font-family:var(--mono);border-style:dashed;background:transparent}
+.tc.quiebre b{color:var(--suave)}

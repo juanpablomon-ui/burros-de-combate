@@ -1,7 +1,7 @@
-/* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y ficha de navegación),
+/* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.12', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.13', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -57,18 +57,19 @@
   function ir(v){ S.v = v; guardar(); pintar(); window.scrollTo(0, 0); }
   $('#pestanas').addEventListener('click', e=>{ const b = e.target.closest('button[data-v]'); if(b) ir(b.dataset.v); });
   // Perfil y Lista van dentro de la pestaña Cuadro
-  const PESTANA = {perfil:'cuadro', lista:'cuadro', ficha:'cuadro'};
-  const subCuadro = ()=>`<div class="seg subv no-imp">${[['cuadro', 'Cuadro de marcha'], ['ficha', 'Ficha de navegación'], ['perfil', 'Perfil'], ['lista', 'Lista']].map(([k, n])=>`<button data-sv="${k}" class="${S.v===k ? 'on' : ''}">${n}</button>`).join('')}</div>`;
+  const PESTANA = {perfil:'cuadro', lista:'cuadro'};
+  const subCuadro = ()=>`<div class="seg subv no-imp">${[['cuadro', 'Cuadro de marcha y navegación'], ['perfil', 'Perfil'], ['lista', 'Lista']].map(([k, n])=>`<button data-sv="${k}" class="${S.v===k ? 'on' : ''}">${n}</button>`).join('')}</div>`;
   vista.addEventListener('click', e=>{ const b = e.target.closest('[data-sv]'); if(b) ir(b.dataset.sv); });
   function pintar(){
     const m = actual(); if(!m && S.v!=='marchas') S.v = 'marchas';
-    if(!({marchas:1, mapa:1, ruta:1, cuadro:1, ficha:1, perfil:1, lista:1, seguir:1, enviar:1})[S.v]) S.v = 'marchas';
+    if(S.v==='ficha') S.v = 'cuadro';   // la ficha de navegación ahora está dentro del cuadro
+    if(!({marchas:1, mapa:1, ruta:1, cuadro:1, perfil:1, lista:1, seguir:1, enviar:1})[S.v]) S.v = 'marchas';
     if(S.v!=='mapa') Mapa.cerrar();
     if(S.v!=='seguir') Seguir.cerrar();
     document.body.classList.toggle('con-mapa', S.v==='mapa');
     document.querySelectorAll('#pestanas button').forEach(b=>{ b.classList.toggle('on', b.dataset.v===(PESTANA[S.v] || S.v)); b.disabled = !m && b.dataset.v!=='marchas'; b.style.opacity = b.disabled ? .35 : 1; });
     $('#subtitulo').textContent = m ? m.nombre + (m.unidad ? ' · ' + m.unidad : '') : 'Planificación de marchas';
-    ({marchas:vMarchas, mapa:vMapa, ruta:vRuta, cuadro:vCuadro, ficha:vFicha, perfil:vPerfil, lista:vLista, seguir:vSeguir, enviar:vEnviar})[S.v]();
+    ({marchas:vMarchas, mapa:vMapa, ruta:vRuta, cuadro:vCuadro, perfil:vPerfil, lista:vLista, seguir:vSeguir, enviar:vEnviar})[S.v]();
     if(PESTANA[S.v] || S.v==='cuadro') vista.insertAdjacentHTML('afterbegin', subCuadro());
   }
 
@@ -91,8 +92,8 @@
       <div class="tarjeta nota">Las marchas quedan guardadas solo en este equipo. Guarda un respaldo para pasarlas a otro equipo o no perderlas.
         <div class="btns"><button class="btn" id="bResp">⬇ Guardar respaldo</button><button class="btn" id="bCargar">⬆ Cargar respaldo</button></div></div>
       <h2>Qué hace</h2>
-      <div class="tarjeta nota">Marca la ruta <b>sobre el mapa o tu carta</b> (con cuadrícula UTM y cota automática) y calcula el <b>cuadro de marcha</b> (distancia, desnivel, pendiente, rumbo magnético en grados y milésimas, tiempos, altos,
-        imprevistos y hora de llegada a cada punto), dibuja el <b>perfil del itinerario</b>, arma la <b>ficha de navegación</b> para imprimir y
+      <div class="tarjeta nota">Marca la ruta <b>sobre el mapa o tu carta</b> (con cuadrícula UTM y cota automática) y calcula el <b>cuadro de marcha y navegación</b> (distancia, desnivel, pendiente, rumbo magnético en grados y milésimas, tiempos, altos,
+        imprevistos y hora de llegada a cada punto), dibuja el <b>perfil del itinerario</b>, lo deja listo para imprimir y
         <b>envía el plan</b> al C2 (código de texto, QR, GPX, KML, GeoJSON o Excel).<br><br>
         Tiempos para <b>montaña</b> (tabla de velocidades por tropa, terreno y carga), el método MIDE / DIN 33466 o la
         <b>marcha general</b> (velocidades, columna y tiempo de paso de ATP 3-21.18 Foot Marches, 2025). Agua y calor según TB MED 507 (2022). Lista de verificación antes, durante y después.
@@ -381,7 +382,7 @@
 
   /* =====================================================================  CUADRO  */
   function encabezado(m, R){
-    return `<div class="solo-imp"><b>CUADRO DE MARCHA — ${esc(m.nombre)}</b><br>Unidad: ${esc(m.unidad)} · Fecha: ${esc(m.fecha.split('-').reverse().join('-'))} · Partida: ${esc(m.hora)}
+    return `<div class="solo-imp"><b>CUADRO DE MARCHA Y NAVEGACIÓN — ${esc(m.nombre)}</b><br>Unidad: ${esc(m.unidad)} · Fecha: ${esc(m.fecha.split('-').reverse().join('-'))} · Partida: ${esc(m.hora)}
       · Datum ${esc(m.datum)} · Zona ${R.zona} · Declinación ${f(R.decl.valor, 2)}° · Método: ${esc(M.METODOS[R.par.metodo])}</div>`;
   }
   function kpis(R){
@@ -417,29 +418,8 @@
   }
   // texto del evento para la radio: «PASANDO ALFA» (palabra elegida en Nombres clave)
   function evento(clave){ const m = actual(); return clave ? `<span class="clave-ev">${esc(((m.par && m.par.verbo) || 'PASANDO').toUpperCase())} <b>${esc(clave)}</b></span>` : ''; }
-  // ficha de navegación: todos los puntos (eventos y quiebres) con hora, altitud, rumbo y distancia al siguiente
-  function htmlFicha(R){
-    const T = R.tramos;
-    return `
-      <div class="tabla-env"><table class="t">
-        <thead><tr><th class="tx">Punto</th><th>Hora<br>llegada</th><th>Hora<br>salida</th><th>Altitud<br>(m)</th><th>Rumbo al siguiente<br>(° / ‰)</th><th>Distancia<br>(m)</th><th class="tx">Observaciones</th><th class="tx">Evento<br>(radio)</th></tr></thead>
-        <tbody>${R.puntos.filter(p=>p.ok).map(p=>{ const ll = T.find(t=>t.iB===p.i), sig = T.find(t=>t.iA===p.i), sal = ll ? ll.salida : R.res.partida + p.det;
-          return `<tr class="${p.ev ? '' : 'sub'}"><td class="tx">${p.ev ? '<b>' + esc(p.nombre) + '</b>' : '↳ quiebre'}</td><td>${ll ? M.verHora(ll.llegada) : '—'}</td><td>${sig ? M.verHora(sal) : '—'}</td><td>${f(p.cota)}</td>
-            <td>${sig ? '<b>' + f(sig.azM, 0) + '°</b> / ' + sig.mils : '—'}</td><td>${sig ? f(sig.dist) : '—'}</td><td class="obs tx">${esc(p.obs)}</td><td class="tx">${ll && p.ev ? evento(p.clave) : ''}</td></tr>`; }).join('')}</tbody></table></div>
-`;
-  }
-  function vFicha(){
-    const m = actual(), R = M.calcular(m);
-    if(!R.tramos.length){ vista.innerHTML = `<div class="tarjeta vacio">Faltan datos: se necesitan al menos dos puntos con coordenadas y cota.</div>`; return; }
-    vista.innerHTML = `${encabezado(m, R).replace('CUADRO DE MARCHA', 'FICHA DE NAVEGACIÓN')}
-      <h2>Ficha de navegación</h2>
-      <p class="nota no-imp">Todos los puntos de la ruta en orden: hora de llegada y salida, altitud, <b>rumbo y distancia al siguiente punto</b> y el evento que se informa por radio.
-        Los quiebres van en gris. Para llevarla en el terreno: imprímela y plastifícala.</p>
-      ${htmlFicha(R)}
-      <p class="nota">Rumbos magnéticos con declinación ${f(R.decl.valor, 2)}° (${esc(R.decl.fuente)}) a la fecha de la marcha.</p>
-      <div class="btns no-imp"><button class="btn pri" id="bImp">🖨 Imprimir ficha de navegación</button></div>`;
-    $('#bImp').onclick = ()=>window.print();
-  }
+  // CUADRO DE MARCHA Y NAVEGACIÓN: una fila por punto (eventos y quiebres). Del punto: horas, altitud y acumulados;
+  // hacia el siguiente: rumbo, distancia, desnivel, pendiente y tiempo; al final, observaciones y el evento para la radio.
   function vCuadro(){
     const m = actual(), R = M.calcular(m), T = R.tramos;
     if(!T.length){ vista.innerHTML = `<div class="tarjeta vacio">Faltan datos: se necesitan al menos dos puntos con coordenadas y cota.<div class="btns" style="justify-content:center"><button class="btn pri" id="bR">Ir a la ruta</button></div></div>`;
@@ -447,40 +427,40 @@
     const malos = R.puntos.filter(p=>!p.ok);
     const como = {subida:'↗', bajada:'↘', llano:'→', MIDE:'', general:''};
     const pteC = p=>Math.abs(p)>=0.3 ? 'fuerte' : '';
-    const nom = n=>n ? esc(n) : '·';
-    // detalle de los quiebres (puntos de ruta) dentro de un tramo entre eventos
-    const subs = (t, g)=>!t.quiebres ? '' : t.subs.map(u=>`<tr class="sub" data-g="${g}"><td class="tx">↳ ${nom(u.de)} → ${nom(u.a)}</td><td>${f(u.dist)}</td><td></td><td>${f(u.cotaIni)}</td><td>${f(u.cotaFin)}</td>
-      <td class="${u.dv>0 ? 'sube' : u.dv<0 ? 'baja' : ''}">${u.dv>0 ? '+' : ''}${f(u.dv)}</td><td class="${pteC(u.pte)}">${f(u.pte*100, 1)} %</td><td>${f(u.azM, 1)}</td><td>${u.mils}</td>
-      <td>${como[u.como]||''} ${M.verDur(u.t)}</td><td></td><td></td><td></td><td></td></tr>`).join('');
+    const filas = R.puntos.filter(p=>p.ok).map(p=>{ const ll = T.find(t=>t.iB===p.i), sig = T.find(t=>t.iA===p.i);
+      return {p, ll, sig, sal:ll ? ll.salida : R.res.partida + p.det, acum:ll ? ll.distAcum : 0, tac:ll ? ll.tAcum : 0}; });
+    const nombre = p=>p.ev ? '<b>' + esc(p.nombre) + '</b>' : '↳ quiebre';
+    const obs = (p, ll)=>esc(p.obs) + (ll && ll.det ? (p.obs ? ' · ' : '') + 'detención ' + Math.round(ll.det*60) + ' min' : '');
     vista.innerHTML = `${encabezado(m, R)}
       <h2>Resumen</h2>${kpis(R)}
-      ${malos.length ? `<div class="alerta">${malos.length} punto${malos.length===1 ? '' : 's'} sin coordenada o cota válida (${malos.map(p=>esc(p.nombre)).join(', ')}): sus tramos no se calcularon.</div>` : ''}
+      ${malos.length ? `<div class="alerta">${malos.length} punto${malos.length===1 ? '' : 's'} sin coordenada o cota válida (${malos.map(p=>esc(p.nombre || 'quiebre')).join(', ')}): sus tramos no se calcularon.</div>` : ''}
       ${R.avisos.map(a=>`<div class="alerta">${esc(a)}</div>`).join('')}
       ${R.res.lejos ? `<div class="alerta">Hay puntos a más de 4° del meridiano central de la zona ${R.zona}: revisa la zona UTM de trabajo.</div>` : ''}
-      <h2>Cuadro de marcha</h2>
-      <div class="tabla-env solo-ancho"><table class="t">
-        <thead><tr><th class="tx">Tramo</th><th>Distancia<br>(m)</th><th>Dist. acum.<br>(km)</th><th>Cota<br>inicial</th><th>Cota<br>final</th><th>Desnivel<br>(m)</th><th>Pendiente</th>
-          <th>Rumbo<br>mag. (°)</th><th>Rumbo<br>(‰)</th><th>Tiempo<br>tramo</th><th>Tiempo<br>acum.</th><th>Hora<br>llegada</th><th class="tx">Observaciones</th><th class="tx">Evento<br>(radio)</th></tr></thead>
-        <tbody>${R.tramosEv.map((t, g)=>`<tr class="${t.quiebres ? 'conq' : ''}" ${t.quiebres ? `data-abre="${g}" title="Tocar para ver los quiebres"` : ''}><td class="tx">${t.quiebres ? '<span class="plie">▸</span>' : ''}<b>${esc(t.de)}</b> → <b>${esc(t.a)}</b>${t.quiebres ? `<span class="s">${t.quiebres} quiebre${t.quiebres===1 ? '' : 's'} · +${f(t.sube)} / −${f(t.baja)} m</span>` : ''}</td><td>${f(t.dist)}</td><td>${f(t.distAcum/1000, 2)}</td><td>${f(t.cotaIni)}</td><td>${f(t.cotaFin)}</td>
-          <td class="${t.dv>0 ? 'sube' : t.dv<0 ? 'baja' : ''}">${t.dv>0 ? '+' : ''}${f(t.dv)}</td><td class="${pteC(t.quiebres ? t.pteMax : t.pte)}">${t.quiebres ? 'máx ' + f(t.pteMax*100, 1) : f(t.pte*100, 1)} %</td>
-          ${t.quiebres ? `<td><span class="s">ver quiebres</span></td><td></td>` : `<td><b>${f(t.azM, 1)}</b><span class="s">cuad. ${f(t.azC, 1)} · geo. ${f(t.azG, 1)}</span></td><td>${t.mils}</td>`}
-          <td>${como[t.como]||''} ${M.verDur(t.t)}</td><td>${M.verDur(t.tAcum)}</td><td><b>${M.verHora(t.llegada)}</b>${t.det ? `<span class="s">sale ${M.verHora(t.salida)}</span>` : ''}</td><td class="obs tx">${esc(t.obs)}${t.det ? (t.obs ? ' · ' : '') + 'detención ' + Math.round(t.det*60) + ' min' : ''}</td><td class="tx">${evento(t.claveB)}</td></tr>` + subs(t, g)).join('')}
-          <tr class="tot"><td class="tx">Total</td><td>${f(R.res.dist)}</td><td>${f(R.res.dist/1000, 2)}</td><td></td><td></td><td>+${f(R.res.sube)} / −${f(R.res.baja)}</td><td></td><td></td><td></td><td>${M.verDur(R.res.marcha)}</td><td></td><td>${M.verHora(R.res.termino)}</td><td class="tx obs">con altos, detenciones e imprevistos</td><td></td></tr>
+      <h2>Cuadro de marcha y navegación</h2>
+      <div class="tabla-env solo-ancho"><table class="t cmn">
+        <thead><tr><th class="tx">Punto</th><th>Hora<br>llegada</th><th>Hora<br>salida</th><th>Altitud<br>(m)</th>
+          <th class="sig">Rumbo al siguiente<br>(° / ‰)</th><th class="sig">Distancia<br>(m)</th><th class="sig">Desnivel<br>(m)</th><th class="sig">Pendiente</th><th class="sig">Tiempo</th>
+          <th>Dist. acum.<br>(km)</th><th>Tiempo<br>acum.</th><th class="tx">Observaciones</th><th class="tx">Evento<br>(radio)</th></tr></thead>
+        <tbody>${filas.map(({p, ll, sig, sal, acum, tac})=>`<tr class="${p.ev ? '' : 'sub'}"><td class="tx">${nombre(p)}</td>
+          <td>${ll ? '<b>' + M.verHora(ll.llegada) + '</b>' : '—'}</td><td>${sig ? M.verHora(sal) : '—'}</td><td>${f(p.cota)}</td>
+          ${sig ? `<td class="sig"><b>${f(sig.azM, 0)}°</b> / ${sig.mils}<span class="s">cuad. ${f(sig.azC, 1)} · geo. ${f(sig.azG, 1)}</span></td><td class="sig">${f(sig.dist)}</td>
+            <td class="sig ${sig.dv>0 ? 'sube' : sig.dv<0 ? 'baja' : ''}">${sig.dv>0 ? '+' : ''}${f(sig.dv)}</td><td class="sig ${pteC(sig.pte)}">${f(sig.pte*100, 1)} %</td><td class="sig">${como[sig.como]||''} ${M.verDur(sig.t)}</td>`
+            : '<td class="sig">—</td><td class="sig"></td><td class="sig"></td><td class="sig"></td><td class="sig"></td>'}
+          <td>${f(acum/1000, 2)}</td><td>${ll ? M.verDur(tac) : '—'}</td><td class="obs tx">${obs(p, ll)}</td><td class="tx">${ll && p.ev ? evento(p.clave) : ''}</td></tr>`).join('')}
+          <tr class="tot"><td class="tx">Total</td><td></td><td>${M.verHora(R.res.termino)}<span class="s">término</span></td><td></td><td class="sig"></td><td class="sig">${f(R.res.dist)}</td>
+            <td class="sig">+${f(R.res.sube)} / −${f(R.res.baja)}</td><td class="sig"></td><td class="sig">${M.verDur(R.res.marcha)}</td><td>${f(R.res.dist/1000, 2)}</td><td></td><td class="tx obs">término con altos, detenciones e imprevistos</td><td></td></tr>
         </tbody></table></div>
-      <div class="tramos-cel">${R.tramosEv.map(t=>`<div class="tc"><div class="cab"><b>${esc(t.de)} → ${esc(t.a)}</b><span class="hora">${M.verHora(t.llegada)}</span></div>
-        <div class="datos"><div><span>Rumbo mag.</span>${t.quiebres ? `<b class="rumbo">${t.subs.map(u=>f(u.azM, 0) + '°').join(' › ')}</b>` : `<b class="rumbo">${f(t.azM, 0)}°</b> <small>${t.mils} ‰</small>`}</div><div><span>Distancia</span>${f(t.dist)} m</div><div><span>Tiempo</span>${M.verDur(t.t)}</div>
-          <div><span>Desnivel</span>${t.dv>0 ? '+' : ''}${f(t.dv)} m</div><div><span>Pendiente</span>${f(t.pte*100, 1)} %</div><div><span>Acumulado</span>${f(t.distAcum/1000, 2)} km · ${M.verDur(t.tAcum)}</div></div>${t.claveB ? `<div class="tc-ev">${evento(t.claveB)}</div>` : ''}
-        ${t.obs || t.det ? `<div class="nota" style="margin-top:6px">${esc(t.obs)}${t.det ? (t.obs ? ' · ' : '') + 'detención ' + Math.round(t.det*60) + ' min, sale ' + M.verHora(t.salida) : ''}</div>` : ''}</div>`).join('')}</div>
+      <div class="tramos-cel">${filas.map(({p, ll, sig, acum, tac})=>p.ev ? `<div class="tc"><div class="cab"><b>${esc(p.nombre)}</b><span class="hora">${ll ? M.verHora(ll.llegada) : 'sale ' + M.verHora(R.res.partida)}</span></div>
+          ${sig ? `<div class="datos"><div><span>Rumbo al sig.</span><b class="rumbo">${f(sig.azM, 0)}°</b> <small>${sig.mils} ‰</small></div><div><span>Distancia</span>${f(sig.dist)} m</div><div><span>Tiempo</span>${M.verDur(sig.t)}</div>
+            <div><span>Desnivel</span>${sig.dv>0 ? '+' : ''}${f(sig.dv)} m</div><div><span>Pendiente</span>${f(sig.pte*100, 1)} %</div><div><span>Acumulado</span>${f(acum/1000, 2)} km · ${M.verDur(tac)}</div></div>` : `<div class="nota">Término · ${f(acum/1000, 2)} km · ${M.verDur(tac)} de marcha</div>`}
+          ${ll && p.clave ? `<div class="tc-ev">${evento(p.clave)}</div>` : ''}${obs(p, ll) ? `<div class="nota" style="margin-top:6px">${obs(p, ll)}</div>` : ''}</div>`
+        : `<div class="tc quiebre">↳ quiebre · ${ll ? M.verHora(ll.llegada) : ''} · ${f(p.cota)} m${sig ? ` · rumbo <b>${f(sig.azM, 0)}°</b> / ${sig.mils} ‰ · ${f(sig.dist)} m` : ''}</div>`).join('')}</div>
 
       ${apoyo(R)}
-      <p class="nota no-imp">Toca un tramo con quiebres (▸) para ver su detalle. Todos los puntos con su rumbo están en <b>Ficha de navegación</b> (botón de arriba).</p>
-      <div class="solo-imp"><h2 class="salto">Ficha de navegación</h2>${htmlFicha(R)}
-      </div>
-      <p class="nota">Rumbos magnéticos con declinación ${f(R.decl.valor, 2)}° (${esc(R.decl.fuente)}) a la fecha de la marcha. Horas con ${Math.round(R.par.altos*100)} % de altos; los imprevistos (${M.verDur(R.res.imprev)}) quedan como reserva al final.</p>
-      <div class="btns no-imp"><button class="btn pri" id="bImp">🖨 Imprimir cuadro y ficha de navegación</button><button class="btn" id="bPerf">Ver perfil ›</button><button class="btn" id="bEnv">Enviar ›</button></div>`;
+      <p class="nota">Rumbos magnéticos con declinación ${f(R.decl.valor, 2)}° (${esc(R.decl.fuente)}) a la fecha de la marcha. Horas con ${Math.round(R.par.altos*100)} % de altos; los imprevistos (${M.verDur(R.res.imprev)}) quedan como reserva al final.
+        Los quiebres (puntos de ruta) van en gris; los datos «al siguiente» son del tramo que sale de ese punto.</p>
+      <div class="btns no-imp"><button class="btn pri" id="bImp">🖨 Imprimir / PDF</button><button class="btn" id="bPerf">Ver perfil ›</button><button class="btn" id="bEnv">Enviar ›</button></div>`;
     $('#bImp').onclick = ()=>window.print(); $('#bPerf').onclick = ()=>ir('perfil'); $('#bEnv').onclick = ()=>ir('enviar');
-    vista.querySelectorAll('[data-abre]').forEach(tr=>tr.onclick = ()=>{ const g = tr.dataset.abre, ab = tr.classList.toggle('abierto');
-      vista.querySelectorAll('tr.sub[data-g="' + g + '"]').forEach(x=>x.classList.toggle('ver', ab)); });
   }
 
   /* =====================================================================  PERFIL (ficha de itinerario)  */
@@ -600,7 +580,7 @@
         <button class="btn" data-arch="geojson"><b>GeoJSON</b><small>Sistemas C2 y SIG (QGIS, ArcGIS)</small></button>
         <button class="btn" data-arch="csv"><b>Excel (CSV)</b><small>Cuadro de marcha para anexar a la OPORD</small></button>
         <button class="btn" data-arch="json"><b>Marcha (JSON)</b><small>Para abrirla en otro equipo con esta app</small></button>
-        <button class="btn" id="bImp"><b>🖨 Imprimir / PDF</b><small>Cuadro de marcha y ficha de navegación</small></button>
+        <button class="btn" id="bImp"><b>🖨 Imprimir / PDF</b><small>Cuadro de marcha y navegación</small></button>
       </div>
       <h2>Vínculo con el C2 TOQUI</h2>
       <div class="tarjeta nota">
