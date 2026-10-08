@@ -44,21 +44,21 @@ if(typeof globalThis!=='undefined') globalThis.LISTA = LISTA;
    el agua sale de la tabla de calor; el resto se ajusta según la orden. Ids fijos (las marcas y cantidades se guardan en m.material). */
 const MATERIAL = [
   {g:'Armamento y protección', items:[
-    ['fusil', 'Fusil (con correa y accesorios)', c=>c.n, c=>'1 por hombre; las armas de apoyo se agregan en «Otros»'],
-    ['cargad', 'Cargadores con munición', c=>c.n*6, c=>'6 por hombre (dotación sugerida: ajústala)'],
-    ['granada', 'Granadas de mano', c=>0, c=>'si la misión lo exige: escribe cuántas por hombre'],
-    ['casco', 'Casco', c=>c.n, c=>'1 por hombre'],
-    ['chaleco', 'Chaleco antibalas con placas', c=>c.n, c=>'escribe 0 si no se usa'],
-    ['portaf', 'Cinturón de carga', c=>c.n, c=>'donde va la 2.ª línea']]},
+    ['fusil', 'Fusil (con correa y accesorios)', c=>c.civil ? null : c.n, c=>'1 por hombre; las armas de apoyo se agregan en «Otros»'],
+    ['cargad', 'Cargadores con munición', c=>c.civil ? null : c.n*6, c=>'6 por hombre (dotación sugerida: ajústala)'],
+    ['granada', 'Granadas de mano', c=>c.civil ? null : 0, c=>'si la misión lo exige: escribe cuántas por hombre'],
+    ['casco', 'Casco', c=>c.civil ? null : c.n, c=>'1 por hombre'],
+    ['chaleco', 'Chaleco antibalas con placas', c=>c.civil ? null : c.n, c=>'escribe 0 si no se usa'],
+    ['portaf', 'Cinturón de carga', c=>c.civil ? null : c.n, c=>'donde va la 2.ª línea']]},
   // equipo que sirve a toda la unidad para la misión o la marcha: se escribe el total y su peso se reparte entre todos
   {g:'Equipo especial de la unidad', items:[
     ['radio', 'Radio', c=>Math.max(1, c.unidades) + 1, c=>'1 por unidad de marcha + la del comandante'],
     ['batRad', 'Baterías de repuesto para radio', c=>(Math.max(1, c.unidades) + 1)*Math.max(1, Math.ceil(c.horas/8)), c=>'1 por radio cada 8 h'],
     ['mochTr', 'Mochila de trauma (enfermero)', c=>Math.max(1, c.unidades), c=>'1 por unidad de marcha'],
     ['camilla', 'Camilla plegable', c=>c.n>=10 ? Math.ceil(c.n/40) : null, c=>'1 cada 40 hombres'],
-    ['ametr', 'Ametralladora', c=>0, c=>'escribe cuántas lleva la unidad'],
-    ['muniAm', 'Munición de ametralladora (cajas o cintas)', c=>0, c=>'escribe cuántas cajas o cintas'],
-    ['lanzac', 'Lanzacohetes o arma antitanque', c=>0, c=>'escribe cuántos'],
+    ['ametr', 'Ametralladora', c=>c.civil ? null : 0, c=>'escribe cuántas lleva la unidad'],
+    ['muniAm', 'Munición de ametralladora (cajas o cintas)', c=>c.civil ? null : 0, c=>'escribe cuántas cajas o cintas'],
+    ['lanzac', 'Lanzacohetes o arma antitanque', c=>c.civil ? null : 0, c=>'escribe cuántos'],
     ['cuerda', 'Cuerda de seguridad', c=>c.montana || c.nieve ? Math.max(1, Math.ceil(c.n/10)) : null, c=>'1 cada 10 hombres para pasos difíciles'],
     ['otroEq', 'Otro equipo de la unidad', c=>0, c=>'o agrega elementos propios con «＋ Agregar»']]},
   {g:'Agua y alimentación', items:[
@@ -95,6 +95,12 @@ const MATERIAL = [
     ['abrigo', 'Ropa de abrigo (primera capa, polar)', c=>c.noche>0 || c.montana || c.nieve ? c.n : null, c=>'frío de noche o en altura'],
     ['gorro', 'Gorro y guantes', c=>c.nieve || c.montana ? c.n : null, c=>'montaña o nieve'],
     ['lentes', 'Lentes de sol', c=>c.nieve || c.montana ? c.n : null, c=>'reflejo de la nieve o del sol en altura'],
+    ['saco', 'Saco de dormir', c=>c.pernocta ? c.n : null, c=>'marcha con pernocta'],
+    ['aislante', 'Aislante (colchoneta)', c=>c.pernocta ? c.n : null, c=>'marcha con pernocta'],
+    ['carpa', 'Carpa o vivac', c=>c.pernocta ? Math.ceil(c.n/2) : null, c=>'1 cada 2 (repartida)'],
+    ['cocina', 'Cocinilla y gas', c=>c.pernocta ? Math.max(1, Math.ceil(c.n/4)) : null, c=>'1 cada 4 (repartida)'],
+    ['olla', 'Olla y utensilios', c=>c.pernocta ? Math.max(1, Math.ceil(c.n/4)) : null, c=>'1 juego cada 4 (repartido)'],
+    ['aseo', 'Útiles de aseo', c=>c.pernocta ? c.n : null, c=>'marcha con pernocta'],
     ['sombrero', 'Sombrero o jockey', c=>c.calorCat>=2 || (c.noche<0.5 && !c.nieve) ? c.n : null, c=>'sol y calor']]},
   {g:'Marcha de noche', items:[
     ['linterna', 'Linterna con filtro rojo', c=>c.noche>0 ? c.n : null, c=>'parte de la marcha es de noche'],
@@ -112,7 +118,7 @@ const MATERIAL = [
 function contextoMaterial(m, R){
   const p = R.par, hay = (+p.efectivo||0)>0, cal = R.calor;
   const aguaH = cal && cal.lh ? cal.lh : 0.71;   // sin índice de calor: categoría 1, trabajo moderado (¾ qt/h)
-  const c0 = {n:hay ? Math.round(+p.efectivo) : 1, hay, horas:R.res.total || 0, reabast:p.reabast==='si', racion:String(p.racion || '24'), km:R.res.dist/1000, noche:R.fracNoche || 0, aguaH, calorDato:!!(cal && cal.lh),
+  const c0 = {civil:typeof Uso!=='undefined' && Uso.civil(), pernocta:!!p.pernocta, n:hay ? Math.round(+p.efectivo) : 1, hay, horas:R.res.total || 0, reabast:p.reabast==='si', racion:String(p.racion || '24'), km:R.res.dist/1000, noche:R.fracNoche || 0, aguaH, calorDato:!!(cal && cal.lh),
     calorCat:cal ? cal.cat : 0, montana:['montana', 'mide'].includes(p.metodo), nieve:p.terreno && p.terreno!=='sinNieve' && ['montana', 'mide'].includes(p.metodo), terreno:p.terreno,
     unidades:Math.max(1, Math.round(+p.unidades||1)), carga:p.metodo!=='general' ? p.carga : null};
   c0.agua = aguaPlan(m, R, aguaH, c0.reabast); return c0;
@@ -144,6 +150,7 @@ if(typeof globalThis!=='undefined'){ globalThis.MATERIAL = MATERIAL; globalThis.
    · 'c' = colectivo (se reparte entre todos) · 'x' = no se carga (personas, planes, agua de reabastecimiento, totales). */
 const PESOS = {fusil:[4, 'i'], cargad:[0.5, 'i'], granada:[0.4, 'i'], casco:[1.4, 'i'], chaleco:[8, 'i'], portaf:[1.2, 'i'], agua:[1.1, 'h'], aguaT:[0, 'x'], reabast:[0, 'x'],
   radio:[1.5, 'c'], batRad:[0.5, 'c'], mochTr:[6, 'c'], camilla:[7, 'c'], ametr:[10, 'c'], muniAm:[3, 'c'], lanzac:[7, 'c'], cuerda:[3.5, 'c'], otroEq:[1, 'c'],
+  saco:[1.5, 'i'], aislante:[0.4, 'i'], carpa:[2.5, 'c'], cocina:[0.8, 'c'], olla:[0.4, 'c'], aseo:[0.2, 'i'],
   racion24:[1.3, 'i'], racion12:[0.9, 'i'], ifak:[0.5, 'i'], botPA:[0.3, 'i'], potab:[0.1, 'c'], sales:[0.01, 'i'], colac:[0.25, 'i'],
   socorr:[0, 'x'], calcet:[0.1, 'i'], manta:[0.06, 'c'], solar:[0.1, 'c'], evac:[0, 'x'],
   carta:[0.05, 'c'], brujula:[0.1, 'c'], gps:[0.25, 'c'], bateria:[0.25, 'c'], cuadro:[0.02, 'c'], reloj:[0, 'x'], marcador:[0.05, 'c'],

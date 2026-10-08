@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.38', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.40', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -13,6 +13,7 @@
   S.marchas.forEach(m=>{ m.par = Object.assign(M.porDefecto(), m.par || {}); if(m.par.metodo==='cartilla') m.par.metodo = 'montana';
     if(m.par.motivosAlto && !/agotamiento/i.test(m.par.motivosAlto)) m.par.motivosAlto = m.par.motivosAlto.replace(/(Comida\n?)/, '$1Agotamiento momentáneo\n');
     const u = m.puntos[m.puntos.length - 1]; if(m.puntos.length>1 && u && (u.nombre==='PIM' || u.nombre==='TÉRMINO')) u.nombre = 'PTM'; });   // el término de marcha se llama PTM   // parámetros completos; nombre antiguo del método
+  Uso.poner(S.uso); Uso.observar();
   let tGuardar = null;
   const guardar = ()=>{ clearTimeout(tGuardar); tGuardar = setTimeout(()=>{ tGuardar = null; try { localStorage.setItem(CLAVE, JSON.stringify(S)); } catch(e){ aviso('⚠ No se pudo guardar en este equipo'); } }, 250); };
   // al cerrar o pasar a segundo plano se guarda de inmediato (no esperar la pausa)
@@ -22,8 +23,8 @@
   const hoy = ()=>{ const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
   function nueva(datos){
     const m = Object.assign({id:nid(), nombre:'Nueva marcha', unidad:'', fecha:hoy(), hora:'08:00', datum:'WGS84', zona:'', par:M.porDefecto(), puntos:[]}, datos || {});
-    m.par = Object.assign(M.porDefecto(), m.par || {}); m.id = nid();
-    if(!m.puntos.length) m.puntos = [punto('PIM')];
+    m.par = Object.assign(M.porDefecto(), !datos && Uso.civil() ? Uso.parCivil() : {}, m.par || {}); m.id = nid();
+    if(!m.puntos.length) m.puntos = [punto(Uso.civil() ? 'Inicio' : 'PIM')];
     S.marchas.unshift(m); S.actual = m.id; guardar(); return m;
   }
   function punto(nombre, base){ return Object.assign({nombre, tipo:'UTM', zona:19, e:'', n:'', lat:'', lon:'', cota:'', obs:'', det:''}, base || {}); }
@@ -35,7 +36,9 @@
     pts[4].det = 20;
     pts.slice(0, 4).reverse().forEach(p=>pts.push(Object.assign({}, p, {obs:'Regreso — ' + p.obs, det:''})));
     pts[pts.length - 1].nombre = 'PTM';
-    return nueva({nombre:'Cerro Manquehue (EJEMPLO)', unidad:'Sección de ejemplo', puntos:pts});
+    if(Uso.civil()){ pts[0].nombre = 'Inicio'; pts[pts.length - 1].nombre = 'Término'; }
+    return nueva(Object.assign({nombre:'Cerro Manquehue (EJEMPLO)', unidad:Uso.civil() ? 'Grupo de ejemplo' : 'Sección de ejemplo', puntos:pts},
+      Uso.civil() ? {par:Object.assign(M.porDefecto(), Uso.parCivil(), {efectivo:8})} : {}));
   }
 
   /* ---------- avisos y diálogos ---------- */
@@ -85,7 +88,10 @@
         <div class="d">${ok ? km(r.res.dist) + ' km · +' + f(r.res.sube) + ' m · ' + M.verDur(r.res.total) : (m.puntos.length + ' puntos · faltan datos')}</div></div>
         <span class="flecha"><button class="btn mini" data-dup="${m.id}">Duplicar</button> <button class="btn mini peligro" data-borra="${m.id}">Borrar</button></span></div>`;
     }).join('');
-    vista.innerHTML = `<h2>Mis marchas</h2>
+    vista.innerHTML = `<div class="tarjeta uso"><div class="uso-t">${S.uso ? 'Uso de la app' : '¿Cómo vas a usar Burros de Combate?'}</div>
+        <div class="seg"><button data-uso="militar" class="${Uso.civil() ? '' : 'on'}">🪖 Militar</button><button data-uso="civil" class="${Uso.civil() ? 'on' : ''}">🥾 Civil</button></div>
+        <p class="nota">${Uso.civil() ? 'Montañismo, trekking, scouts, guías y rescate: sin armamento ni términos militares; plan de ruta para tu contacto de emergencia.' : 'Marchas militares: líneas de carga, nombres clave, mensajes al C2 y orden gráfica.'} Cambia cuando quieras: el cálculo es el mismo.</p></div>
+      <h2>Mis marchas</h2>
       ${lista || `<div class="tarjeta vacio">Aún no hay marchas.<br>Crea una nueva o abre el ejemplo para ver cómo funciona.</div>`}
       <div class="btns"><button class="btn pri" id="bNueva">＋ Nueva marcha</button><button class="btn" id="bEjemplo">Ver ejemplo</button>
         <button class="btn" id="bImportar">⤓ Importar GPX / KML</button><button class="btn" id="bRecibir">📨 Recibir plan (código o QR)</button></div>
@@ -94,7 +100,7 @@
         <div class="btns"><button class="btn" id="bResp">⬇ Guardar respaldo</button><button class="btn" id="bCargar">⬆ Cargar respaldo</button></div></div>
       <h2>Siglas y términos</h2>
       <details class="tarjeta"><summary>Ver qué significa cada sigla</summary>
-        <table class="t glosario"><tbody>${GLOSARIO.map(([k, v])=>`<tr><td class="tx"><b>${esc(k)}</b></td><td class="tx">${esc(v)}</td></tr>`).join('')}</tbody></table></details>
+        <table class="t glosario"><tbody>${Uso.glosario(GLOSARIO).map(([k, v])=>`<tr><td class="tx"><b>${esc(k)}</b></td><td class="tx">${esc(v)}</td></tr>`).join('')}</tbody></table></details>
       <h2>Qué hace</h2>
       <div class="tarjeta nota">Marca la ruta <b>sobre el mapa o tu carta</b> (con cuadrícula UTM y cota automática) y calcula el <b>cuadro de marcha y navegación</b> (distancia, desnivel, pendiente, rumbo magnético en grados y milésimas, tiempos, altos,
         imprevistos y hora de llegada a cada punto), dibuja el <b>perfil del itinerario</b>, lo deja listo para imprimir y
@@ -110,6 +116,7 @@
       if(b && b.dataset.borra){ const x = S.marchas.find(x=>x.id===b.dataset.borra);
         return confirmar('¿Borrar la marcha «' + x.nombre + '»? No se puede deshacer.', ()=>{ S.marchas = S.marchas.filter(y=>y!==x); if(S.actual===x.id) S.actual = null; guardar(); pintar(); }); }
       S.actual = d.dataset.abrir; ir('mapa'); });
+    vista.querySelectorAll('[data-uso]').forEach(b=>b.onclick = ()=>{ S.uso = b.dataset.uso; Uso.poner(S.uso); guardar(); pintar(); aviso(Uso.civil() ? '🥾 Uso civil' : '🪖 Uso militar'); });
     $('#bNueva').onclick = ()=>{ nueva(); ir('mapa'); };
     $('#bEjemplo').onclick = ()=>{ ejemplo(); ir('cuadro'); };
     $('#bImportar').onclick = importarArchivo;
@@ -220,7 +227,7 @@
 
       <details class="tarjeta"><summary>Cálculo de tiempos<span class="res">${esc(({montana:'Montaña', mide:'MIDE', general:'Marcha general', forzada:'Marcha forzada', battle:'Carrera de combate'})[p.metodo])} · ${sinAl ? 'sin altos' : 'altos '}${sinAl ? '' : p.altosModo==='regimen' ? esc(p.altoDur) + ' min cada ' + esc(p.altoCada) : pct(p.altos) + ' %'} · imprev. ${pct(p.imprev)} %</span></summary>
         <div class="campos">
-          <label class="c ancho">Método<select data-par="metodo" data-redibujar>${opc(M.METODOS, p.metodo)}</select></label>
+          <label class="c ancho">Método<select data-par="metodo" data-redibujar>${opc(Object.fromEntries(Object.entries(M.METODOS).filter(([k])=>!Uso.civil() || !['forzada', 'battle'].includes(k) || k===p.metodo)), p.metodo)}</select></label>
           ${p.metodo==='battle' ? camposBattle : p.metodo!=='general' && p.metodo!=='forzada' ? `
           <label class="c">Tropa<select data-par="tropa" data-redibujar>${opc(tropas, p.tropa)}</select></label>
           <label class="c">Terreno / modalidad<select data-par="terreno" data-redibujar>${opc(terrenos, p.terreno)}</select></label>
@@ -245,7 +252,7 @@
           <label class="c">Imprevistos (%)<input class="num" data-par="imprev" data-pct inputmode="decimal" value="${pct(p.imprev)}"></label>
         </div>
         <p class="nota">${!p.cargaManual && R.carga ? `La carga sale del <b>Material</b> (Cuadro → Material): <b>${f(R.carga.inicial, 1)} kg al partir</b> y ${f(R.carga.final, 1)} kg al llegar (el agua se bebe en el camino); cada tramo se calcula con su carga.` : R.sinEfectivo ? '<b style="color:var(--ocre)">Falta el efectivo</b> (Unidad y columna): sin él no se puede calcular la carga desde el material; se usa la carga escrita.' : 'Carga escrita a mano.'}
-          <label style="display:inline"><input type="checkbox" data-par="cargaManual" data-redibujar ${p.cargaManual ? 'checked' : ''} style="width:auto;vertical-align:middle"> Escribir la carga a mano</label>
+          <label style="display:block;margin:6px 0"><input type="checkbox" data-par="cargaManual" data-redibujar ${p.cargaManual ? 'checked' : ''} style="width:auto;vertical-align:middle"> Escribir la carga a mano</label>
           ${sinAl ? ' La carga define el esfuerzo para el calor.' : p.metodo!=='general' ? ' La tabla trae 10, 20 y 30 kg: con otra carga se interpola.' : ' En marcha general, con carga sobre unos 18 kg la velocidad baja.'}</p>
         ${sinAl ? notaSinAltos : ''}
         ${p.metodo!=='general' && !sinAl ? `<p class="nota">Tabla de velocidades de marcha vertical en montaña para ${esc(tropas[p.tropa].toLowerCase())}, ${esc(M.TERRENOS[p.terreno].n.toLowerCase())}, ${f(vt.carga, 1)} kg:
@@ -691,18 +698,23 @@
       <div class="kpis">
         <div class="kpi ocre"><div class="k">Total por hombre al partir</div><div class="v">${f(pm.total, 1)} <small>kg</small></div><div class="s">${pm.sinMochila ? 'sin mochila (se deja la 3.ª línea)' : 'con mochila'}${pm.final!==undefined && Math.abs(pm.final - pm.total)>0.05 ? ' · al llegar ' + f(pm.final, 1) + ' kg' : ''}</div></div>
         ${[1, 2, 3].map(l=>`<div class="kpi"${l===3 && pm.sinMochila ? ' style="opacity:.5"' : ''}><div class="k">${LINEAS[l]}</div><div class="v">${f(pm.lineas[l], 1)} <small>kg</small></div><div class="s">${esc(LINEAS_TXT[l])}${l===3 && pm.sinMochila ? ' · <b>se deja</b>' : ''}</div></div>`).join('')}</div>
-      <div class="kpis">
+      ${Uso.civil() ? (()=>{ const pc = +String(m.par.pesoCorp || '').replace(',', '.') || 0, pct = pc ? pm.total/pc*100 : null;
+        return `<div class="kpis"><div class="kpi"><div class="k">Porcentaje de tu peso</div><div class="v">${pct===null ? '—' : f(pct, 0) + ' <small>%</small>'}</div>
+          <div class="s" style="color:var(--${pct===null ? 'tenue' : pct>25 ? 'rojo' : pct>20 ? 'ocre' : 'verde'})">${pct===null ? 'escribe tu peso corporal' : pct>25 ? 'sobre el 25 %: demasiado pesado' : pct>20 ? 'entre 20 y 25 %: pesado' : 'hasta 20 %: recomendable'}</div></div>
+          <div class="kpi"><div class="k">Peso corporal (kg)</div><div class="v"><input class="num" id="mtPeso" inputmode="decimal" value="${esc(m.par.pesoCorp || '')}" placeholder="ej. 70" style="width:90px"></div><div class="s">promedio del grupo</div></div></div>
+        <p class="nota">Referencia habitual en montaña: la mochila no debería pasar del <b>20 %</b> del peso de quien la lleva (hasta un 25 % en travesías de varios días). Es solo una referencia.</p>`; })() : `<div class="kpis">
         <div class="kpi"><div class="k">Carga de combate (1.ª + 2.ª)</div><div class="v">${f(pm.combate, 1)} <small>kg</small></div>${ref(pm.combate, L.combate)}</div>
         <div class="kpi"><div class="k">Carga de marcha (1.ª + 2.ª + 3.ª)</div><div class="v">${f(pm.marcha, 1)} <small>kg</small></div>${pm.marcha>L.marcha + 21 ? '<div class="s" style="color:var(--rojo)">carga de emergencia: marcha lenta, evitar el contacto</div>' : ref(pm.marcha, L.marcha)}</div></div>
       <p class="nota">Límites <b>referenciales</b> (manual de marchas a pie de EE.UU.): carga de combate hasta unos ${L.combate} kg; carga de marcha de aproximación hasta unos ${L.marcha} kg.
-        ${pm.lineas[4] ? `4.ª línea (vehículo o apoyo): ${f(pm.lineas[4], 1)} kg por hombre, <b>no se suma</b>.` : '4.ª línea: lo que va en vehículos o con el apoyo logístico; no la carga el hombre (elige «4.ª» en un elemento para dejarlo ahí).'}</p>
+        ${pm.lineas[4] ? `4.ª línea (vehículo o apoyo): ${f(pm.lineas[4], 1)} kg por hombre, <b>no se suma</b>.` : '4.ª línea: lo que va en vehículos o con el apoyo logístico; no la carga el hombre (elige «4.ª» en un elemento para dejarlo ahí).'}</p>`}
       <div class="campos">
-        <label class="c ancho"><span><input type="checkbox" id="mtMochila" ${m.par.sinMochila ? 'checked' : ''} style="width:auto;vertical-align:middle"> <b>Se deja la mochila</b> (la marcha se hace solo con la 1.ª y 2.ª línea; p. ej. carrera de combate o asalto)</span></label>
+        <label class="c ancho"><span><input type="checkbox" id="mtPern" ${m.par.pernocta ? 'checked' : ''} style="width:auto;vertical-align:middle"> <b>Con pernocta</b> (saco, aislante, carpa, cocinilla, olla y aseo)</span></label>
+        ${Uso.civil() ? '' : `<label class="c ancho"><span><input type="checkbox" id="mtMochila" ${m.par.sinMochila ? 'checked' : ''} style="width:auto;vertical-align:middle"> <b>Se deja la mochila</b> (la marcha se hace solo con la 1.ª y 2.ª línea; p. ej. carrera de combate o asalto)</span></label>`}
         <label class="c">Reabastecimiento de agua en ruta<select id="mtReab"><option value="no"${m.par.reabast!=='si' ? ' selected' : ''}>No: se carga toda el agua</option><option value="si"${m.par.reabast==='si' ? ' selected' : ''}>Sí, en puntos de agua</option></select></label>
         <label class="c">Ración de combate<select id="mtRac"><option value="24"${m.par.racion!=='12' ? ' selected' : ''}>De 24 horas</option><option value="12"${m.par.racion==='12' ? ' selected' : ''}>De 12 horas</option></select></label>
         <label class="c">Otro peso por hombre (kg)<input class="num" id="mtBase" inputmode="decimal" value="${esc(m.par.cargaBase || '')}" placeholder="no listado"></label></div>
       <p class="nota">Esta carga se usa en toda la marcha: tiempos de cada tramo, calor y descansos. ${m.par.cargaManual ? '<b style="color:var(--ocre)">Ahora la carga está escrita a mano (Puntos → Cálculo de tiempos).</b>' : ''}
-        El fusil, la munición, el casco y los chalecos están en la lista (Armamento y protección); el equipo que sirve a toda la unidad, en «Equipo especial de la unidad». Usa «Otro peso» solo para lo que no esté en la lista${+String(m.par.cargaBase || '').replace(',', '.')>0 ? ` — <b style="color:var(--ocre)">si ahí habías escrito el fusil, casco y chaleco, bórralo para no contarlos dos veces</b>` : ''}.
+        ${Uso.civil() ? 'Lo que sirve a todo el grupo (radio, botiquín grande, cuerda, carpas) va en «Equipo especial de la unidad» y se reparte.' : 'El fusil, la munición, el casco y los chalecos están en la lista (Armamento y protección); el equipo que sirve a toda la unidad, en «Equipo especial de la unidad».'} Usa «Otro peso» solo para lo que no esté en la lista${!Uso.civil() && +String(m.par.cargaBase || '').replace(',', '.')>0 ? ` — <b style="color:var(--ocre)">si ahí habías escrito el fusil, casco y chaleco, bórralo para no contarlos dos veces</b>` : ''}.
         Material de grupo repartido: ${f(pm.colect, 1)} kg por hombre, entre ${pm.hay ? pm.n + ' hombres' : '1 hombre: indica el efectivo en Puntos → Unidad y columna'}. Más pesado por hombre: ${top || '—'}.
         Los pesos son <b>sugeridos</b>: cámbialos en «kg» de cada elemento. El agua de reabastecimiento en ruta no se suma.</p></div>`;
   }
@@ -730,6 +742,8 @@
     vista.querySelectorAll('[data-mk]').forEach(x=>x.oninput = ()=>{ const o = Mt()[x.dataset.mk] || (Mt()[x.dataset.mk] = {}); o.kg = x.value; guardar(); recarga(); });
     const b = $('#mtBase'); if(b) b.oninput = ()=>{ m.par.cargaBase = b.value; guardar(); recarga(); };
     const mo = $('#mtMochila'); if(mo) mo.onchange = ()=>{ m.par.sinMochila = mo.checked; guardar(); const y = window.scrollY; pintar(); window.scrollTo(0, y); };
+    const pe = $('#mtPern'); if(pe) pe.onchange = ()=>{ m.par.pernocta = pe.checked; guardar(); const y = window.scrollY; pintar(); window.scrollTo(0, y); };
+    const pw = $('#mtPeso'); if(pw) pw.oninput = ()=>{ m.par.pesoCorp = pw.value; guardar(); recarga(); };
     const re = $('#mtReab'); if(re) re.onchange = ()=>{ m.par.reabast = re.value; guardar(); const y = window.scrollY; pintar(); window.scrollTo(0, y); if(re.value==='si') aviso('Marca los puntos de agua en la pestaña Puntos'); };
     const ra = $('#mtRac'); if(ra) ra.onchange = ()=>{ m.par.racion = ra.value; guardar(); const y = window.scrollY; pintar(); window.scrollTo(0, y); };
     vista.querySelectorAll('[data-mx]').forEach(x=>x.onclick = ()=>{ m.materialExtra.splice(+x.dataset.mx, 1); delete Mt()['x' + x.dataset.mx]; guardar(); pintar(); });
@@ -741,8 +755,9 @@
 
   /* =====================================================================  LISTA  */
   function vLista(){
-    const m = actual(), L = m.lista || (m.lista = {}), tot = LISTA.reduce((a, g)=>a + g.items.length, 0), hechos = ()=>Object.values(L).filter(Boolean).length;
-    vista.innerHTML = `<h2>Lista de verificación</h2><p class="nota" id="lCuenta"></p>` + LISTA.map(g=>`<h2>${esc(g.fase)}</h2><div class="tarjeta lista">` +
+    const LS = Uso.civil() ? Uso.LISTA : LISTA, ids = new Set(LS.flatMap(g=>g.items.map(x=>x[0])));
+    const m = actual(), L = m.lista || (m.lista = {}), tot = LS.reduce((a, g)=>a + g.items.length, 0), hechos = ()=>Object.entries(L).filter(([k, v])=>v && ids.has(k)).length;
+    vista.innerHTML = `<h2>Lista de verificación</h2><p class="nota" id="lCuenta"></p>` + LS.map(g=>`<h2>${esc(g.fase)}</h2><div class="tarjeta lista">` +
       g.items.map(([id, t, fuente])=>`<label class="item"><input type="checkbox" data-l="${id}" ${L[id] ? 'checked' : ''}><span>${esc(t)}${fuente ? ` <small>${esc(fuente)}</small>` : ''}</span></label>`).join('') + '</div>').join('') +
       `<div class="btns no-imp"><button class="btn" id="bLimpia">Desmarcar todo</button><button class="btn" id="bImp">📄 Documento con la lista</button></div>`;
     const cuenta = ()=>$('#lCuenta').innerHTML = `<b>${hechos()} de ${tot}</b> listos.`;
@@ -757,6 +772,7 @@
     const m = actual(), R = M.calcular(m);
     if(!R.tramos.length){ vista.innerHTML = `<div class="tarjeta vacio">Completa la ruta antes de enviarla.<div class="btns" style="justify-content:center"><button class="btn pri" id="bR">Ir a la ruta</button></div></div>`; return $('#bR').onclick = ()=>ir('ruta'); }
     const msg = BDC.mensajePlan(m, R), cod = msg.split('\n')[1];
+    if(Uso.civil()) return enviarCivil(m, R, cod);
     vista.innerHTML = `<h2>Mensaje del plan de marcha</h2>
       <div class="tarjeta">
         <p class="nota">Una línea para leer o dictar por radio y un <b>código</b> que otro equipo con Burros de Combate (o el C2) abre con todos los datos.
@@ -787,6 +803,59 @@
     $('#bQr').onclick = ()=>{
       try { const q = qrcode(0, 'L'); q.addData(cod, 'Byte'); q.make(); $('#qr').innerHTML = `<div class="qr">${q.createSvgTag({cellSize:4, margin:2, scalable:true})}</div><p class="nota">Léelo con «Recibir plan» en otro equipo.</p>`; }
       catch(e){ $('#qr').innerHTML = '<div class="alerta">La ruta es demasiado larga para un QR: usa el mensaje de texto o un archivo.</div>'; } };
+    vista.querySelectorAll('[data-arch]').forEach(b=>b.onclick = ()=>{ const k = b.dataset.arch;
+      if(k==='gpx') descargar(nombreArchivo(m, 'gpx'), BDC.gpx(m, R), 'application/gpx+xml');
+      if(k==='kml') descargar(nombreArchivo(m, 'kml'), BDC.kml(m, R), 'application/vnd.google-earth.kml+xml');
+      if(k==='geojson') descargar(nombreArchivo(m, 'geojson'), BDC.geojson(m, R), 'application/geo+json');
+      if(k==='csv') descargar(nombreArchivo(m, 'csv'), BDC.csv(m, R), 'text/csv;charset=utf-8');
+      if(k==='json') descargar(nombreArchivo(m, 'json'), JSON.stringify({app:'burros', v:1, marchas:[m]}, null, 1), 'application/json'); });
+    $('#bImp').onclick = ()=>documento();
+  }
+
+  // uso civil: plan de ruta en texto simple para el contacto de emergencia (lo que se recomienda dejar antes de salir)
+  function planCivil(m, R){
+    const r = R.res, fecha = m.fecha ? m.fecha.split('-').reverse().join('-') : '', n = +m.par.efectivo || 0;
+    const limite = m.par.horaAviso || M.verHora((r.termino===null ? 0 : r.termino) + 1).slice(0, 5);
+    const ev = R.eventos.map(i=>{ const p = R.puntos[i], t = R.tramos.find(x=>x.iB===i), h = t ? t.llegada : r.partida;
+      return '• ' + Uso.cambiar(p.nombre) + (p.obs ? ' (' + p.obs + ')' : '') + ' — ' + M.verHora(h) + ' — ' + p.lat.toFixed(5) + ', ' + p.lon.toFixed(5); });
+    return ['PLAN DE RUTA — ' + m.nombre, (m.unidad ? 'Grupo: ' + m.unidad : 'Grupo') + (n ? ' · ' + n + ' persona' + (n===1 ? '' : 's') : ''),
+      'Fecha: ' + fecha + ' · salida ' + M.verHora(r.partida) + ' · llegada estimada ' + M.verHora(r.termino),
+      'Distancia ' + km(r.dist) + ' km · subida +' + f(r.sube) + ' m · bajada −' + f(r.baja) + ' m · duración ' + M.verDur(r.total),
+      'Ruta y horas estimadas:', ...ev,
+      'Punto de partida en el mapa: https://maps.google.com/?q=' + R.puntos[R.eventos[0]].lat.toFixed(5) + ',' + R.puntos[R.eventos[0]].lon.toFixed(5),
+      (m.par.contacto ? 'Contacto del grupo: ' + m.par.contacto + '\n' : '') + 'SI NO HAY NOTICIAS A LAS ' + limite + ', llamar a emergencias: 133 Carabineros · 136 Socorro Andino · 131 SAMU.'].join('\n');
+  }
+  function enviarCivil(m, R, cod){
+    const r = R.res, lim0 = M.verHora((r.termino===null ? 0 : r.termino) + 1).slice(0, 5);
+    vista.innerHTML = `<h2>Plan de ruta para tu contacto de emergencia</h2>
+      <div class="tarjeta">
+        <p class="nota">Antes de salir, deja este plan a alguien que <b>no</b> va en la ruta: dónde van, quiénes, a qué hora vuelven y a qué hora debe dar aviso si no tiene noticias.</p>
+        <div class="campos"><label class="c">Si no hay noticias a las<input type="time" id="cvLim" value="${esc(m.par.horaAviso || lim0)}"></label>
+          <label class="c">Teléfono del grupo<input id="cvTel" value="${esc(m.par.contacto || '')}" placeholder="opcional" inputmode="tel"></label></div>
+        <div class="mensaje" id="msg">${esc(planCivil(m, R))}</div>
+        <div class="btns"><button class="btn pri" id="bCop">📋 Copiar</button>${navigator.share ? '<button class="btn" id="bComp">↗ Compartir (WhatsApp, correo…)</button>' : ''}</div>
+      </div>
+      <h2>Archivos</h2>
+      <div class="formatos">
+        <button class="btn" data-arch="gpx"><b>GPX</b><small>GPS de mano, Garmin, Wikiloc y apps de montaña</small></button>
+        <button class="btn" data-arch="kml"><b>KML</b><small>Google Earth y Google Maps</small></button>
+        <button class="btn" data-arch="geojson"><b>GeoJSON</b><small>Sistemas de mapas (QGIS, ArcGIS)</small></button>
+        <button class="btn" data-arch="csv"><b>Excel (CSV)</b><small>Cuadro de la ruta</small></button>
+        <button class="btn" data-arch="json"><b>Marcha (JSON)</b><small>Para abrirla en otro equipo con esta app</small></button>
+        <button class="btn" id="bImp"><b>📄 Documento / plan de ruta</b><small>Mapa, perfil, cuadro, luz… para imprimir o PDF</small></button>
+      </div>
+      <details class="tarjeta"><summary>Pasar la ruta a otro teléfono con Burros de Combate</summary>
+        <p class="nota">Código o QR que se abre con «Recibir plan» en la pestaña Marchas.</p>
+        <div class="btns"><button class="btn" id="bCod">📋 Copiar código</button><button class="btn" id="bQr">▦ Mostrar QR</button></div><div id="qr"></div></details>`;
+    const msg = ()=>$('#msg').textContent;
+    $('#cvLim').onchange = e=>{ m.par.horaAviso = e.target.value; guardar(); $('#msg').textContent = planCivil(m, R); };
+    $('#cvTel').oninput = e=>{ m.par.contacto = e.target.value; guardar(); $('#msg').textContent = planCivil(m, R); };
+    $('#bCop').onclick = ()=>copiar(msg());
+    if($('#bComp')) $('#bComp').onclick = ()=>navigator.share({title:'Plan de ruta — ' + m.nombre, text:msg()}).catch(()=>{});
+    $('#bCod').onclick = ()=>copiar(cod);
+    $('#bQr').onclick = ()=>{
+      try { const q = qrcode(0, 'L'); q.addData(cod, 'Byte'); q.make(); $('#qr').innerHTML = `<div class="qr">${q.createSvgTag({cellSize:4, margin:2, scalable:true})}</div>`; }
+      catch(e){ $('#qr').innerHTML = '<div class="alerta">La ruta es demasiado larga para un QR: usa el código o un archivo.</div>'; } };
     vista.querySelectorAll('[data-arch]').forEach(b=>b.onclick = ()=>{ const k = b.dataset.arch;
       if(k==='gpx') descargar(nombreArchivo(m, 'gpx'), BDC.gpx(m, R), 'application/gpx+xml');
       if(k==='kml') descargar(nombreArchivo(m, 'kml'), BDC.kml(m, R), 'application/vnd.google-earth.kml+xml');

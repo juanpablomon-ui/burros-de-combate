@@ -511,3 +511,8 @@ table.mat td.lin{width:64px} table.mat td.lin select{padding:5px 6px;font-size:1
 .mf-s{margin:6px 0 0 32px;font-size:11.5px;color:var(--tenue)}
 .mf.hecho .mf-n b{color:var(--tenue);text-decoration:line-through}
 .mf-t small{font-weight:400;font-size:11px;color:var(--tenue)}
+/* selector de uso (militar o civil) */
+.tarjeta.uso{display:flex;flex-direction:column;gap:8px}
+.uso-t{font-weight:700;font-size:15px}
+.tarjeta.uso .seg button{flex:1;font-size:15px;padding:10px}
+.tarjeta.uso .nota{margin:0}

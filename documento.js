@@ -22,10 +22,11 @@ const Documento = (function(){
   const ahora = ()=>{ const d = new Date(), M3 = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
     return String(d.getDate()).padStart(2, '0') + String(d.getHours()).padStart(2, '0') + String(d.getMinutes()).padStart(2, '0') + M3[d.getMonth()] + String(d.getFullYear()).slice(2); };
   function porDefecto(m){
-    return {formato:'militar', clasif:'RESERVADO', ejemplar:'1', ejemplares:'3', sup:'', propio:m.unidad || '', lugar:'', gdh:'',
-      anexo:'', titulo:'ORDEN GRÁFICA DE MARCHA', sub:m.nombre || '', carta:'', elab:'', firmas:'', distrib:'', autor:'', org:m.unidad || '',
+    const cv = Uso.civil();
+    return {formato:cv ? 'civil' : 'militar', clasif:cv ? '' : 'RESERVADO', ejemplar:'1', ejemplares:'3', sup:'', propio:m.unidad || '', lugar:'', gdh:'',
+      anexo:'', titulo:cv ? 'PLAN DE RUTA' : 'ORDEN GRÁFICA DE MARCHA', sub:m.nombre || '', carta:'', elab:'', firmas:'', distrib:'', autor:'', org:m.unidad || '',
       hoja:'A4', orient:'v', escala:'auto', capa:'topo', curvas:true, grilla:true, paleta:'oliva', figuras:'claras', ruta:'azul',
-      sec:{mapa:true, perfil:true, cuadro:true, matriz:true, luz:true, claves:true, apoyo:false, carga:true, material:true, lista:false}};
+      sec:{mapa:true, perfil:true, cuadro:true, matriz:!cv, luz:true, claves:!cv, apoyo:false, carga:true, material:true, lista:false}};
   }
 
   /* ---------- formulario ---------- */
@@ -282,7 +283,7 @@ const Documento = (function(){
   }
   function lista(m){
     const L = m.lista || {};
-    return LISTA.map(g=>`<h3 class="doc-h3">${A.esc(g.fase)}</h3><ul class="doc-lista">${g.items.map(([id, t])=>`<li>${L[id] ? '☑' : '☐'} ${A.esc(t)}</li>`).join('')}</ul>`).join('');
+    return (Uso.civil() ? Uso.LISTA : LISTA).map(g=>`<h3 class="doc-h3">${A.esc(g.fase)}</h3><ul class="doc-lista">${g.items.map(([id, t])=>`<li>${L[id] ? '☑' : '☐'} ${A.esc(t)}</li>`).join('')}</ul>`).join('');
   }
 
   /* ---------- mapa de la orden gráfica ----------

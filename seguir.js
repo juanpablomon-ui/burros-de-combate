@@ -178,7 +178,8 @@ const Seguir = (function(){
       POS:'POSICIÓN ' + quien + (at===null ? '' : ' — ' + dif(at)),
       FIN:'FIN DE MARCHA ' + quien + ' ' + hh(E.fin || ahora()) + ' — duración ' + dur((E.fin || ahora()) - E.inicio)})[k] + donde;
     const datos = Object.assign({n:m.nombre, u:m.unidad, h:ahora()}, d, pos ? {lat:+pos.lat.toFixed(6), lon:+pos.lon.toFixed(6), acc:Math.round(pos.acc||0)} : {}, at!==null ? {atr:Math.round(at)} : {});
-    const msg = txt + '\n' + BDC.codigo(k==='INI' ? 'POS' : k, datos);
+    // uso civil: texto simple para el contacto (sin código del C2); en posición, enlace al mapa
+    const msg = Uso.civil() ? Uso.cambiar(txt) + (pos ? '\nhttps://maps.google.com/?q=' + pos.lat.toFixed(5) + ',' + pos.lon.toFixed(5) : '') : txt + '\n' + BDC.codigo(k==='INI' ? 'POS' : k, datos);
     E.msgs = (E.msgs || []).concat([{t:ahora(), k, msg}]).slice(-50); A.guardar();
     return msg;
   }
@@ -186,10 +187,10 @@ const Seguir = (function(){
     const E = A.actual().ejec; msg = msg || (E.msgs && E.msgs.length ? E.msgs[E.msgs.length - 1].msg : null); if(!msg) return;
     const cod = msg.split('\n')[1];
     A.dialogo(`<h3>📡 Mensaje para el C2</h3><div class="mensaje">${A.esc(msg)}</div>
-      <div class="btns"><button class="btn pri" id="mCop">📋 Copiar</button>${navigator.share ? '<button class="btn" id="mComp">↗ Compartir</button>' : ''}<button class="btn" id="mQr">▦ QR</button><button class="btn" data-cerrar>Cerrar</button></div><div id="mQrC"></div>`, d=>{
+      <div class="btns"><button class="btn pri" id="mCop">📋 Copiar</button>${navigator.share ? '<button class="btn" id="mComp">↗ Compartir</button>' : ''}${Uso.civil() ? '' : '<button class="btn" id="mQr">▦ QR</button>'}<button class="btn" data-cerrar>Cerrar</button></div><div id="mQrC"></div>`, d=>{
       d.querySelector('#mCop').onclick = ()=>A.copiar(msg);
       if(d.querySelector('#mComp')) d.querySelector('#mComp').onclick = ()=>navigator.share({text:msg}).catch(()=>{});
-      d.querySelector('#mQr').onclick = ()=>{ const q = qrcode(0, 'L'); q.addData(cod, 'Byte'); q.make(); d.querySelector('#mQrC').innerHTML = `<div class="qr">${q.createSvgTag({cellSize:4, margin:2, scalable:true})}</div>`; }; });
+      if(d.querySelector('#mQr')) d.querySelector('#mQr').onclick = ()=>{ const q = qrcode(0, 'L'); q.addData(cod, 'Byte'); q.make(); d.querySelector('#mQrC').innerHTML = `<div class="qr">${q.createSvgTag({cellSize:4, margin:2, scalable:true})}</div>`; }; });
   }
 
   /* ---------- pantalla ---------- */
