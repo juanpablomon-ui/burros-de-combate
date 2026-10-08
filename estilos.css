@@ -446,3 +446,23 @@ body.con-doc{overflow:hidden}
 .doc-blq{position:relative}
 .doc-mapa{position:relative;overflow:hidden}
 .doc-mapa-img{display:block;width:100%;height:100%;object-fit:cover}
+
+/* documento: paletas de color (títulos, tarjetas, encabezados de tabla, nombres clave) */
+.doc-hoja.pal-oliva{--pa:#4b5d2a;--pb:#f1f4e8;--pc:#2f3d17;--pt:#e3e9d3}
+.doc-hoja.pal-azul{--pa:#1f4e8c;--pb:#edf3fb;--pc:#12325c;--pt:#dce8f6}
+.doc-hoja.pal-gris{--pa:#333333;--pb:#f4f4f4;--pc:#111111;--pt:#e6e6e6}
+.doc-hoja.pal-arena{--pa:#a8741f;--pb:#fbf6ec;--pc:#5a3c0b;--pt:#f2e6cc}
+.doc-hoja[class*="pal-"] .doc-tit{color:var(--pc)}
+.doc-hoja[class*="pal-"] .doc-sub{color:var(--pa)}
+.doc-hoja[class*="pal-"] .doc-h2{color:var(--pc);border-bottom:2px solid var(--pa)}
+.doc-hoja[class*="pal-"] .doc-res .dr{border:0;border-top:3px solid var(--pa);background:var(--pb);border-radius:4px}
+.doc-hoja[class*="pal-"] .doc-res .dr.dest{border-top-width:4px;background:var(--pt)}
+.doc-hoja[class*="pal-"] .doc-res .dr svg{stroke:var(--pa)}
+.doc-hoja[class*="pal-"] .doc-res .dr b{color:var(--pc)}
+.doc-hoja[class*="pal-"] table.t th{background:var(--pt);color:var(--pc);border-color:#999}
+.doc-hoja[class*="pal-"] table.t tr.tot td{background:var(--pt)}
+.doc-hoja[class*="pal-"] .clave-ev b{border-color:var(--pa);color:var(--pc);background:var(--pb)}
+.doc-hoja[class*="pal-"] .doc-firmas .linea{border-top-color:var(--pc)}
+.doc-fig{border:1px solid #bbb;border-radius:4px;padding:4px;margin:6px 0;background:#fff}
+.doc-fig svg{display:block;width:100%;height:auto}
+.doc-hoja table.t th,.doc-hoja .doc-res .dr,.doc-hoja .clave-ev b{-webkit-print-color-adjust:exact;print-color-adjust:exact}

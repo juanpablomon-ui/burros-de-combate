@@ -10,13 +10,21 @@ const Documento = (function(){
   const SECCIONES = [['mapa', 'Mapa de la ruta (orden gráfica)'], ['perfil', 'Perfil del itinerario'], ['cuadro', 'Cuadro de marcha y navegación'],
     ['matriz', 'Matriz de eventos'], ['luz', 'Luz y visibilidad (sol, crepúsculos, luna)'], ['claves', 'Nombres clave y eventos para la radio'],
     ['apoyo', 'Columna, calor y agua'], ['lista', 'Lista de verificación']];
+  // colores del documento: paleta (títulos, tarjetas, líneas), color de la ruta en el mapa
+  const PALETAS = {oliva:'Verde oliva', azul:'Azul', gris:'Gris (blanco y negro)', arena:'Arena'};
+  const RUTAS = {azul:['Azul', '#0b3d91'], rojo:['Rojo', '#b3261e'], negro:['Negro', '#111111'], magenta:['Magenta', '#b0127a']};
+  const colorRuta = d=>(RUTAS[d.ruta] || RUTAS.azul)[1];
+  // figuras claras (ahorran tinta): se cambian los colores oscuros de la pantalla por colores para papel
+  const CLARO = [['#14150f', '#ffffff'], ['#1c1e16', '#f4f4f0'], ['#22251b', '#eaeae4'], ['#2a2e20', '#d6d6cc'], ['#353a29', '#cdcdc2'], ['#14162b', '#3b4060'],
+    ['#6f705e', '#6b6b6b'], ['#a3a28c', '#444444'], ['#ece8d8', '#111111'], ['#f2c46b', '#a06a00'], ['#9fc3e6', '#1f5fa8'], ['#e3a63a', '#9a5b00'], ['#fff"', '#111"']];
+  const aClaro = svg=>CLARO.reduce((t, [a, b])=>t.split(a).join(b), svg);
   const CLASIF = ['SECRETO', 'RESERVADO', 'CONFIDENCIAL', 'SIN CLASIFICACIÓN'];
   const ahora = ()=>{ const d = new Date(), M3 = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
     return String(d.getDate()).padStart(2, '0') + String(d.getHours()).padStart(2, '0') + String(d.getMinutes()).padStart(2, '0') + M3[d.getMonth()] + String(d.getFullYear()).slice(2); };
   function porDefecto(m){
     return {formato:'militar', clasif:'RESERVADO', ejemplar:'1', ejemplares:'3', sup:'', propio:m.unidad || '', lugar:'', gdh:'',
       anexo:'', titulo:'ORDEN GRÁFICA DE MARCHA', sub:m.nombre || '', carta:'', elab:'', firmas:'', distrib:'', autor:'', org:m.unidad || '',
-      hoja:'A4', orient:'v', escala:'auto', capa:'topo', curvas:true, grilla:true,
+      hoja:'A4', orient:'v', escala:'auto', capa:'topo', curvas:true, grilla:true, paleta:'oliva', figuras:'claras', ruta:'azul',
       sec:{mapa:true, perfil:true, cuadro:true, matriz:true, luz:true, claves:true, apoyo:false, lista:false}};
   }
 
@@ -36,6 +44,8 @@ const Documento = (function(){
           ${sel('formato', 'Formato', {militar:'Militar (orden gráfica)', civil:'Civil'})}
           ${sel('hoja', 'Hoja', {A4:'A4', Letter:'Carta', Legal:'Oficio'})}
           ${sel('orient', 'Orientación', {v:'Vertical', h:'Horizontal'})}
+          ${sel('paleta', 'Colores', PALETAS)}
+          ${sel('figuras', 'Perfil y luz', {claras:'Fondo blanco (ahorra tinta)', oscuras:'Fondo oscuro'})}
           ${inp('titulo', 'Título', mil ? 'ORDEN GRÁFICA DE MARCHA' : 'Plan de marcha')}
           ${inp('sub', 'Subtítulo', 'nombre de la marcha')}
         </div>
@@ -55,6 +65,7 @@ const Documento = (function(){
         ${d.sec.mapa ? `<h2>Mapa</h2><div class="campos">
           ${sel('escala', 'Escala', {auto:'Ajustar a la ruta', 10000:'1:10.000', 25000:'1:25.000', 50000:'1:50.000', 100000:'1:100.000'})}
           ${sel('capa', 'Capa', Object.fromEntries(Object.entries(Mapa.BASES).map(([k, b])=>[k, b.n])))}
+          ${sel('ruta', 'Color de la ruta', Object.fromEntries(Object.entries(RUTAS).map(([k, v])=>[k, v[0]])))}
           <label class="c"><span><input type="checkbox" data-docb="curvas" ${d.curvas ? 'checked' : ''} style="width:auto"> Curvas de nivel</span></label>
           <label class="c"><span><input type="checkbox" data-docb="grilla" ${d.grilla ? 'checked' : ''} style="width:auto"> Cuadrícula UTM</span></label></div>` : ''}
       </details>
@@ -117,13 +128,14 @@ const Documento = (function(){
       ${tarj('met', 'Método', esc(({montana:'Montaña', mide:'MIDE', general:'Marcha general'})[R.par.metodo] || ''), R.tramos.some(t=>t.noche) ? 'con tramos de noche' : 'de día')}
       ${tarj('ev', 'Eventos', R.eventos.length, R.eventos.map(i=>R.puntos[i].clave).filter(Boolean).slice(0, 4).join(' · ') + (R.eventos.length>4 ? '…' : ''))}
       ${tarj('alt', 'Altos / imprevistos', Math.round(R.par.altos*100) + ' % / ' + Math.round(R.par.imprev*100) + ' %', M.verDur(r.altos) + ' / ' + M.verDur(r.imprev))}</div>`;
+    const fig = (html, id)=>d.figuras==='oscuras' ? `<div class="doc-osc"${id ? ` id="${id}"` : ''}>${html}</div>` : `<div class="doc-fig"${id ? ` id="${id}"` : ''}>${aClaro(html)}</div>`;
     const sec = (titulo, html, nueva)=>`<section class="doc-sec${nueva ? ' salto' : ''}"><h2 class="doc-h2">${titulo}</h2>${html}</section>`;
     const S = d.sec; let n = 0, partes = [];
     if(S.mapa) partes.push(sec('Ruta de marcha', `<div class="doc-mapa" id="docMapa"></div><div class="doc-mapa-pie" id="docMapaPie"></div>`));
-    if(S.perfil) partes.push(sec('Perfil del itinerario', `<div class="doc-osc" id="docPerfil">${A.svgPerfil(R)}</div>`, partes.length>0));
+    if(S.perfil) partes.push(sec('Perfil del itinerario', fig(A.svgPerfil(R), 'docPerfil'), partes.length>0));
     if(S.cuadro) partes.push(sec('Cuadro de marcha y navegación', A.tablaCuadro(m, R), partes.length>0));
     if(S.matriz) partes.push(sec('Matriz de eventos', matriz(m, R), partes.length>0));
-    if(S.luz) partes.push(sec('Luz y visibilidad', luz(m, R), partes.length>0));
+    if(S.luz) partes.push(sec('Luz y visibilidad', luz(m, R, fig), partes.length>0));
     if(S.claves) partes.push(sec('Nombres clave y eventos para la radio', claves(m, R), partes.length>0));
     if(S.apoyo) partes.push(sec('Columna, calor y agua', A.apoyo(R) || '<p>Sin datos de columna ni de calor (pestaña Puntos).</p>', partes.length>0));
     if(S.lista) partes.push(sec('Lista de verificación', lista(m), partes.length>0));
@@ -132,10 +144,10 @@ const Documento = (function(){
         ${d.distrib ? `<div class="doc-distr"><b>DISTRIBUCIÓN:</b><br>${String(d.distrib).split(/\n+/).map(x=>esc(x.trim())).filter(Boolean).join('<br>')}</div>` : ''}`
       : `<div class="doc-ref civ">Generado con Burros de Combate · ${new Date().toLocaleDateString('es-CL')}</div>`;
     const bloques = [cab + resumen + (partes[0] || '')].concat(partes.slice(1)); bloques[bloques.length - 1] += firmas;
-    cont.innerHTML = `<div class="doc-hoja ${mil ? 'militar' : 'civil'}">${mil ? `<div class="doc-clasif arriba">${esc(d.clasif)}</div><div class="doc-clasif abajo">${esc(d.clasif)}</div>` : ''}
+    cont.innerHTML = `<div class="doc-hoja ${mil ? 'militar' : 'civil'} pal-${d.paleta || 'oliva'}">${mil ? `<div class="doc-clasif arriba">${esc(d.clasif)}</div><div class="doc-clasif abajo">${esc(d.clasif)}</div>` : ''}
       ${bloques.map(b=>`<div class="doc-blq">${b}</div>`).join('')}</div>`;
     if(S.mapa) setTimeout(()=>dibujarMapa(m, R), 30);
-    if(S.perfil) A.terrenoDe(R).then(T=>{ const e = $('#docPerfil'); if(T && e) e.innerHTML = A.svgPerfil(R, T); });
+    if(S.perfil) A.terrenoDe(R).then(T=>{ const e = $('#docPerfil'); if(T && e) e.innerHTML = d.figuras==='oscuras' ? A.svgPerfil(R, T) : aClaro(A.svgPerfil(R, T)); });
   }
 
   /* ---------- descargar en PDF o JPG ----------
@@ -221,12 +233,12 @@ const Documento = (function(){
     return `<table class="t"><thead><tr><th class="tx">Punto</th><th class="tx">Evento (radio)</th><th>Hora plan</th><th>Hora real</th><th>Diferencia</th><th class="tx">Observaciones</th></tr></thead><tbody>${filas.join('')}</tbody></table>
       <p class="doc-nota">Las columnas «Hora real» y «Diferencia» se completan en la marcha.</p>${extra}`;
   }
-  function luz(m, R){
+  function luz(m, R, fig){
     const p0 = R.puntos.find(p=>p.ok); if(!p0 || !m.fecha || typeof LUZ==='undefined') return '<p>Falta la fecha o el PIM.</p>';
     const D = LUZ.dia(m.fecha, p0.lat, p0.lon), am = D.amanecer, at = D.atardecer, L = D.lunaNoche;
     const hh = t=>t ? String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0') : '—';
     const tSol = new Date(LUZ.inicioDia(m.fecha) + ((R.res.partida||12)%24)*36e5);
-    return `<div class="doc-osc">${PantallaLuz.grafico(m.fecha, p0.lat, p0.lon, R, Object.assign({}, A))}</div>
+    return `${fig(PantallaLuz.grafico(m.fecha, p0.lat, p0.lon, R, Object.assign({}, A)))}
       <table class="t"><thead><tr><th class="tx"></th><th>Matutino</th><th>Vespertino</th></tr></thead><tbody>
         <tr><td class="tx">Crepúsculo astronómico (C.A.M. / C.A.V., 12°–18°)</td><td>${hh(am.astro)} – ${hh(am.nautico)}</td><td>${hh(at.nautico)} – ${hh(at.astro)}</td></tr>
         <tr><td class="tx">Crepúsculo náutico (C.N.M. / C.N.V., 6°–12°)</td><td>${hh(am.nautico)} – ${hh(am.civil)}</td><td>${hh(at.civil)} – ${hh(at.nautico)}</td></tr>
@@ -236,7 +248,7 @@ const Documento = (function(){
       </tbody></table>
       <p class="doc-nota">Luna en la noche: <b>${L.nombre}</b>, ${Math.round(L.ilum*100)} % iluminada; sale ${D.luna.sale.map(hh).join(' / ') || '—'}, se pone ${D.luna.pone.map(hh).join(' / ') || '—'}.
         ${R.tramos.some(t=>t.noche) ? 'Hay tramos que se hacen de noche (velocidad de noche).' : 'Toda la marcha se hace con luz.'}</p>
-      <div class="doc-osc">${PantallaLuz.esquema(D, tSol, p0.lat, p0.lon, Object.assign({}, A)).svg}</div>`;
+      ${fig(PantallaLuz.esquema(D, tSol, p0.lat, p0.lon, Object.assign({}, A)).svg)}`;
   }
   function claves(m, R){
     const esc = A.esc;
@@ -294,8 +306,8 @@ const Documento = (function(){
     const pts = ok.map(p=>P(p.lat, p.lon));
     g.lineJoin = g.lineCap = 'round';
     g.strokeStyle = '#fff'; g.lineWidth = 7; g.beginPath(); pts.forEach((q, i)=>i ? g.lineTo(...q) : g.moveTo(...q)); g.stroke();
-    g.strokeStyle = '#b3261e'; g.lineWidth = 3.5; g.beginPath(); pts.forEach((q, i)=>i ? g.lineTo(...q) : g.moveTo(...q)); g.stroke();
-    ok.forEach((p, i)=>{ if(p.ev) return; g.fillStyle = '#fff'; g.strokeStyle = '#b3261e'; g.lineWidth = 1.2; g.beginPath(); g.arc(...pts[i], 2.6, 0, 7); g.fill(); g.stroke(); });
+    const cr = colorRuta(d); g.strokeStyle = cr; g.lineWidth = 3.5; g.beginPath(); pts.forEach((q, i)=>i ? g.lineTo(...q) : g.moveTo(...q)); g.stroke();
+    ok.forEach((p, i)=>{ if(p.ev) return; g.fillStyle = '#fff'; g.strokeStyle = cr; g.lineWidth = 1.2; g.beginPath(); g.arc(...pts[i], 2.6, 0, 7); g.fill(); g.stroke(); });
     // eventos: «DELTA · PC3 10:12 / 11:46» (mismo lugar, una sola etiqueta)
     const llega = {}; R.tramos.forEach(t=>{ llega[t.iB] = t.llegada; });
     const lugares = new Map();
@@ -303,7 +315,7 @@ const Documento = (function(){
       if(!lugares.has(key)) lugares.set(key, {q:pts[i], n:new Map()}); const gm = lugares.get(key).n; if(!gm.has(nom)) gm.set(nom, []); gm.get(nom).push(A.M.verHora(h)); });
     g.font = 'bold 10.5px Helvetica, Arial';
     lugares.forEach(({q, n})=>{ const t = [...n].map(([nom, hs])=>nom + ' ' + hs.join(' / ')).join(' · ');
-      g.fillStyle = '#b3261e'; g.strokeStyle = '#fff'; g.lineWidth = 2.5; g.beginPath(); g.arc(...q, 6, 0, 7); g.fill(); g.stroke();
+      g.fillStyle = cr; g.strokeStyle = '#fff'; g.lineWidth = 2.5; g.beginPath(); g.arc(...q, 6, 0, 7); g.fill(); g.stroke();
       const w = g.measureText(t).width + 8; let x = q[0] + 10, y = q[1] - 8; if(x + w>W - 4) x = q[0] - 10 - w; if(y<4) y = 4; if(y + 15>H - 4) y = H - 19;
       g.fillStyle = '#fff'; g.fillRect(x, y, w, 15); g.strokeStyle = '#000'; g.lineWidth = 1; g.strokeRect(x, y, w, 15); g.fillStyle = '#000'; g.fillText(t, x + 4, y + 11); });
     // escala gráfica y norte
@@ -320,7 +332,7 @@ const Documento = (function(){
     try { img.src = cv.toDataURL('image/jpeg', 0.92); } catch(e){ return; }   // teselas sin permiso CORS: queda el mapa vivo
     try { mapaDoc.remove(); } catch(e){} mapaDoc = null; el.innerHTML = ''; el.appendChild(img); el.classList.add('listo');
     const pie = $('#docMapaPie'), esc = Math.round(mpp/(0.0254/96)), b2 = L.latLngBounds(ok.map(p=>[p.lat, p.lon])), cabe = d.escala==='auto' || bb.contains(b2);
-    if(pie) pie.innerHTML = `Escala ${d.escala==='auto' ? 'aproximada ' : ''}1:${A.f(d.escala==='auto' ? esc : +d.escala)} (al imprimir al 100 %) · cuadrícula UTM zona ${zona} · ruta en rojo; eventos con nombre clave y hora.
+    if(pie) pie.innerHTML = `Escala ${d.escala==='auto' ? 'aproximada ' : ''}1:${A.f(d.escala==='auto' ? esc : +d.escala)} (al imprimir al 100 %) · cuadrícula UTM zona ${zona} · ruta en ${(RUTAS[d.ruta] || RUTAS.azul)[0].toLowerCase()}; eventos con nombre clave y hora.
       ${cabe ? '' : '<br><b>La ruta no cabe completa a esta escala: se muestra la parte central. Usa «Ajustar a la ruta» u otra escala.</b>'}`;
   }
   return {abrir, cerrar, exportar, SECCIONES};
