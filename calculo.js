@@ -195,12 +195,23 @@ const MARCHA = (function(){
     {cat:4, n:'4 — roja',     desde:31.1, f:[60, .75], m:[50, .75], p:[20, 1],  mp:[10, 1]},
     {cat:5, n:'5 — negra',    desde:32.2, f:[60, 1],   m:[20, 1],   p:[15, 1],  mp:[10, 1]}];
   const TRABAJOS = {f:'Fácil (≈250 W)', moderado:'Moderado (≈425 W, p. ej. patrullar con ~14 kg)', pesado:'Pesado (≈600 W, p. ej. patrullar con ~20 kg)', mp:'Muy pesado (≈800 W)'};
-  function calor(par, horas){
-    const w = num(par.wbgt); if(isNaN(w)) return null;
-    const c = [...CALOR].reverse().find(x=>w>=x.desde), k = ({f:'f', moderado:'m', pesado:'p', mp:'mp'})[par.trabajo] || 'm';
-    if(!c) return {cat:0, n:'bajo la categoría 1', trabajo:60, lh:null, litros:null, wbgt:w};
+  // WBGT: el medido, o estimado con temperatura (°C) y humedad relativa (%) con la aproximación de la Oficina de Meteorología
+  // de Australia para condiciones de sol moderado: WBGT ≈ 0,567·T + 0,393·e + 3,94 (e = presión de vapor en hPa)
+  function wbgt(par){
+    const w = num(par.wbgt); if(!isNaN(w)) return {v:w, fuente:'medido'};
+    const t = num(par.temp), h = num(par.hum); if(isNaN(t) || isNaN(h)) return null;
+    const e = (Math.max(0, Math.min(100, h))/100)*6.105*Math.exp(17.27*t/(237.7 + t));
+    return {v:Math.round((0.567*t + 0.393*e + 3.94)*10)/10, fuente:'estimado', t, h};
+  }
+  // intensidad del trabajo según la carga por hombre (ejemplos del manual de calor: ~14 kg moderado, ~20 kg pesado)
+  const trabajoDe = (par, carga)=>par.trabajo && par.trabajo!=='auto' ? par.trabajo : (num(carga)||0)>=30 ? 'mp' : (num(carga)||0)>=18 ? 'pesado' : 'moderado';
+  function calor(par, horas, carga){
+    const W = wbgt(par); if(!W) return null; const w = W.v, trab = trabajoDe(par, carga === undefined ? par.carga : carga);
+    const c = [...CALOR].reverse().find(x=>w>=x.desde), k = ({f:'f', moderado:'m', pesado:'p', mp:'mp'})[trab] || 'm';
+    const base = {wbgt:w, fuenteWbgt:W.fuente, trab, auto:!par.trabajo || par.trabajo==='auto'};
+    if(!c) return Object.assign(base, {cat:0, n:'bajo la categoría 1', trabajo:60, descanso:0, lh:0.71, litros:Math.min(0.71*horas, 12*QT)});
     const [tr, qt] = c[k], lh = qt*QT, litros = Math.min(lh*horas, 12*QT);
-    return {cat:c.cat, n:c.n, trabajo:tr, descanso:60 - tr, lh, litros, tope:lh*horas>12*QT, wbgt:w};
+    return Object.assign(base, {cat:c.cat, n:c.n, trabajo:tr, descanso:60 - tr, lh, litros, tope:lh*horas>12*QT});
   }
 
   /* ---------- parámetros por defecto de una marcha ---------- */
@@ -220,7 +231,7 @@ const MARCHA = (function(){
       velGeneral:null, via:'camino1', unidadTipo:'pie',   // marcha general: velocidad de la tabla según unidad, vía y día/noche
       luz:'auto', redNoche:25,   // luz: 'auto' (según la hora de cada tramo) | 'dia' | 'noche'; reducción nocturna (%) para montaña y MIDE
       efectivo:'', filas:2, distHombres:null, unidades:1, distUnidades:null,   // columna
-      wbgt:'', trabajo:'moderado',   // calor y agua
+      wbgt:'', temp:'', hum:'', trabajo:'auto', calorAltos:true,   // calor y agua: WBGT medido o temperatura y humedad; intensidad según la carga; el descanso por calor alarga la marcha
       fuenteVel:'',   // velocidades verticales: 'tabla' (tropa y carga) | 'mide' (300/500 m/h) | 'propia' (escritas); vacío = según los campos
       altosModo:'pct', altoCada:50, altoDur:10, altoPrimero:45, altoPrimeroDur:15,   // altos por % o por régimen programado
       cargaMat:false, cargaBase:'',   // carga por hombre calculada desde el material (+ peso base: armamento, munición, casco, chaleco)
@@ -303,9 +314,12 @@ const MARCHA = (function(){
     const esNoche = h=>par.luz==='noche' ? true : par.luz==='dia' ? false : !!((luzEn(h) || {}).oscuro);
     // altos: % del tiempo de marcha, o régimen programado (primer alto de P min a los Q min de marcha; luego D min cada C min)
     const reg = par.altosModo==='regimen', cada = (num(par.altoCada) || 50)/60, durA = (num(par.altoDur) || 10)/60, prim = (num(par.altoPrimero) || 45)/60, durP = (num(par.altoPrimeroDur) || 15)/60;
-    const altosHasta = tm=>{ if(!reg) return tm*(num(par.altos)||0); if(tm<=prim + 1e-9) return 0;   // altos ya hechos al llevar «tm» horas de marcha
+    const altosNorm = tm=>{ if(!reg) return tm*(num(par.altos)||0); if(tm<=prim + 1e-9) return 0;   // altos ya hechos al llevar «tm» horas de marcha
       return durP + Math.floor((tm - prim - 1e-9)/cada)*durA; };
-    const fAl = reg ? 1 + durA/cada : 1 + (num(par.altos)||0);
+    // con calor, la tabla exige minutos de descanso por hora de trabajo: si son más que los altos, mandan los del calor
+    const cal0 = par.calorAltos===false ? null : calor(par, 0), fCal = cal0 && cal0.trabajo<60 ? (60 - cal0.trabajo)/cal0.trabajo : 0;
+    const altosHasta = tm=>Math.max(altosNorm(tm), tm*fCal);
+    const fAl = Math.max(reg ? 1 + durA/cada : 1 + (num(par.altos)||0), 1 + fCal);
     let detL = pts[0] ? pts[0].det : 0, tNoche = 0;
     const tramos = []; let acum = 0, dist = 0, sube = 0, baja = 0;
     for(let i=0; i<pts.length - 1; i++){
@@ -323,7 +337,7 @@ const MARCHA = (function(){
     }
     // detenciones planificadas en los puntos intermedios (comida, descanso, reorganización); no cuenta el último punto
     const det = pts.slice(0, -1).reduce((a, p)=>a + p.det, 0);
-    const altos = reg ? altosHasta(Math.max(0, acum - 1e-6)) : acum*(num(par.altos)||0), imprev = (acum + altos + det)*(num(par.imprev)||0), total = acum + altos + det + imprev;
+    const altos = altosHasta(reg ? Math.max(0, acum - 1e-6) : acum), altosCalor = fCal>0 && acum*fCal>altosNorm(reg ? Math.max(0, acum - 1e-6) : acum), imprev = (acum + altos + det)*(num(par.imprev)||0), total = acum + altos + det + imprev;
     // hora estimada de llegada y salida en cada punto: partida + marcha acumulada con sus altos + detenciones anteriores
     // (los imprevistos quedan como reserva al final)
     let detAc = pts[0] ? pts[0].det : 0;
@@ -351,7 +365,7 @@ const MARCHA = (function(){
     const jor = JORNADA[par.unidadTipo] || JORNADA.pie;
     if(dist>jor*1000) avisos.push('Más de ' + jor + ' km: sobre la jornada de marcha ' + (par.unidadTipo==='montada' ? 'montada' : 'a pie') + ' (' + jor + ' km). Divide en jornadas o planifica descanso y recuperación.');
     const regimen = reg ? {cada:cada*60, dur:durA*60, primero:prim*60, primeroDur:durP*60, n:altos>0 ? 1 + Math.round((altos - durP)/durA) : 0} : null;
-    return {regimen, par, vel, zona, decl:dec, puntos:pts, tramos, tramosEv, eventos, columna:col, fracNoche, conLuz, calor:calor(par, total), avisos,
+    return {regimen, par, vel, zona, decl:dec, puntos:pts, tramos, tramosEv, eventos, columna:col, fracNoche, conLuz, calor:(c=>c ? Object.assign(c, {altosCalor}) : null)(calor(par, total)), avisos,
       res:{dist, sube, baja, marcha:acum, altos, det, imprev, total, partida:h0, termino:ter, terminoCola:ter===null || !col ? null : ter + col.paso, alto,
         conv:ref ? ref.utm.conv : null, lejos:val.some(p=>Math.abs(p.lon - (zona*6 - 183))>4)}};
   }
@@ -380,7 +394,7 @@ const MARCHA = (function(){
   const MGRS_LAT = 'CDEFGHJKLMNPQRSTUVWX';
   const banda = lat=>MGRS_LAT[Math.max(0, Math.min(19, Math.floor((lat + 80)/8)))];
 
-  return {CLAVES, listaPropia, rumboEntre, sobreTramo, deWgs84, camposDesde, VIAS, UNIDADES, VEL_GENERAL, JORNADA, velGeneral, columna, CALOR, TRABAJOS, calor, DATUMS, TERRENOS, TABLA_VERTICAL, METODOS, llAUtm, utmALl, aWgs84, puntoWgs, velVertical, porDefecto, declinacion,
+  return {wbgt, trabajoDe, CLAVES, listaPropia, rumboEntre, sobreTramo, deWgs84, camposDesde, VIAS, UNIDADES, VEL_GENERAL, JORNADA, velGeneral, columna, CALOR, TRABAJOS, calor, DATUMS, TERRENOS, TABLA_VERTICAL, METODOS, llAUtm, utmALl, aWgs84, puntoWgs, velVertical, porDefecto, declinacion,
     leerAng, tiempoTramo, calcular, horaAHoras, verDur, verHora, verGms, banda};
 })();
 if(typeof globalThis!=='undefined') globalThis.MARCHA = MARCHA;

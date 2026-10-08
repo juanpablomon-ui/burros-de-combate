@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.27', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.29', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -196,10 +196,12 @@
           <label class="c">Fecha<input type="date" data-m="fecha" value="${esc(m.fecha)}"></label>
           <label class="c">Hora de partida (PIM)<input type="time" data-m="hora" value="${esc(m.hora)}"></label>
           <label class="c ancho">Datum de las coordenadas<select data-m="datum">${opc(Object.fromEntries(Object.entries(M.DATUMS).map(([k, v])=>[k, v.n])), m.datum)}</select></label>
-          <label class="c">Zona UTM de trabajo<input class="num" data-m="zona" inputmode="numeric" value="${esc(m.zona)}" placeholder="auto (${R.zona})"></label>
           <label class="c ancho">Día y noche para las velocidades<select data-par="luz" data-redibujar>${opc({auto:'Automático según la hora de cada tramo (recomendado)', dia:'Toda la marcha de día', noche:'Toda la marcha de noche'}, p.luz==='auto' && p.noche===true ? 'noche' : p.luz)}</select></label>
         </div>
         <p class="nota">GPS y cartas IGM nuevas: WGS84. Cartas IGM antiguas: PSAD56 o SAD69 (lo dice el margen de la carta).</p>
+        <details class="avanzado"><summary>⚙ Avanzado</summary><div class="campos">
+          <label class="c">Zona UTM de trabajo<input class="num" data-m="zona" inputmode="numeric" value="${esc(m.zona)}" placeholder="auto (${R.zona})"></label></div>
+          <p class="nota">Se calcula sola con el PIM. Cámbiala solo si la ruta cruza el límite entre las zonas 18 y 19 (meridiano 72° W).</p></details>
       </details>
 
       <details class="tarjeta"><summary>Cálculo de tiempos<span class="res">${esc(({montana:'Montaña', mide:'MIDE', general:'Marcha general'})[p.metodo])} · altos ${p.altosModo==='regimen' ? esc(p.altoDur) + ' min cada ' + esc(p.altoCada) : pct(p.altos) + ' %'} · imprev. ${pct(p.imprev)} %</span></summary>
@@ -213,8 +215,7 @@
           ${R.vel.fuente==='tabla' ? `<label class="c">Ritmo de la unidad<select data-par="criterio" data-redibujar>${opc({min:'Bajo', media:'Normal', max:'Exigente'}, p.criterio)}</select></label>` : ''}
           ${R.vel.fuente==='propia' ? `<label class="c">Subida (m/h)<input class="num" data-par="velSub" inputmode="numeric" value="${esc(p.velSub||'')}" placeholder="${f(vt.sub)}"></label>
           <label class="c">Bajada (m/h)<input class="num" data-par="velBaj" inputmode="numeric" value="${esc(p.velBaj||'')}" placeholder="${f(vt.baj)}"></label>` : ''}
-          <label class="c">Llano (km/h)<input class="num" data-par="velLlano" inputmode="decimal" value="${esc(p.velLlano)}"></label>
-          ${p.metodo==='montana' ? `<label class="c">Pendiente crítica (%)<input class="num" data-par="pteCr" data-pct inputmode="decimal" value="${pct(p.pteCr)}"></label>` : ''}`
+          <label class="c">Llano (km/h)<input class="num" data-par="velLlano" inputmode="decimal" value="${esc(p.velLlano)}"></label>`
           : `<label class="c">Tipo de unidad<select data-par="unidadTipo" data-redibujar>${opc(M.UNIDADES, p.unidadTipo)}</select></label>
           <label class="c">Vía principal<select data-par="via" data-redibujar>${opc(M.VIAS, M.VIAS[p.via] ? p.via : 'camino1')}</select></label>
           <label class="c">Velocidad de día (km/h)<input class="num" data-par="velGeneral" inputmode="decimal" value="${esc(p.velGeneral||'')}" placeholder="${f(M.velGeneral(p.via, false, p.unidadTipo), 1)}"></label>`}
@@ -244,6 +245,9 @@
             : 'Por defecto 10 % de altos; súbelos según el entrenamiento, la carga y la dificultad.'}
           Imprevistos (10 % por defecto, sobre marcha + altos): reserva para lo inesperado, incluido el agotamiento momentáneo; durante la marcha, los altos no planificados se registran en Seguir con su motivo.
           ${R.vel.fuente==='mide' ? '<br>Valores originales MIDE: 300 m/h de subida y 500 m/h de bajada, sin importar tropa ni carga.' : ''}</p>
+        ${p.metodo==='montana' ? `<details class="avanzado"><summary>⚙ Avanzado</summary><div class="campos">
+          <label class="c">Pendiente crítica (%)<input class="num" data-par="pteCr" data-pct inputmode="decimal" value="${pct(p.pteCr)}"></label></div>
+          <p class="nota">Sobre esta pendiente el tramo se calcula por el desnivel; bajo ella, por la distancia (5 % por defecto).</p></details>` : ''}
         <h2>Declinación magnética</h2>
         <div class="campos">
           <label class="c ancho"><span><input type="checkbox" data-par="declAuto" data-redibujar ${p.declAuto ? 'checked' : ''} style="width:auto;vertical-align:middle"> Calcular automática (modelo WMM2025, según lugar y fecha)</span></label>
@@ -255,25 +259,32 @@
         <p class="nota" id="declTxt"></p>
       </details>
 
-      <details class="tarjeta"><summary>Unidad y columna<span class="res">${R.columna ? f(R.columna.n) + ' hombres · ' + f(R.columna.largo) + ' m' : 'opcional'}</span></summary>
+      <details class="tarjeta"><summary>Unidad y columna<span class="res">${R.columna ? f(R.columna.n) + ' hombres · ' + f(R.columna.largo) + ' m' : '<b style="color:var(--rojo)">falta el efectivo</b>'}</span></summary>
         <div class="campos">
           <label class="c">Efectivo (hombres)<input class="num" data-par="efectivo" inputmode="numeric" value="${esc(p.efectivo)}" placeholder="p. ej. 120"></label>
           <label class="c">Formación<select data-par="filas" data-numero>${opc({2:'Columna de a dos', 1:'Fila india'}, String(p.filas))}</select></label>
           <label class="c">Distancia entre hombres (m)<input class="num" data-par="distHombres" inputmode="decimal" value="${esc(p.distHombres||'')}" placeholder="${R.fracNoche>0.5 ? 2 : 5}"></label>
-          <label class="c">Unidades de marcha<input class="num" data-par="unidades" inputmode="numeric" value="${esc(p.unidades)}" placeholder="1"></label>
-          <label class="c">Distancia entre unidades (m)<input class="num" data-par="distUnidades" inputmode="numeric" value="${esc(p.distUnidades||'')}" placeholder="${R.fracNoche>0.5 ? 25 : 50}"></label>
+          <label class="c">Unidades de marcha<input class="num" data-par="unidades" data-redibujar inputmode="numeric" value="${esc(p.unidades)}" placeholder="1"></label>
+          ${(+p.unidades||1)>1 ? `<label class="c">Distancia entre unidades (m)<input class="num" data-par="distUnidades" inputmode="numeric" value="${esc(p.distUnidades||'')}" placeholder="${R.fracNoche>0.5 ? 25 : 50}"></label>` : ''}
         </div>
+        ${p.efectivo ? '' : '<div class="alerta">Falta el <b>efectivo</b>: sin él no se calcula la columna, y el material y la carga quedan calculados para 1 hombre.</div>'}
         <p class="nota">Referencia: entre hombres 2–5 m de día y 1–3 m de noche; entre pelotones 50 m (noche 25 m) y entre compañías 100 m (noche 50 m).
           Con esto se calcula el largo de la columna y el <b>tiempo de paso</b> (lo que demora la columna completa en pasar por un punto), y la hora en que la cola llega al final.</p>
       </details>
 
       <details class="tarjeta"><summary>Calor y agua<span class="res">${R.calor && R.calor.cat ? 'categoría ' + esc(R.calor.n) : 'opcional'}</span></summary>
         <div class="campos">
-          <label class="c">Índice WBGT previsto (°C)<input class="num" data-par="wbgt" inputmode="decimal" value="${esc(p.wbgt)}" placeholder="p. ej. 29"></label>
-          <label class="c ancho">Intensidad del trabajo<select data-par="trabajo">${opc(M.TRABAJOS, p.trabajo)}</select></label>
+          <label class="c">Temperatura prevista (°C)<input class="num" data-par="temp" data-redibujar inputmode="decimal" value="${esc(p.temp)}" placeholder="del pronóstico"></label>
+          <label class="c">Humedad relativa (%)<input class="num" data-par="hum" data-redibujar inputmode="numeric" value="${esc(p.hum)}" placeholder="del pronóstico"></label>
+          <label class="c">o WBGT medido (°C)<input class="num" data-par="wbgt" data-redibujar inputmode="decimal" value="${esc(p.wbgt)}" placeholder="si tienes medidor"></label>
+          <label class="c ancho">Intensidad del trabajo<select data-par="trabajo" data-redibujar>${opc(Object.assign({auto:'Automática según la carga (' + f(R.carga ? R.carga.total : +p.carga || 0, 1) + ' kg → ' + (M.TRABAJOS[M.trabajoDe({}, R.carga ? R.carga.total : p.carga)] || '').split(' (')[0].toLowerCase() + ')'}, M.TRABAJOS), p.trabajo || 'auto')}</select></label>
+          <label class="c ancho"><span><input type="checkbox" data-par="calorAltos" data-redibujar ${p.calorAltos!==false ? 'checked' : ''} style="width:auto;vertical-align:middle"> El descanso por calor se suma a los altos (alarga la marcha)</span></label>
         </div>
-        <p class="nota">Tabla de TB MED 507 (2022): según el índice de calor (WBGT, medido con el equipo de la unidad o estimado) da los minutos de trabajo y descanso por hora y el agua por hora.
-          Máximo 1,4 L por hora y 11,4 L por día.</p>
+        ${R.calor ? `<div class="info">WBGT ${R.calor.fuenteWbgt==='medido' ? 'medido' : 'estimado'}: <b>${f(R.calor.wbgt, 1)} °C</b> → ${R.calor.cat ? 'categoría <b>' + esc(R.calor.n) + '</b>' : 'bajo la categoría 1 (sin restricción)'}
+          · trabajo ${esc((M.TRABAJOS[R.calor.trab] || '').split(' (')[0].toLowerCase())}${R.calor.trabajo<60 ? ' · <b>' + R.calor.trabajo + ' min de trabajo y ' + R.calor.descanso + ' de descanso por hora</b>' : ''} · agua ${f(R.calor.lh, 2)} L/h.
+          ${R.calor.altosCalor ? '<br><b>La marcha se alargó: los altos se ajustaron al descanso que exige el calor.</b>' : ''}</div>` : ''}
+        <p class="nota">Si no tienes medidor de WBGT, escribe la temperatura y la humedad del pronóstico: el WBGT se estima para sol moderado (con sol fuerte y sin viento puede ser mayor).
+          La tabla de calor da los minutos de trabajo y descanso por hora y el agua por hora. Máximo 1,4 L por hora y 11,4 L por día.</p>
       </details>
 
       <details class="tarjeta" id="dClaves"><summary>Nombres clave y eventos para la radio<span class="res">${esc(((p.verbo || 'PASANDO') + ' ' + (R.puntos[1] && R.puntos[1].clave || '…')).toUpperCase())}</span></summary>
@@ -363,8 +374,8 @@
     m.puntos.forEach((_, i)=>{ const e = $('#tr' + i); if(!e) return; const t = R.tramos.find(t=>t.iB===i);
       e.innerHTML = t ? `<span>↓ <b>${f(t.dist)} m</b></span><span>${t.dv>=0 ? '+' : ''}${f(t.dv)} m (${f(t.pte*100, 1)} %)</span><span>rumbo <b>${f(t.azM, 1)}°</b> · ${t.mils} ‰</span><span>${M.verDur(t.t)}</span><span>llega ${M.verHora(t.llegada)}</span>` : ''; });
     const d = $('#declTxt');
-    if(d) d.innerHTML = R.puntos.some(p=>p.ok) ? `Declinación a la fecha: <b>${f(R.decl.valor, 2)}° ${R.decl.valor>=0 ? 'Este' : 'Oeste'}</b> (${esc(R.decl.fuente)}). Convergencia en el PIM: ${f(R.res.conv, 2)}°.
-      Rumbo magnético = acimut geográfico − declinación.` : 'Se calcula al ingresar el primer punto.';
+    if(d) d.innerHTML = R.puntos.some(p=>p.ok) ? `Declinación a la fecha: <b>${f(R.decl.valor, 2)}° ${R.decl.valor>=0 ? 'Este' : 'Oeste'}</b> (${esc(R.decl.fuente)}). Rumbo magnético = acimut geográfico − declinación.
+      <details class="avanzado"><summary>⚙ Avanzado</summary><p class="nota">Convergencia en el PIM: ${f(R.res.conv, 2)}° (diferencia entre el norte de la cuadrícula y el geográfico; la app la aplica sola).</p></details>` : 'Se calcula al ingresar el primer punto.';
     return R;
   }
   // edición: datos de la marcha, parámetros y puntos
@@ -377,6 +388,7 @@
       else if(['velSub', 'velBaj', 'velLlano', 'velGeneral', 'decl', 'declVar'].includes(t.dataset.par)) v = v==='' ? null : String(v).replace(',', '.');
       else if(t.dataset.par==='carga'){ v = String(v).replace(',', '.'); m.par.cargaGeneral = true; }
       if(t.dataset.par==='luz') delete m.par.noche;
+      if(['temp', 'hum', 'wbgt'].includes(t.dataset.par)) v = String(v).replace(',', '.');
       if(['altoPrimero', 'altoPrimeroDur', 'altoCada', 'altoDur'].includes(t.dataset.par)) v = String(v).replace(',', '.');
       if(t.dataset.par==='verboSel'){ m.par.verbo = v==='otra' ? '' : v; guardar(); return; }
       if(t.dataset.par==='verbo') v = String(v).toUpperCase();
@@ -391,9 +403,12 @@
     if(S.v==='ruta' && e.target.dataset.ev!==undefined){ const m = actual(), i = +e.target.closest('.punto').dataset.i, p = m.puntos[i];
       p.ev = e.target.checked; if(p.ev && !p.nombre) p.nombre = 'PC' + M.calcular(m).eventos.filter(x=>x<i).length; if(!p.ev){ p.clave = ''; if(/^PC\d+$/.test(p.nombre)) p.nombre = ''; }
       guardar(); const y = window.scrollY; pintar(); window.scrollTo(0, y); return; }
-    if(S.v==='ruta' && e.target.dataset.redibujar!==undefined){ const y = window.scrollY; pintar(); window.scrollTo(0, y);
-    const d = vista.querySelectorAll('details');
-    if(['claves', 'verboSel'].includes(e.target.dataset.par)){ const c = $('#dClaves'); if(c) c.open = true; } else if(d[1]) d[1].open = true; } });
+    if(S.v==='ruta' && e.target.dataset.redibujar!==undefined){
+      // al redibujar se mantienen abiertas las mismas tarjetas (y la que contiene el campo cambiado)
+      const titulo = d=>(d.querySelector('summary') || {}).firstChild ? d.querySelector('summary').firstChild.textContent.trim() : '';
+      const abiertas = new Set([...vista.querySelectorAll('details[open]')].map(titulo)), propia = e.target.closest('details'); if(propia) abiertas.add(titulo(propia));
+      const y = window.scrollY; pintar(); window.scrollTo(0, y);
+      vista.querySelectorAll('details').forEach(d=>{ if(abiertas.has(titulo(d))) d.open = true; }); } });
   vista.addEventListener('click', e=>{
     if(S.v!=='ruta') return; const m = actual(), b = e.target.closest('button'); if(!b) return;
     const c = b.closest('.punto'); if(!c) return; const i = +c.dataset.i, P = m.puntos;
@@ -443,7 +458,7 @@
       <div class="kpi"><div class="k">Trabajo / descanso</div><div class="v">${a.trabajo>=60 ? 'sin límite' : a.trabajo + '/' + a.descanso + ' <small>min</small>'}</div></div>
       <div class="kpi"><div class="k">Agua por hora</div><div class="v">${f(a.lh, 2)} <small>L</small></div></div>
       <div class="kpi ocre"><div class="k">Agua por hombre (marcha)</div><div class="v">${f(a.litros, 1)} <small>L</small></div></div></div>
-      ${a.trabajo<60 ? `<div class="alerta">Con esta categoría, cada hora solo ${a.trabajo} min de trabajo y ${a.descanso} de descanso (TB MED 507). El tiempo del cuadro <b>no</b> considera estos descansos: súbelos en «Altos» o cambia la hora de partida.</div>` : ''}
+      ${a.trabajo<60 ? `<div class="alerta">Con esta categoría, cada hora solo ${a.trabajo} min de trabajo y ${a.descanso} de descanso (TB MED 507). ${a.altosCalor ? 'Los altos de la marcha ya se ajustaron a este descanso.' : R.par.calorAltos===false ? 'El tiempo del cuadro <b>no</b> considera estos descansos (opción desactivada en Calor y agua).' : 'Los altos de la marcha ya cubren este descanso.'}</div>` : ''}
       ${a.tope ? '<div class="alerta">La marcha supera el máximo diario de agua (11,4 L). Revisa la duración o divide la marcha.</div>' : ''}
       <p class="nota">TB MED 507 (2022), tabla 3-2. No beber más de 1,4 L por hora. Ajustar ± 0,25 L/h por diferencias individuales y por sol o sombra.${R.columna ? ' Total de la unidad: <b>' + f(a.litros*R.columna.n) + ' L</b>.' : ''}</p>`
       : `<p class="nota">WBGT ${f(a.wbgt, 1)} °C: bajo la categoría 1 de TB MED 507, sin restricción de trabajo. Igual hidratarse en cada alto.</p>`);

@@ -480,3 +480,6 @@ table.mat td.kg{width:120px} table.mat td.kg input{padding:5px 8px;font-size:13p
 .doc-hoja table.mat td.kg{width:60px;text-align:right}
 .doc-res.doc-carga{grid-template-columns:repeat(4,1fr)} .doc-res.doc-carga .dr{display:block}
 table.glosario td{white-space:normal;padding:6px 8px} table.glosario td:first-child{width:160px;color:var(--ocre)}
+details.avanzado{margin:8px 0 2px;border-top:1px dashed var(--linea);padding-top:6px}
+details.avanzado>summary{cursor:pointer;font-size:12.5px;color:var(--suave)}
+details.avanzado[open]>summary{margin-bottom:8px}
