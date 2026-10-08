@@ -249,9 +249,9 @@ const MARCHA = (function(){
       // Las marchas antiguas no tienen el campo: todos sus puntos son eventos.
       return {i, nombre:p.nombre || '', ev:p.ev===undefined ? true : !!p.ev, claveManual:String(p.clave || '').trim().toUpperCase(), obs:p.obs || '', det:(num(p.det)||0)/60, ok:!!g && !isNaN(cota), lat:g && g.lat, lon:g && g.lon, cota};
     });
-    // el primer y el último punto válidos siempre son eventos (partida y llegada)
+    // el primer y el último punto válidos siempre son eventos: PIM (inicio de marcha) y PTM (término de marcha)
     { const v = pts.filter(p=>p.ok); if(v.length){ v[0].ev = true; v[v.length - 1].ev = true;
-        if(!v[0].nombre) v[0].nombre = 'PIM'; if(v.length>1 && !v[v.length - 1].nombre) v[v.length - 1].nombre = 'TÉRMINO'; } }
+        if(!v[0].nombre) v[0].nombre = 'PIM'; if(v.length>1 && !v[v.length - 1].nombre) v[v.length - 1].nombre = 'PTM'; } }
     pts.forEach((p, i)=>{ if(!p.nombre) p.nombre = p.ev ? 'P' + (i + 1) : ''; });
     claves(pts, par.claves, par.clavesPropias);
     const val = pts.filter(p=>p.ok);
