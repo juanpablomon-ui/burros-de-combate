@@ -215,12 +215,14 @@ const MARCHA = (function(){
       velLlano:4, pteCr:0.05, altos:0.10, imprev:0.10,
       claves:'otan', clavesPropias:'',   // lista de nombres clave de los puntos
       verbo:'PASANDO',                   // palabra para informar el paso por un punto («PASANDO ALFA»)
-      motivosAlto:'Alto horario\nComida\nLesionado\nReorganización\nOrientación\nAbastecimiento de agua\nContacto',
+      motivosAlto:'Alto horario\nComida\nAgotamiento momentáneo\nLesionado\nReorganización\nOrientación\nAbastecimiento de agua\nContacto',
       novedades:'Lesionado\nRezagado\nRuta cortada\nCambio de itinerario\nContacto con el enemigo\nSin enlace\nMaterial perdido',
       velGeneral:null, via:'camino1', unidadTipo:'pie',   // marcha general: velocidad de la tabla según unidad, vía y día/noche
       luz:'auto', redNoche:25,   // luz: 'auto' (según la hora de cada tramo) | 'dia' | 'noche'; reducción nocturna (%) para montaña y MIDE
       efectivo:'', filas:2, distHombres:null, unidades:1, distUnidades:null,   // columna
       wbgt:'', trabajo:'moderado',   // calor y agua
+      fuenteVel:'',   // velocidades verticales: 'tabla' (tropa y carga) | 'mide' (300/500 m/h) | 'propia' (escritas); vacío = según los campos
+      altosModo:'pct', altoCada:50, altoDur:10, altoPrimero:45, altoPrimeroDur:15,   // altos por % o por régimen programado
       cargaMat:false, cargaBase:'',   // carga por hombre calculada desde el material (+ peso base: armamento, munición, casco, chaleco)
       declAuto:true, decl:0, declFecha:'', declVar:0};
   }
@@ -273,7 +275,11 @@ const MARCHA = (function(){
   function calcular0(m){
     const par = Object.assign(porDefecto(), m.par || {}), dat = m.datum || 'WGS84';
     const vt = velVertical(par.tropa, par.terreno, par.carga, par.criterio) || velVertical('normal', 'sinNieve', par.carga, par.criterio);
-    const vel = {sub:num(par.velSub) || vt.sub, baj:num(par.velBaj) || vt.baj, tabla:vt};
+    // de dónde salen las velocidades verticales: tabla de la tropa (según carga) · valores originales MIDE (300/500 m/h) · escritas a mano
+    const fv = par.fuenteVel || (num(par.velSub) || num(par.velBaj) ? 'propia' : 'tabla');
+    const vel = fv==='mide' ? {sub:300, baj:500, tabla:vt, fuente:'mide'}
+      : fv==='propia' ? {sub:num(par.velSub) || vt.sub, baj:num(par.velBaj) || vt.baj, tabla:vt, fuente:'propia'}
+      : {sub:vt.sub, baj:vt.baj, tabla:vt, fuente:'tabla'};
     const pts = (m.puntos || []).map((p, i)=>{
       const g = puntoWgs(p, dat), cota = num(p.cota);
       // ev: punto de control que se informa por radio (evento); si no, es solo un punto de ruta (quiebre del camino).
@@ -295,14 +301,18 @@ const MARCHA = (function(){
     const conLuz = typeof LUZ!=='undefined' && ref && m.fecha && h0!==null;
     const luzEn = h=>{ if(!conLuz || h===null) return null; return LUZ.condicion(new Date(LUZ.inicioDia(m.fecha) + h*36e5), ref.lat, ref.lon); };
     const esNoche = h=>par.luz==='noche' ? true : par.luz==='dia' ? false : !!((luzEn(h) || {}).oscuro);
-    const fAl = 1 + (num(par.altos)||0);
+    // altos: % del tiempo de marcha, o régimen programado (primer alto de P min a los Q min de marcha; luego D min cada C min)
+    const reg = par.altosModo==='regimen', cada = (num(par.altoCada) || 50)/60, durA = (num(par.altoDur) || 10)/60, prim = (num(par.altoPrimero) || 45)/60, durP = (num(par.altoPrimeroDur) || 15)/60;
+    const altosHasta = tm=>{ if(!reg) return tm*(num(par.altos)||0); if(tm<=prim + 1e-9) return 0;   // altos ya hechos al llevar «tm» horas de marcha
+      return durP + Math.floor((tm - prim - 1e-9)/cada)*durA; };
+    const fAl = reg ? 1 + durA/cada : 1 + (num(par.altos)||0);
     let detL = pts[0] ? pts[0].det : 0, tNoche = 0;
     const tramos = []; let acum = 0, dist = 0, sube = 0, baja = 0;
     for(let i=0; i<pts.length - 1; i++){
       const A = pts[i], B = pts[i + 1]; if(!A.ok || !B.ok) continue;
       const dE = B.utm.e - A.utm.e, dN = B.utm.n - A.utm.n, dg = Math.hypot(dE, dN), dh = dg/((A.utm.k + B.utm.k)/2), dv = B.cota - A.cota;
       const azC = dg ? (Math.atan2(dE, dN)/rad + 360)%360 : 0, azG = (azC + A.utm.conv + 360)%360, azM = (azG - dec.valor + 360)%360;
-      const via = m.puntos[B.i].via || par.via, vv = Object.assign({}, vel, {via}), hIni = h0===null ? null : h0 + acum*fAl + detL;
+      const via = m.puntos[B.i].via || par.via, vv = Object.assign({}, vel, {via}), hIni = h0===null ? null : h0 + acum + altosHasta(acum) + detL;
       // primero con velocidad de día; si la mitad del tramo cae de noche, se recalcula con la de noche
       let tt = tiempoTramo(dh, dv, par, vv, false), mitad = hIni===null ? null : hIni + tt.t*fAl/2;
       if(esNoche(mitad)){ tt = tiempoTramo(dh, dv, par, vv, true); mitad = hIni===null ? null : hIni + tt.t*fAl/2; tNoche += tt.t; }
@@ -313,11 +323,11 @@ const MARCHA = (function(){
     }
     // detenciones planificadas en los puntos intermedios (comida, descanso, reorganización); no cuenta el último punto
     const det = pts.slice(0, -1).reduce((a, p)=>a + p.det, 0);
-    const altos = acum*(num(par.altos)||0), imprev = (acum + altos + det)*(num(par.imprev)||0), total = acum + altos + det + imprev;
+    const altos = reg ? altosHasta(Math.max(0, acum - 1e-6)) : acum*(num(par.altos)||0), imprev = (acum + altos + det)*(num(par.imprev)||0), total = acum + altos + det + imprev;
     // hora estimada de llegada y salida en cada punto: partida + marcha acumulada con sus altos + detenciones anteriores
     // (los imprevistos quedan como reserva al final)
     let detAc = pts[0] ? pts[0].det : 0;
-    tramos.forEach(t=>{ t.llegada = h0===null ? null : h0 + t.tAcum*(1 + (num(par.altos)||0)) + detAc;
+    tramos.forEach(t=>{ t.llegada = h0===null ? null : h0 + t.tAcum + altosHasta(t.tAcum) + detAc;
       t.det = pts[t.iB].det; t.salida = t.llegada===null ? null : t.llegada + t.det; detAc += t.det; });
     // tramos entre eventos: suman los quiebres (puntos de ruta) que hay entre un punto de control y el siguiente
     const tramosEv = []; let cur = null;
@@ -333,14 +343,15 @@ const MARCHA = (function(){
     const alto = val.reduce((x, p)=>!x || p.cota>x.cota ? p : x, null);
     // columna: velocidad media de la marcha (distancia / tiempo de marcha) para el tiempo de paso
     const fracNoche = acum ? tNoche/acum : (par.luz==='noche' ? 1 : 0);
-    const vMedia = acum ? dist/1000/(acum*(1 + (num(par.altos)||0))) : velGeneral(par.via, false, par.unidadTipo), col = columna(par, vMedia || 4, fracNoche>0.5);
+    const vMedia = acum ? dist/1000/(acum + altos) : velGeneral(par.via, false, par.unidadTipo), col = columna(par, vMedia || 4, fracNoche>0.5);
     const ter = h0===null ? null : h0 + total;
     // avisos doctrinarios
     const avisos = [];
     if(par.metodo==='general' && tramos.some(t=>Math.abs(t.pte)>=0.07)) avisos.push('Hay tramos con pendiente de 7 % o más: afectan la velocidad. Considera el método de montaña o MIDE.');
     const jor = JORNADA[par.unidadTipo] || JORNADA.pie;
     if(dist>jor*1000) avisos.push('Más de ' + jor + ' km: sobre la jornada de marcha ' + (par.unidadTipo==='montada' ? 'montada' : 'a pie') + ' (' + jor + ' km). Divide en jornadas o planifica descanso y recuperación.');
-    return {par, vel, zona, decl:dec, puntos:pts, tramos, tramosEv, eventos, columna:col, fracNoche, conLuz, calor:calor(par, total), avisos,
+    const regimen = reg ? {cada:cada*60, dur:durA*60, primero:prim*60, primeroDur:durP*60, n:altos>0 ? 1 + Math.round((altos - durP)/durA) : 0} : null;
+    return {regimen, par, vel, zona, decl:dec, puntos:pts, tramos, tramosEv, eventos, columna:col, fracNoche, conLuz, calor:calor(par, total), avisos,
       res:{dist, sube, baja, marcha:acum, altos, det, imprev, total, partida:h0, termino:ter, terminoCola:ter===null || !col ? null : ter + col.paso, alto,
         conv:ref ? ref.utm.conv : null, lejos:val.some(p=>Math.abs(p.lon - (zona*6 - 183))>4)}};
   }

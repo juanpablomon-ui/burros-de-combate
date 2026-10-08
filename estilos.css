@@ -479,3 +479,4 @@ table.mat td.kg{width:120px} table.mat td.kg input{padding:5px 8px;font-size:13p
 .tarjeta.carga h3{margin:0 0 10px}
 .doc-hoja table.mat td.kg{width:60px;text-align:right}
 .doc-res.doc-carga{grid-template-columns:repeat(4,1fr)} .doc-res.doc-carga .dr{display:block}
+table.glosario td{white-space:normal;padding:6px 8px} table.glosario td:first-child{width:160px;color:var(--ocre)}

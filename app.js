@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.26', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.27', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -11,6 +11,7 @@
   let S = {marchas:[], actual:null, v:'marchas'};
   try { const d = JSON.parse(localStorage.getItem(CLAVE)); if(d && Array.isArray(d.marchas)) S = Object.assign(S, d); } catch(e){}
   S.marchas.forEach(m=>{ m.par = Object.assign(M.porDefecto(), m.par || {}); if(m.par.metodo==='cartilla') m.par.metodo = 'montana';
+    if(m.par.motivosAlto && !/agotamiento/i.test(m.par.motivosAlto)) m.par.motivosAlto = m.par.motivosAlto.replace(/(Comida\n?)/, '$1Agotamiento momentáneo\n');
     const u = m.puntos[m.puntos.length - 1]; if(m.puntos.length>1 && u && (u.nombre==='PIM' || u.nombre==='TÉRMINO')) u.nombre = 'PTM'; });   // el término de marcha se llama PTM   // parámetros completos; nombre antiguo del método
   let tGuardar = null;
   const guardar = ()=>{ clearTimeout(tGuardar); tGuardar = setTimeout(()=>{ tGuardar = null; try { localStorage.setItem(CLAVE, JSON.stringify(S)); } catch(e){ aviso('⚠ No se pudo guardar en este equipo'); } }, 250); };
@@ -91,6 +92,9 @@
       <h2>Respaldo</h2>
       <div class="tarjeta nota">Las marchas quedan guardadas solo en este equipo. Guarda un respaldo para pasarlas a otro equipo o no perderlas.
         <div class="btns"><button class="btn" id="bResp">⬇ Guardar respaldo</button><button class="btn" id="bCargar">⬆ Cargar respaldo</button></div></div>
+      <h2>Siglas y términos</h2>
+      <details class="tarjeta"><summary>Ver qué significa cada sigla</summary>
+        <table class="t glosario"><tbody>${GLOSARIO.map(([k, v])=>`<tr><td class="tx"><b>${esc(k)}</b></td><td class="tx">${esc(v)}</td></tr>`).join('')}</tbody></table></details>
       <h2>Qué hace</h2>
       <div class="tarjeta nota">Marca la ruta <b>sobre el mapa o tu carta</b> (con cuadrícula UTM y cota automática) y calcula el <b>cuadro de marcha y navegación</b> (distancia, desnivel, pendiente, rumbo magnético en grados y milésimas, tiempos, altos,
         imprevistos y hora de llegada a cada punto), dibuja el <b>perfil del itinerario</b>, lo deja listo para imprimir y
@@ -198,30 +202,36 @@
         <p class="nota">GPS y cartas IGM nuevas: WGS84. Cartas IGM antiguas: PSAD56 o SAD69 (lo dice el margen de la carta).</p>
       </details>
 
-      <details class="tarjeta"><summary>Cálculo de tiempos<span class="res">${esc(({montana:'Montaña', mide:'MIDE', general:'Marcha general'})[p.metodo])} · altos ${pct(p.altos)} % · imprev. ${pct(p.imprev)} %</span></summary>
+      <details class="tarjeta"><summary>Cálculo de tiempos<span class="res">${esc(({montana:'Montaña', mide:'MIDE', general:'Marcha general'})[p.metodo])} · altos ${p.altosModo==='regimen' ? esc(p.altoDur) + ' min cada ' + esc(p.altoCada) : pct(p.altos) + ' %'} · imprev. ${pct(p.imprev)} %</span></summary>
         <div class="campos">
           <label class="c ancho">Método<select data-par="metodo" data-redibujar>${opc(M.METODOS, p.metodo)}</select></label>
           ${p.metodo!=='general' ? `
           <label class="c">Tropa<select data-par="tropa" data-redibujar>${opc(tropas, p.tropa)}</select></label>
           <label class="c">Terreno / modalidad<select data-par="terreno" data-redibujar>${opc(terrenos, p.terreno)}</select></label>
           <label class="c">Carga por hombre (kg)${p.cargaMat ? ' <small>del material</small>' : ''}<input class="num" data-par="carga" data-redibujar inputmode="decimal" value="${p.cargaMat && R.carga ? f(R.carga.total, 1) : esc(p.carga)}" ${p.cargaMat ? 'disabled' : ''}></label>
-          <label class="c">Valor de la tabla<select data-par="criterio" data-redibujar>${opc({min:'Menor (prudente)', media:'Promedio', max:'Mayor'}, p.criterio)}</select></label>
-          <label class="c">Subida (m/h)<input class="num" data-par="velSub" inputmode="numeric" value="${esc(p.velSub||'')}" placeholder="${f(vt.sub)}"></label>
-          <label class="c">Bajada (m/h)<input class="num" data-par="velBaj" inputmode="numeric" value="${esc(p.velBaj||'')}" placeholder="${f(vt.baj)}"></label>
+          <label class="c ancho">Velocidades de subida y bajada<select data-par="fuenteVel" data-redibujar>${opc({tabla:'Tabla de la tropa (según tropa, terreno y carga)', mide:'Valores originales MIDE (300 m/h subida · 500 m/h bajada)', propia:'Las de mi unidad (escritas a mano)'}, R.vel.fuente)}</select></label>
+          ${R.vel.fuente==='tabla' ? `<label class="c">Ritmo de la unidad<select data-par="criterio" data-redibujar>${opc({min:'Bajo', media:'Normal', max:'Exigente'}, p.criterio)}</select></label>` : ''}
+          ${R.vel.fuente==='propia' ? `<label class="c">Subida (m/h)<input class="num" data-par="velSub" inputmode="numeric" value="${esc(p.velSub||'')}" placeholder="${f(vt.sub)}"></label>
+          <label class="c">Bajada (m/h)<input class="num" data-par="velBaj" inputmode="numeric" value="${esc(p.velBaj||'')}" placeholder="${f(vt.baj)}"></label>` : ''}
           <label class="c">Llano (km/h)<input class="num" data-par="velLlano" inputmode="decimal" value="${esc(p.velLlano)}"></label>
           ${p.metodo==='montana' ? `<label class="c">Pendiente crítica (%)<input class="num" data-par="pteCr" data-pct inputmode="decimal" value="${pct(p.pteCr)}"></label>` : ''}`
           : `<label class="c">Tipo de unidad<select data-par="unidadTipo" data-redibujar>${opc(M.UNIDADES, p.unidadTipo)}</select></label>
           <label class="c">Vía principal<select data-par="via" data-redibujar>${opc(M.VIAS, M.VIAS[p.via] ? p.via : 'camino1')}</select></label>
           <label class="c">Velocidad de día (km/h)<input class="num" data-par="velGeneral" inputmode="decimal" value="${esc(p.velGeneral||'')}" placeholder="${f(M.velGeneral(p.via, false, p.unidadTipo), 1)}"></label>`}
           ${p.metodo!=='general' ? `<label class="c">Reducción de noche (%)<input class="num" data-par="redNoche" inputmode="numeric" value="${esc(p.redNoche)}"></label>` : ''}
-          <label class="c">Altos (% del tiempo de marcha)<input class="num" data-par="altos" data-pct inputmode="decimal" value="${pct(p.altos)}"></label>
+          <label class="c">Altos<select data-par="altosModo" data-redibujar>${opc({pct:'% del tiempo de marcha', regimen:'Programados (cada cierto tiempo)'}, p.altosModo || 'pct')}</select></label>
+          ${p.altosModo==='regimen' ? `<label class="c">Primer alto a los (min)<input class="num" data-par="altoPrimero" inputmode="numeric" value="${esc(p.altoPrimero)}"></label>
+          <label class="c">Primer alto de (min)<input class="num" data-par="altoPrimeroDur" inputmode="numeric" value="${esc(p.altoPrimeroDur)}"></label>
+          <label class="c">Luego un alto cada (min)<input class="num" data-par="altoCada" inputmode="numeric" value="${esc(p.altoCada)}"></label>
+          <label class="c">de (min)<input class="num" data-par="altoDur" inputmode="numeric" value="${esc(p.altoDur)}"></label>`
+          : `<label class="c">Altos (% del tiempo de marcha)<input class="num" data-par="altos" data-pct inputmode="decimal" value="${pct(p.altos)}"></label>`}
           <label class="c">Imprevistos (%)<input class="num" data-par="imprev" data-pct inputmode="decimal" value="${pct(p.imprev)}"></label>
         </div>
         <p class="nota">${p.cargaMat ? `Carga calculada desde el <b>Material</b>: ${R.carga ? f(R.carga.total, 1) + ' kg por hombre' : '—'} (cambia la base o el material en Cuadro → Material).` : 'Escribe la carga por hombre, o calcúlala desde el material (Cuadro → Material).'}
           ${p.metodo!=='general' ? ' La tabla trae 10, 20 y 30 kg: con otra carga se interpola.' : ' En marcha general, con carga sobre unos 18 kg la velocidad baja.'}</p>
         ${p.metodo!=='general' ? `<p class="nota">Tabla de velocidades de marcha vertical en montaña para ${esc(tropas[p.tropa].toLowerCase())}, ${esc(M.TERRENOS[p.terreno].n.toLowerCase())}, ${f(vt.carga, 1)} kg:
           subida <b>${esc(vt.rango)} m/h</b>, bajada <b>${f(vt.baj)} m/h</b>.${p.terreno==='esquies' && p.tropa==='normal' ? ' <b>Esquíes: la tabla solo trae valores para tropa andina.</b>' : ''}
-          Deja vacía la casilla para usar la tabla, o escribe otra velocidad si conoces el rendimiento real de tu unidad.</p>` : ''}
+          ${R.vel.fuente==='tabla' ? 'Ritmo: bajo = valor menor del rango, normal = el medio, exigente = el mayor. ' : ''}Si conoces el rendimiento real de tu unidad, elige «Las de mi unidad».</p>` : ''}
         ${p.metodo==='general' ? `<div class="tabla-env" style="margin:10px 0"><table class="t"><thead><tr><th class="tx">Velocidades ${esc(M.UNIDADES[p.unidadTipo].toLowerCase())} (km/h)</th>${Object.values(M.VIAS).map(v=>`<th>${esc(v)}</th>`).join('')}</tr></thead>
           <tbody>${['dia', 'noche'].map(dn=>`<tr><td class="tx">${dn==='dia' ? 'Día' : 'Noche'}</td>${Object.keys(M.VIAS).map(v=>`<td>${f(M.VEL_GENERAL[p.unidadTipo][v][dn], 1)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
           <p class="nota">En cada punto puedes cambiar la vía del tramo. Jornada de marcha ${esc(M.UNIDADES[p.unidadTipo].toLowerCase())}: <b>${M.JORNADA[p.unidadTipo]} km</b>.
@@ -230,7 +240,10 @@
           : 'Día o noche se decide solo, tramo por tramo: si la mitad del tramo cae <b>después del crepúsculo náutico</b> (sol más de 12° bajo el horizonte), se usa la velocidad de noche. Detalle en la pestaña <b>Luz</b>.'}
           ${p.metodo!=='general' ? ' De noche, en montaña y MIDE la velocidad baja en el porcentaje indicado.' : ''}</p>
         <p class="nota">${p.metodo==='montana' ? 'Tramos con pendiente sobre la crítica (5 %) se calculan por el desnivel (DM = 60 × DV / VM); el resto por la distancia (DM = 60 × DH / VM). ' : ''}
-          Por defecto 10 % de altos y 10 % de imprevistos (sobre marcha + altos); súbelos según el entrenamiento, la carga y la dificultad.</p>
+          ${p.altosModo==='regimen' ? `Altos programados: primer alto de ${esc(p.altoPrimeroDur)} min a los ${esc(p.altoPrimero)} min de marcha; luego ${esc(p.altoDur)} min cada ${esc(p.altoCada)} min (régimen habitual: 15 min a los 45 y luego 10 cada 50). Se ubican en las horas de llegada.`
+            : 'Por defecto 10 % de altos; súbelos según el entrenamiento, la carga y la dificultad.'}
+          Imprevistos (10 % por defecto, sobre marcha + altos): reserva para lo inesperado, incluido el agotamiento momentáneo; durante la marcha, los altos no planificados se registran en Seguir con su motivo.
+          ${R.vel.fuente==='mide' ? '<br>Valores originales MIDE: 300 m/h de subida y 500 m/h de bajada, sin importar tropa ni carga.' : ''}</p>
         <h2>Declinación magnética</h2>
         <div class="campos">
           <label class="c ancho"><span><input type="checkbox" data-par="declAuto" data-redibujar ${p.declAuto ? 'checked' : ''} style="width:auto;vertical-align:middle"> Calcular automática (modelo WMM2025, según lugar y fecha)</span></label>
@@ -364,6 +377,7 @@
       else if(['velSub', 'velBaj', 'velLlano', 'velGeneral', 'decl', 'declVar'].includes(t.dataset.par)) v = v==='' ? null : String(v).replace(',', '.');
       else if(t.dataset.par==='carga'){ v = String(v).replace(',', '.'); m.par.cargaGeneral = true; }
       if(t.dataset.par==='luz') delete m.par.noche;
+      if(['altoPrimero', 'altoPrimeroDur', 'altoCada', 'altoDur'].includes(t.dataset.par)) v = String(v).replace(',', '.');
       if(t.dataset.par==='verboSel'){ m.par.verbo = v==='otra' ? '' : v; guardar(); return; }
       if(t.dataset.par==='verbo') v = String(v).toUpperCase();
       m.par[t.dataset.par] = v; }

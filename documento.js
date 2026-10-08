@@ -128,7 +128,7 @@ const Documento = (function(){
       ${tarj('met', 'Método', esc(({montana:'Montaña', mide:'MIDE', general:'Marcha general'})[R.par.metodo] || ''), R.tramos.some(t=>t.noche) ? 'con tramos de noche' : 'de día')}
       ${tarj('ev', 'Eventos', R.eventos.length, R.eventos.map(i=>R.puntos[i].clave).filter(Boolean).slice(0, 4).join(' · ') + (R.eventos.length>4 ? '…' : ''))}
       ${tarj('carga', 'Carga por hombre', f(R.carga ? R.carga.total : +R.par.carga || 0, 1) + ' kg', R.carga ? 'base ' + f(R.carga.base, 1) + ' + material ' + f(R.carga.indiv + R.carga.colect, 1) : 'escrita a mano')}
-      ${tarj('alt', 'Altos / imprevistos', Math.round(R.par.altos*100) + ' % / ' + Math.round(R.par.imprev*100) + ' %', M.verDur(r.altos) + ' / ' + M.verDur(r.imprev))}</div>`;
+      ${tarj('alt', 'Altos / imprevistos', (R.regimen ? R.regimen.dur + ' min c/' + R.regimen.cada : Math.round(R.par.altos*100) + ' %') + ' / ' + Math.round(R.par.imprev*100) + ' %', M.verDur(r.altos) + ' / ' + M.verDur(r.imprev))}</div>`;
     const fig = (html, id)=>d.figuras==='oscuras' ? `<div class="doc-osc"${id ? ` id="${id}"` : ''}>${html}</div>` : `<div class="doc-fig"${id ? ` id="${id}"` : ''}>${aClaro(html)}</div>`;
     const sec = (titulo, html, nueva)=>`<section class="doc-sec${nueva ? ' salto' : ''}"><h2 class="doc-h2">${titulo}</h2>${html}</section>`;
     const S = d.sec; let n = 0, partes = [];

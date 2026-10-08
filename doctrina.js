@@ -130,3 +130,30 @@ function pesoMaterial(m, R){
   return {base, indiv, colect, total:Math.round((base + indiv + colect)*10)/10, n:c.n, hay:c.hay, items:items.sort((a, b)=>b.porHombre - a.porHombre)};
 }
 if(typeof globalThis!=='undefined'){ globalThis.PESOS = PESOS; globalThis.pesoMaterial = pesoMaterial; }
+
+/* Siglas y términos que usa la app (tarjeta en Marchas) */
+const GLOSARIO = [
+  ['PIM', 'Punto inicial de marcha (partida).'], ['PTM', 'Punto de término de marcha (llegada).'], ['PC', 'Punto de control: evento intermedio de la ruta (PC1, PC2…).'],
+  ['Evento', 'Punto de control que se informa por radio y lleva nombre clave («PASANDO ALFA»).'], ['Quiebre', 'Punto de ruta: solo dibuja el camino; no se informa.'],
+  ['UTM', 'Cuadrícula de coordenadas en metros de las cartas (Este y Norte), por zonas; Chile continental usa las zonas 18 y 19.'],
+  ['WGS84 / SIRGAS', 'Datum de los GPS y de las cartas IGM actuales.'], ['PSAD56 / SAD69', 'Datums de cartas IGM antiguas (difieren unos 200–400 m de WGS84).'],
+  ['Datum', 'Sistema de referencia de la carta; dice en qué está medida la coordenada.'],
+  ['Declinación magnética', 'Ángulo entre el norte geográfico y el magnético (el de la brújula).'], ['Convergencia', 'Ángulo entre el norte de la cuadrícula UTM y el norte geográfico.'],
+  ['Rumbo magnético', 'Dirección que marca la brújula: acimut geográfico menos la declinación.'], ['‰ (milésimas)', 'Medida de ángulos: 6400 milésimas = una vuelta completa (360°).'],
+  ['WMM', 'Modelo Magnético Mundial (NOAA): calcula la declinación según lugar y fecha.'],
+  ['MIDE', 'Método de cálculo de horarios de excursión: tiempo = el mayor entre el horizontal y el vertical + la mitad del menor.'],
+  ['DIN 33466', 'Norma alemana en que se basa el método MIDE.'], ['m/h', 'Metros de desnivel por hora (velocidad de subida o bajada).'],
+  ['Pendiente', 'Desnivel dividido por la distancia horizontal, en %.'], ['Altos', 'Descansos durante la marcha (por % o programados cada cierto tiempo).'],
+  ['Imprevistos', 'Reserva de tiempo para lo inesperado (se suma al término).'],
+  ['Tiempo de paso', 'Lo que demora la columna completa en pasar por un punto.'],
+  ['WBGT', 'Índice de estrés por calor que combina temperatura, humedad, sol y viento («temperatura de globo y bulbo húmedo»).'],
+  ['C.C.M. / C.C.V.', 'Crepúsculo civil matutino / vespertino: sol entre 0° y 6° bajo el horizonte.'],
+  ['C.N.M. / C.N.V.', 'Crepúsculo náutico matutino / vespertino: sol entre 6° y 12° bajo el horizonte.'],
+  ['C.A.M. / C.A.V.', 'Crepúsculo astronómico matutino / vespertino: sol entre 12° y 18° bajo el horizonte.'],
+  ['Primera / última luz', 'Sol a 9° bajo el horizonte (mitad del crepúsculo náutico).'],
+  ['GDH', 'Grupo fecha-hora: día, hora y minutos, mes y año (ej. 081030OCT26).'], ['OPORD / O. Op.', 'Orden de operaciones.'],
+  ['C2', 'Mando y control: el sistema o puesto que recibe los informes (ej. C2 TOQUI).'],
+  ['GPS', 'Sistema de posicionamiento satelital (posición del teléfono).'], ['DEM / SRTM', 'Modelo digital de terreno: da la cota de cualquier punto (precisión ~30 m).'],
+  ['GPX / KML / GeoJSON', 'Formatos de archivo de rutas y puntos (GPS, Google Earth, sistemas de mapas).'], ['CSV', 'Tabla de texto que abre Excel.'],
+  ['QR', 'Código de cuadros que se lee con la cámara para pasar el plan de un teléfono a otro.']];
+if(typeof globalThis!=='undefined') globalThis.GLOSARIO = GLOSARIO;
