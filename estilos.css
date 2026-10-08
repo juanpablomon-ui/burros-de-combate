@@ -317,3 +317,4 @@ table.t tr.conq:hover td{background:#22251b}
 .plie{display:inline-block;width:14px;color:var(--ocre);transition:transform .15s}
 tr.abierto .plie{transform:rotate(90deg)}
 @media print{ .solo-imp table.t tr.sub{display:table-row} .plie{display:none} }
+.subv{flex-wrap:wrap}

@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y ficha de navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.11', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.12', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -57,18 +57,18 @@
   function ir(v){ S.v = v; guardar(); pintar(); window.scrollTo(0, 0); }
   $('#pestanas').addEventListener('click', e=>{ const b = e.target.closest('button[data-v]'); if(b) ir(b.dataset.v); });
   // Perfil y Lista van dentro de la pestaña Cuadro
-  const PESTANA = {perfil:'cuadro', lista:'cuadro'};
-  const subCuadro = ()=>`<div class="seg subv no-imp">${[['cuadro', 'Cuadro de marcha'], ['perfil', 'Perfil'], ['lista', 'Lista']].map(([k, n])=>`<button data-sv="${k}" class="${S.v===k ? 'on' : ''}">${n}</button>`).join('')}</div>`;
+  const PESTANA = {perfil:'cuadro', lista:'cuadro', ficha:'cuadro'};
+  const subCuadro = ()=>`<div class="seg subv no-imp">${[['cuadro', 'Cuadro de marcha'], ['ficha', 'Ficha de navegación'], ['perfil', 'Perfil'], ['lista', 'Lista']].map(([k, n])=>`<button data-sv="${k}" class="${S.v===k ? 'on' : ''}">${n}</button>`).join('')}</div>`;
   vista.addEventListener('click', e=>{ const b = e.target.closest('[data-sv]'); if(b) ir(b.dataset.sv); });
   function pintar(){
     const m = actual(); if(!m && S.v!=='marchas') S.v = 'marchas';
-    if(!({marchas:1, mapa:1, ruta:1, cuadro:1, perfil:1, lista:1, seguir:1, enviar:1})[S.v]) S.v = 'marchas';
+    if(!({marchas:1, mapa:1, ruta:1, cuadro:1, ficha:1, perfil:1, lista:1, seguir:1, enviar:1})[S.v]) S.v = 'marchas';
     if(S.v!=='mapa') Mapa.cerrar();
     if(S.v!=='seguir') Seguir.cerrar();
     document.body.classList.toggle('con-mapa', S.v==='mapa');
     document.querySelectorAll('#pestanas button').forEach(b=>{ b.classList.toggle('on', b.dataset.v===(PESTANA[S.v] || S.v)); b.disabled = !m && b.dataset.v!=='marchas'; b.style.opacity = b.disabled ? .35 : 1; });
     $('#subtitulo').textContent = m ? m.nombre + (m.unidad ? ' · ' + m.unidad : '') : 'Planificación de marchas';
-    ({marchas:vMarchas, mapa:vMapa, ruta:vRuta, cuadro:vCuadro, perfil:vPerfil, lista:vLista, seguir:vSeguir, enviar:vEnviar})[S.v]();
+    ({marchas:vMarchas, mapa:vMapa, ruta:vRuta, cuadro:vCuadro, ficha:vFicha, perfil:vPerfil, lista:vLista, seguir:vSeguir, enviar:vEnviar})[S.v]();
     if(PESTANA[S.v] || S.v==='cuadro') vista.insertAdjacentHTML('afterbegin', subCuadro());
   }
 
@@ -417,6 +417,29 @@
   }
   // texto del evento para la radio: «PASANDO ALFA» (palabra elegida en Nombres clave)
   function evento(clave){ const m = actual(); return clave ? `<span class="clave-ev">${esc(((m.par && m.par.verbo) || 'PASANDO').toUpperCase())} <b>${esc(clave)}</b></span>` : ''; }
+  // ficha de navegación: todos los puntos (eventos y quiebres) con hora, altitud, rumbo y distancia al siguiente
+  function htmlFicha(R){
+    const T = R.tramos;
+    return `
+      <div class="tabla-env"><table class="t">
+        <thead><tr><th class="tx">Punto</th><th>Hora<br>llegada</th><th>Hora<br>salida</th><th>Altitud<br>(m)</th><th>Rumbo al siguiente<br>(° / ‰)</th><th>Distancia<br>(m)</th><th class="tx">Observaciones</th><th class="tx">Evento<br>(radio)</th></tr></thead>
+        <tbody>${R.puntos.filter(p=>p.ok).map(p=>{ const ll = T.find(t=>t.iB===p.i), sig = T.find(t=>t.iA===p.i), sal = ll ? ll.salida : R.res.partida + p.det;
+          return `<tr class="${p.ev ? '' : 'sub'}"><td class="tx">${p.ev ? '<b>' + esc(p.nombre) + '</b>' : '↳ quiebre'}</td><td>${ll ? M.verHora(ll.llegada) : '—'}</td><td>${sig ? M.verHora(sal) : '—'}</td><td>${f(p.cota)}</td>
+            <td>${sig ? '<b>' + f(sig.azM, 0) + '°</b> / ' + sig.mils : '—'}</td><td>${sig ? f(sig.dist) : '—'}</td><td class="obs tx">${esc(p.obs)}</td><td class="tx">${ll && p.ev ? evento(p.clave) : ''}</td></tr>`; }).join('')}</tbody></table></div>
+`;
+  }
+  function vFicha(){
+    const m = actual(), R = M.calcular(m);
+    if(!R.tramos.length){ vista.innerHTML = `<div class="tarjeta vacio">Faltan datos: se necesitan al menos dos puntos con coordenadas y cota.</div>`; return; }
+    vista.innerHTML = `${encabezado(m, R).replace('CUADRO DE MARCHA', 'FICHA DE NAVEGACIÓN')}
+      <h2>Ficha de navegación</h2>
+      <p class="nota no-imp">Todos los puntos de la ruta en orden: hora de llegada y salida, altitud, <b>rumbo y distancia al siguiente punto</b> y el evento que se informa por radio.
+        Los quiebres van en gris. Para llevarla en el terreno: imprímela y plastifícala.</p>
+      ${htmlFicha(R)}
+      <p class="nota">Rumbos magnéticos con declinación ${f(R.decl.valor, 2)}° (${esc(R.decl.fuente)}) a la fecha de la marcha.</p>
+      <div class="btns no-imp"><button class="btn pri" id="bImp">🖨 Imprimir ficha de navegación</button></div>`;
+    $('#bImp').onclick = ()=>window.print();
+  }
   function vCuadro(){
     const m = actual(), R = M.calcular(m), T = R.tramos;
     if(!T.length){ vista.innerHTML = `<div class="tarjeta vacio">Faltan datos: se necesitan al menos dos puntos con coordenadas y cota.<div class="btns" style="justify-content:center"><button class="btn pri" id="bR">Ir a la ruta</button></div></div>`;
@@ -450,13 +473,8 @@
         ${t.obs || t.det ? `<div class="nota" style="margin-top:6px">${esc(t.obs)}${t.det ? (t.obs ? ' · ' : '') + 'detención ' + Math.round(t.det*60) + ' min, sale ' + M.verHora(t.salida) : ''}</div>` : ''}</div>`).join('')}</div>
 
       ${apoyo(R)}
-      <p class="nota no-imp">Toca un tramo con quiebres (▸) para ver su detalle. La <b>ficha de navegación</b> (rumbo y distancia punto por punto, para plastificar) sale al imprimir.</p>
-      <div class="solo-imp"><h2 class="salto">Ficha de navegación</h2>
-      <div class="tabla-env"><table class="t">
-        <thead><tr><th class="tx">Punto</th><th>Hora<br>llegada</th><th>Hora<br>salida</th><th>Altitud<br>(m)</th><th>Rumbo al siguiente<br>(° / ‰)</th><th>Distancia<br>(m)</th><th class="tx">Observaciones</th><th class="tx">Evento<br>(radio)</th></tr></thead>
-        <tbody>${R.puntos.filter(p=>p.ok).map(p=>{ const ll = T.find(t=>t.iB===p.i), sig = T.find(t=>t.iA===p.i), sal = ll ? ll.salida : R.res.partida + p.det;
-          return `<tr class="${p.ev ? '' : 'sub'}"><td class="tx">${p.ev ? '<b>' + esc(p.nombre) + '</b>' : '↳ quiebre'}</td><td>${ll ? M.verHora(ll.llegada) : '—'}</td><td>${sig ? M.verHora(sal) : '—'}</td><td>${f(p.cota)}</td>
-            <td>${sig ? '<b>' + f(sig.azM, 0) + '°</b> / ' + sig.mils : '—'}</td><td>${sig ? f(sig.dist) : '—'}</td><td class="obs tx">${esc(p.obs)}</td><td class="tx">${ll && p.ev ? evento(p.clave) : ''}</td></tr>`; }).join('')}</tbody></table></div>
+      <p class="nota no-imp">Toca un tramo con quiebres (▸) para ver su detalle. Todos los puntos con su rumbo están en <b>Ficha de navegación</b> (botón de arriba).</p>
+      <div class="solo-imp"><h2 class="salto">Ficha de navegación</h2>${htmlFicha(R)}
       </div>
       <p class="nota">Rumbos magnéticos con declinación ${f(R.decl.valor, 2)}° (${esc(R.decl.fuente)}) a la fecha de la marcha. Horas con ${Math.round(R.par.altos*100)} % de altos; los imprevistos (${M.verDur(R.res.imprev)}) quedan como reserva al final.</p>
       <div class="btns no-imp"><button class="btn pri" id="bImp">🖨 Imprimir cuadro y ficha de navegación</button><button class="btn" id="bPerf">Ver perfil ›</button><button class="btn" id="bEnv">Enviar ›</button></div>`;
