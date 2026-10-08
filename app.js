@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.36', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.37', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -665,15 +665,19 @@
       const st = Mt[it.id] || {}, pz = PESOS[it.id] || [0, 'c'], noCarga = pz[1]==='x', kg0 = it.propio!==undefined ? '' : pz[0];
       const u = unidadDe(st.cant || it.auto), u1 = UNI1[u] || u.replace(/s$/, ''), x = porId[it.id], n = pm ? pm.n : 1;
       const total = x ? x.q*x.kg : 0, num0 = String(it.auto).replace(/[^\d.,+].*$/, '').trim() || it.auto;
+      // individual: se escribe y se calcula por hombre; de grupo: total de la unidad repartido; agua: ya es por hombre
+      const indiv = x && x.modo==='i', fq = v=>f(v, v%1 ? 1 : 0);
       const pesoTxt = noCarga ? '<span class="mf-nc">no se carga</span>' : x ? `<b>${f(x.porHombre, x.porHombre<1 ? 2 : 1)} kg</b><small>por hombre</small>` : '';
       return `<div class="mf${st.ok ? ' hecho' : ''}">
         <label class="mf1"><input type="checkbox" data-mt="${it.id}" ${st.ok ? 'checked' : ''}><span class="mf-n"><b>${esc(it.n)}</b>${it.nota ? `<small>${esc(it.nota)}</small>` : ''}</span><span class="mf-kg">${pesoTxt}</span></label>
-        <div class="mf2"><span class="mf-c"><input class="num" data-mc="${it.id}" value="${esc(st.cant || '')}" placeholder="${esc(num0)}" inputmode="decimal" aria-label="Cantidad"><em>${esc(u==='u' ? 'unid.' : u)}</em></span>
+        <div class="mf2">${indiv ? `<span class="mf-c"><input class="num" data-mch="${it.id}" value="${esc(st.cantH!==undefined && st.cantH!=='' ? st.cantH : st.cant ? fq(numCant(st.cant)/n) : '')}" placeholder="${fq(numCant(num0)/n)}" inputmode="decimal" aria-label="Cantidad por hombre"><em>${esc(u==='u' ? 'unid.' : u)} por hombre</em></span>`
+          : `<span class="mf-c"><input class="num" data-mc="${it.id}" value="${esc(st.cant || '')}" placeholder="${esc(num0)}" inputmode="decimal" aria-label="Cantidad"><em>${esc(u==='u' ? 'unid.' : u)}${x && x.modo==='c' ? ' para la unidad' : ''}</em></span>`}
           ${noCarga ? '' : `<span class="mf-x">×</span><span class="mf-c"><input class="num" data-mk="${it.id}" value="${esc(st.kg || '')}" placeholder="${String(kg0).replace(".", ",")}" inputmode="decimal" aria-label="kg por ${esc(u1)}"><em>${u1==='unidad' ? 'kg c/u' : 'kg/' + esc(u1)}</em></span>
-          <span class="mf-x">=</span><span class="mf-t">${f(total, total<10 ? 1 : 0)} kg${x && x.modo!=='h' && n>1 ? ' <small>en total</small>' : ''}</span>
+          <span class="mf-x">=</span><span class="mf-t">${indiv ? f(x.porHombre, x.porHombre<10 ? 1 : 0) + ' kg <small>por hombre</small>' : f(total, total<10 ? 1 : 0) + ' kg' + (x && x.modo==='c' && n>1 ? ' <small>en total</small>' : '')}</span>
           <select data-ml="${it.id}" aria-label="Línea">${[1, 2, 3, 4].map(l=>`<option value="${l}"${lineaDe(m, it.id)===l ? ' selected' : ''}>${l===4 ? '4.ª (vehículo)' : l + '.ª línea'}</option>`).join('')}</select>`}
           ${it.propio!==undefined ? `<button class="btn mini peligro" data-mx="${it.propio}" aria-label="Quitar">✕</button>` : ''}</div>
-        ${x && x.modo==='h' && x.q>3 ? '<div class="mf-s">cada hombre carga hasta 3 L (' + f(x.porHombre, 1) + ' kg); el resto se reabastece en ruta</div>' : x && x.modo==='c' && n>1 ? `<div class="mf-s">de grupo: ${f(total, 1)} kg repartidos entre ${n} hombres</div>` : ''}</div>`; }).join('')}</div>`).join('');
+        ${x && x.modo==='h' && x.q>3 ? '<div class="mf-s">cada hombre carga hasta 3 L (' + f(x.porHombre, 1) + ' kg); el resto se reabastece en ruta</div>' : x && x.modo==='c' && n>1 ? `<div class="mf-s">de grupo: ${f(total, 1)} kg repartidos entre ${n} hombres = ${f(x.porHombre, 2)} kg por hombre</div>`
+          : indiv && n>1 ? `<div class="mf-s">en la unidad: ${fq(x.q)} ${esc(u==='u' ? 'unid.' : u)} · ${f(total, 1)} kg (${n} hombres)</div>` : ''}</div>`; }).join('')}</div>`).join('');
   }
   // carga por hombre: peso base + material individual + parte del colectivo; con la opción de usarla en el cálculo de tiempos
   function cargaHtml(m, R){
@@ -713,8 +717,9 @@
     const cuenta = ()=>$('#mtCuenta').innerHTML = `<b>${hechos()} de ${tot}</b> listos.`; cuenta();
     const Mt = ()=>m.material || (m.material = {});
     vista.querySelectorAll('[data-mt]').forEach(x=>x.onchange = ()=>{ const o = Mt()[x.dataset.mt] || (Mt()[x.dataset.mt] = {}); o.ok = x.checked; x.closest('tr,.mf').classList.toggle('hecho', x.checked); guardar(); cuenta(); });
-    let tC = null; const recarga = ()=>{ clearTimeout(tC); tC = setTimeout(()=>{ const y = window.scrollY, a = document.activeElement && document.activeElement.dataset; const foco = a && (a.mc ? '[data-mc="' + a.mc + '"]' : a.mk ? '[data-mk="' + a.mk + '"]' : document.activeElement.id ? '#' + document.activeElement.id : null);
+    let tC = null; const recarga = ()=>{ clearTimeout(tC); tC = setTimeout(()=>{ const y = window.scrollY, a = document.activeElement && document.activeElement.dataset; const foco = a && (a.mch ? '[data-mch="' + a.mch + '"]' : a.mc ? '[data-mc="' + a.mc + '"]' : a.mk ? '[data-mk="' + a.mk + '"]' : document.activeElement.id ? '#' + document.activeElement.id : null);
       pintar(); window.scrollTo(0, y); if(foco){ const e = vista.querySelector(foco); if(e){ e.focus(); const v = e.value; e.value = ''; e.value = v; } } }, 700); };
+    vista.querySelectorAll('[data-mch]').forEach(x=>x.oninput = ()=>{ const o = Mt()[x.dataset.mch] || (Mt()[x.dataset.mch] = {}); o.cantH = x.value; delete o.cant; guardar(); recarga(); });
     vista.querySelectorAll('[data-mc]').forEach(x=>x.oninput = ()=>{ const o = Mt()[x.dataset.mc] || (Mt()[x.dataset.mc] = {}); o.cant = x.value; guardar(); recarga(); });
     vista.querySelectorAll('[data-ml]').forEach(x=>x.onchange = ()=>{ const o = Mt()[x.dataset.ml] || (Mt()[x.dataset.ml] = {}); o.linea = +x.value; guardar(); const y = window.scrollY; pintar(); window.scrollTo(0, y); });
     vista.querySelectorAll('[data-mk]').forEach(x=>x.oninput = ()=>{ const o = Mt()[x.dataset.mk] || (Mt()[x.dataset.mk] = {}); o.kg = x.value; guardar(); recarga(); });

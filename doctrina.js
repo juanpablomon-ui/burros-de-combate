@@ -46,7 +46,7 @@ const MATERIAL = [
   {g:'Armamento y protección', items:[
     ['fusil', 'Fusil (con correa y accesorios)', c=>c.n, c=>'1 por hombre; las armas de apoyo se agregan en «Otros»'],
     ['cargad', 'Cargadores con munición', c=>c.n*6, c=>'6 por hombre (dotación sugerida: ajústala)'],
-    ['granada', 'Granadas de mano', c=>0, c=>'si la misión lo exige: escribe la cantidad total'],
+    ['granada', 'Granadas de mano', c=>0, c=>'si la misión lo exige: escribe cuántas por hombre'],
     ['casco', 'Casco', c=>c.n, c=>'1 por hombre'],
     ['chaleco', 'Chaleco antibalas con placas', c=>c.n, c=>'escribe 0 si no se usa'],
     ['portaf', 'Cinturón de carga', c=>c.n, c=>'donde va la 2.ª línea']]},
@@ -138,7 +138,8 @@ function pesoMaterial(m, R){
   if(typeof contextoMaterial==='undefined') return null;
   const c = contextoMaterial(m, R), Mt = m.material || {}, base = numCant((m.par || {}).cargaBase), items = [];
   MATERIAL.forEach(g=>g.items.forEach(([id, n, cant])=>{ const v = cant(c); if(v===null || v===undefined) return;
-    const st = Mt[id] || {}, q = numCant(st.cant || v), [kg0, modo] = PESOS[id] || [0, 'x'], kg = st.kg!==undefined && st.kg!=='' ? numCant(st.kg) : kg0;
+    // cantidad escrita por hombre (`cantH`, elementos individuales) o total de la unidad (`cant`)
+    const st = Mt[id] || {}, q = st.cantH!==undefined && st.cantH!=='' ? numCant(st.cantH)*c.n : numCant(st.cant || v), [kg0, modo] = PESOS[id] || [0, 'x'], kg = st.kg!==undefined && st.kg!=='' ? numCant(st.kg) : kg0;
     const porHombre = modo==='h' ? Math.min(q, 3)*kg : modo==='x' ? 0 : q*kg/c.n;
     items.push({id, n, kg, modo, q, porHombre, linea:lineaDe(m, id)}); }));
   (m.materialExtra || []).forEach((x, i)=>{ const st = Mt['x' + i] || {}, q = numCant(st.cant || x.cant) || 1, kg = numCant(st.kg);
