@@ -290,3 +290,7 @@ table.matriz tr.alto td b{color:var(--azul)} table.matriz tr.nov td b{color:var(
 table.matriz tr.ini td b,table.matriz tr.fin td b{color:var(--ocre)}
 .s-prox small{display:block}
 .mapa-env:has(#mPerfil:not([hidden])) .m-lectura{display:none}
+table.matriz td.ev{white-space:normal;min-width:150px}
+table.matriz tr.alto td.ev{color:var(--azul)} table.matriz tr.nov td.ev{color:var(--rojo)}
+table.matriz tr.ini td.ev,table.matriz tr.fin td.ev{color:var(--ocre);font-weight:700}
+table.matriz tr.pend td.ev{color:var(--tenue)}

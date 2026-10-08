@@ -229,16 +229,17 @@ const Seguir = (function(){
   function ficha(){
     const c = $('#sFicha'); if(!c) return; const m = A.actual(), P = plan(m), E = m.ejec, ev = [];
     const posTxt = (la, lo)=>la===undefined || la===null ? '' : utmTxt({lat:la, lon:lo});
-    ev.push({t:E.inicio, real:true, ev:'Inicio de marcha', pt:P.pts[0].nombre, plan:E.inicio, tipo:'ini'});
+    ev.push({t:E.inicio, real:true, ev:'Inicio de marcha', punto:P.pts[0].nombre, plan:E.inicio, dif:0, tipo:'ini'});
     P.pts.forEach((p, k)=>{ if(!k) return; const r = E.llegadas[k], pl = E.inicio + p.lleg*3600000;
-      ev.push({t:r>0 ? r : pl, real:r>0, ev:'Pasando ' + rotulo(p), pt:p.clave ? p.nombre : '', plan:pl, dif:r>0 ? (r - pl)/60000 : null, salta:r===-1, tipo:'pc'}); });
+      ev.push({t:r>0 ? r : pl, real:r>0, ev:'Pasando ' + rotulo(p), punto:p.nombre, plan:pl, dif:r>0 ? (r - pl)/60000 : null, salta:r===-1, tipo:'pc'}); });
     E.altos.forEach(a=>ev.push({t:a.ini, real:true, ev:'Alto — ' + a.motivo + (a.fin ? ' (' + dur(a.fin - a.ini) + ')' : ' (en curso)'), pos:posTxt(a.lat, a.lon), tipo:'alto'}));
     E.nov.forEach(n=>ev.push({t:n.t, real:true, ev:'Novedad — ' + n.txt, pos:posTxt(n.lat, n.lon), tipo:'nov'}));
-    if(E.fin) ev.push({t:E.fin, real:true, ev:'Fin de marcha', tipo:'fin'});
+    if(E.fin) ev.push({t:E.fin, real:true, ev:'Fin de marcha', punto:P.pts[P.pts.length - 1].nombre, tipo:'fin'});
     ev.sort((x, y)=>x.t - y.t);
-    c.innerHTML = `<div class="tabla-env"><table class="t matriz"><thead><tr><th>Hora</th><th class="tx">Evento</th><th>Plan</th><th>Diferencia</th><th class="tx">Punto / posición</th></tr></thead><tbody>
-      ${ev.map(x=>`<tr class="${x.real ? '' : 'pend'} ${x.tipo}"><td>${x.salta ? 'no marcado' : hh(x.t)}</td><td class="tx"><b>${A.esc(x.ev)}</b></td><td>${x.plan ? hh(x.plan) : ''}</td>
-        <td class="${x.dif===null || x.dif===undefined ? '' : x.dif>5 ? 'sube' : x.dif< -5 ? 'baja' : ''}">${x.dif===null || x.dif===undefined ? '' : difCorta(x.dif)}</td><td class="tx obs">${A.esc(x.pt || x.pos || '')}</td></tr>`).join('')}
+    c.innerHTML = `<div class="tabla-env"><table class="t matriz"><thead><tr><th class="tx">Punto / posición</th><th>Plan</th><th>Real</th><th>Diferencia</th><th class="tx">Evento</th></tr></thead><tbody>
+      ${ev.map(x=>`<tr class="${x.real ? '' : 'pend'} ${x.tipo}"><td class="tx"><b>${A.esc(x.punto || x.pos || '')}</b></td><td>${x.plan ? hh(x.plan) : ''}</td>
+        <td>${x.salta ? 'no marcado' : x.real ? hh(x.t) : '—'}</td>
+        <td class="${x.dif===null || x.dif===undefined ? '' : x.dif>5 ? 'sube' : x.dif< -5 ? 'baja' : ''}">${x.dif===null || x.dif===undefined ? '' : difCorta(x.dif)}</td><td class="tx ev">${A.esc(x.ev)}</td></tr>`).join('')}
       </tbody></table></div>`;
   }
   function pintarFin(c, m, P){
