@@ -37,3 +37,70 @@ const LISTA = [
     ['p7', 'Informe de reconocimiento (si corresponde) y set fotográfico.', '']]}
 ];
 if(typeof globalThis!=='undefined') globalThis.LISTA = LISTA;
+
+/* Material para la marcha: cada elemento calcula su cantidad con los datos de la marcha (c = contexto) o devuelve null si no
+   corresponde. c = {n (efectivo, mínimo 1), hay (si se indicó el efectivo), horas, km, noche (fracción de la marcha de noche),
+   montana, nieve, terreno, aguaH (L por hombre por hora), calorCat, unidades (de marcha), carga}. Las cantidades son SUGERENCIAS:
+   el agua sale de la tabla de calor; el resto se ajusta según la orden. Ids fijos (las marcas y cantidades se guardan en m.material). */
+const MATERIAL = [
+  {g:'Agua y alimentación', items:[
+    ['agua', 'Agua por hombre', c=>String(Math.ceil((c.aguaH*c.horas + 1)*2)/2).replace('.', ',') + ' L', c=>'≈ ' + c.aguaH.toFixed(2).replace('.', ',') + ' L/h × ' + c.horas.toFixed(1).replace('.', ',') + ' h + 1 L de reserva' + (c.calorDato ? '' : ' (sin índice de calor: se usa calor bajo)')],
+    ['aguaT', 'Agua total de la unidad', c=>c.hay ? Math.ceil(c.n*(c.aguaH*c.horas + 1)) + ' L' : null, c=>'para ' + c.n + ' hombres'],
+    ['cantimp', 'Cantimploras / odres (1 L)', c=>c.n*Math.min(3, Math.ceil(c.aguaH*c.horas + 1)), c=>'hasta 3 L por hombre'],
+    ['reabast', 'Reabastecimiento de agua en ruta', c=>c.aguaH*c.horas + 1>3 ? Math.ceil(c.n*(c.aguaH*c.horas + 1 - 3)) + ' L' : null, c=>'lo que pasa de 3 L por hombre: planificar puntos de agua o vehículo'],
+    ['potab', 'Pastillas o filtro potabilizador', c=>c.horas>6 ? Math.ceil(c.n/10) + ' juego(s)' : null, c=>'marcha larga: reabastecer en ruta'],
+    ['sales', 'Sales de rehidratación / electrolitos', c=>c.horas>4 || c.calorCat>=3 ? c.n*Math.ceil(c.horas/4) + ' sobres' : null, c=>'1 sobre cada 4 h de marcha'],
+    ['racion', 'Ración de combate', c=>c.horas>=6 ? c.n*Math.ceil(c.horas/8) : null, c=>'1 por hombre cada 8 h de marcha'],
+    ['colac', 'Colación de marcha (barras, frutos secos)', c=>c.n, c=>'para los altos']]},
+  {g:'Sanidad', items:[
+    ['botInd', 'Botiquín individual (torniquete, venda)', c=>c.n, c=>'1 por hombre'],
+    ['botGrp', 'Botiquín de grupo', c=>Math.max(1, Math.ceil(c.n/10)), c=>'1 cada 10 hombres'],
+    ['socorr', 'Enfermero o socorrista', c=>Math.max(1, Math.ceil(c.n/30)), c=>'1 cada 30 hombres; revisa a la tropa en cada alto'],
+    ['camilla', 'Camilla plegable', c=>c.n>=10 ? Math.ceil(c.n/40) : null, c=>'1 cada 40 hombres'],
+    ['pies', 'Cuidado de pies: talco, parches para ampollas', c=>Math.max(1, Math.ceil(c.n/10)) + ' kit(s)', c=>'1 kit cada 10 hombres'],
+    ['calcet', 'Calcetines de recambio', c=>c.n*(c.horas>8 ? 2 : 1) + ' pares', c=>'cambio a mitad de la marcha'],
+    ['manta', 'Manta térmica', c=>Math.max(1, Math.ceil(c.n/10)), c=>'1 cada 10 hombres'],
+    ['solar', 'Protector solar y labial', c=>c.noche<0.9 ? Math.max(1, Math.ceil(c.n/5)) : null, c=>'marcha con luz de día'],
+    ['evac', 'Plan de evacuación (punto, vehículo, frecuencia)', c=>'1', c=>'para lesionados o rezagados']]},
+  {g:'Navegación y control', items:[
+    ['carta', 'Carta(s) de la zona', c=>Math.max(1, c.unidades) + '+', c=>'1 por unidad de marcha'],
+    ['brujula', 'Brújula', c=>Math.max(1, Math.ceil(c.n/10)), c=>'1 por jefe de grupo'],
+    ['gps', 'GPS o teléfono con Burros de Combate cargado', c=>Math.max(1, c.unidades), c=>'con la ruta y la batería llena'],
+    ['bateria', 'Batería externa', c=>Math.max(1, c.unidades), c=>'para el teléfono / GPS'],
+    ['cuadro', 'Cuadro de marcha y navegación impreso', c=>Math.max(1, c.unidades) + 1, c=>'1 por comandante + 1 de reserva'],
+    ['reloj', 'Reloj sincronizado', c=>Math.max(1, Math.ceil(c.n/10)), c=>'jefes de grupo'],
+    ['marcador', 'Marcador de paso / contador de pasos', c=>Math.max(1, c.unidades), c=>'a la cabeza de cada unidad']]},
+  {g:'Comunicaciones', items:[
+    ['radio', 'Radio', c=>Math.max(1, c.unidades) + 1, c=>'1 por unidad de marcha + la del comandante'],
+    ['batRad', 'Baterías de repuesto para radio', c=>(Math.max(1, c.unidades) + 1)*Math.max(1, Math.ceil(c.horas/8)), c=>'1 por radio cada 8 h'],
+    ['claves', 'Lista de nombres clave y frecuencias', c=>Math.max(1, c.unidades) + 1, c=>'«PASANDO ALFA…»'],
+    ['silbato', 'Silbato / señales', c=>Math.max(1, Math.ceil(c.n/10)), c=>'jefes de grupo']]},
+  {g:'Equipo individual', items:[
+    ['mochila', 'Mochila con la carga de la marcha', c=>c.n, c=>c.carga ? 'carga prevista ' + c.carga + ' kg' : ''],
+    ['poncho', 'Poncho o chaqueta impermeable', c=>c.n, c=>''],
+    ['abrigo', 'Ropa de abrigo (primera capa, polar)', c=>c.noche>0 || c.montana || c.nieve ? c.n : null, c=>'frío de noche o en altura'],
+    ['gorro', 'Gorro y guantes', c=>c.nieve || c.montana ? c.n : null, c=>'montaña o nieve'],
+    ['lentes', 'Lentes de sol', c=>c.nieve || c.montana ? c.n : null, c=>'reflejo de la nieve o del sol en altura'],
+    ['sombrero', 'Sombrero o jockey', c=>c.calorCat>=2 || (c.noche<0.5 && !c.nieve) ? c.n : null, c=>'sol y calor']]},
+  {g:'Marcha de noche', items:[
+    ['linterna', 'Linterna con filtro rojo', c=>c.noche>0 ? c.n : null, c=>'parte de la marcha es de noche'],
+    ['luzquim', 'Luces químicas / marcas reflectantes', c=>c.noche>0 ? Math.max(2, Math.ceil(c.n/5)) : null, c=>'cabeza, cola y jefes de grupo'],
+    ['pilas', 'Pilas de repuesto', c=>c.noche>0 ? c.n + ' juegos' : null, c=>'para linternas'],
+    ['vision', 'Visores nocturnos (si se dispone)', c=>c.noche>0.3 ? Math.max(1, c.unidades) : null, c=>'más de un tercio de la marcha de noche']]},
+  {g:'Montaña y nieve', items:[
+    ['bastones', 'Bastones de marcha', c=>c.montana ? c.n + ' pares' : null, c=>'pendientes fuertes'],
+    ['polainas', 'Polainas', c=>c.nieve ? c.n + ' pares' : null, c=>'nieve'],
+    ['raquetas', 'Raquetas', c=>c.terreno==='raquetas' ? c.n + ' pares' : null, c=>'terreno «sobre raquetas»'],
+    ['esquies', 'Esquíes y pieles de foca', c=>c.terreno==='esquies' ? c.n + ' equipos' : null, c=>'terreno «sobre esquíes»'],
+    ['cuerda', 'Cuerda de seguridad', c=>c.montana || c.nieve ? Math.max(1, Math.ceil(c.n/10)) : null, c=>'1 cada 10 hombres para pasos difíciles'],
+    ['pala', 'Pala de nieve y sonda', c=>c.nieve ? Math.max(1, Math.ceil(c.n/10)) : null, c=>'1 cada 10 hombres']]}
+];
+// contexto de la marcha para calcular el material
+function contextoMaterial(m, R){
+  const p = R.par, hay = (+p.efectivo||0)>0, cal = R.calor;
+  const aguaH = cal && cal.lh ? cal.lh : 0.71;   // sin índice de calor: categoría 1, trabajo moderado (¾ qt/h)
+  return {n:hay ? Math.round(+p.efectivo) : 1, hay, horas:R.res.total || 0, km:R.res.dist/1000, noche:R.fracNoche || 0, aguaH, calorDato:!!(cal && cal.lh),
+    calorCat:cal ? cal.cat : 0, montana:p.metodo!=='general', nieve:p.terreno && p.terreno!=='sinNieve' && p.metodo!=='general', terreno:p.terreno,
+    unidades:Math.max(1, Math.round(+p.unidades||1)), carga:p.metodo!=='general' ? p.carga : null};
+}
+if(typeof globalThis!=='undefined'){ globalThis.MATERIAL = MATERIAL; globalThis.contextoMaterial = contextoMaterial; }

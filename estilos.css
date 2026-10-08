@@ -466,3 +466,12 @@ body.con-doc{overflow:hidden}
 .doc-fig{border:1px solid #bbb;border-radius:4px;padding:4px;margin:6px 0;background:#fff}
 .doc-fig svg{display:block;width:100%;height:auto}
 .doc-hoja table.t th,.doc-hoja .doc-res .dr,.doc-hoja .clave-ev b{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+/* material para la marcha */
+.mat-g{font-size:13px;color:var(--ocre);margin:14px 0 6px;text-transform:uppercase;letter-spacing:.05em}
+.mat-g:first-child{margin-top:0}
+table.mat td{vertical-align:middle}
+table.mat td.ck{width:34px} table.mat td.ck input{width:20px;height:20px;accent-color:var(--ocre)}
+table.mat td.cant{width:150px} table.mat td.cant input{padding:5px 8px;font-size:14px;text-align:right}
+table.mat td .s{display:block;font-size:11px;color:var(--tenue);font-weight:400;font-family:var(--sans)}
+table.mat tr.hecho td b{color:var(--tenue);text-decoration:line-through}
+.doc-hoja table.mat td.ck{width:18px;text-align:center} .doc-hoja table.mat td.cant{width:90px}

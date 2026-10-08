@@ -9,7 +9,7 @@ const Documento = (function(){
   const $ = s=>document.querySelector(s);
   const SECCIONES = [['mapa', 'Mapa de la ruta (orden gráfica)'], ['perfil', 'Perfil del itinerario'], ['cuadro', 'Cuadro de marcha y navegación'],
     ['matriz', 'Matriz de eventos'], ['luz', 'Luz y visibilidad (sol, crepúsculos, luna)'], ['claves', 'Nombres clave y eventos para la radio'],
-    ['apoyo', 'Columna, calor y agua'], ['lista', 'Lista de verificación']];
+    ['apoyo', 'Columna, calor y agua'], ['material', 'Material para la marcha'], ['lista', 'Lista de verificación']];
   // colores del documento: paleta (títulos, tarjetas, líneas), color de la ruta en el mapa
   const PALETAS = {oliva:'Verde oliva', azul:'Azul', gris:'Gris (blanco y negro)', arena:'Arena'};
   const RUTAS = {azul:['Azul', '#0b3d91'], rojo:['Rojo', '#b3261e'], negro:['Negro', '#111111'], magenta:['Magenta', '#b0127a']};
@@ -25,7 +25,7 @@ const Documento = (function(){
     return {formato:'militar', clasif:'RESERVADO', ejemplar:'1', ejemplares:'3', sup:'', propio:m.unidad || '', lugar:'', gdh:'',
       anexo:'', titulo:'ORDEN GRÁFICA DE MARCHA', sub:m.nombre || '', carta:'', elab:'', firmas:'', distrib:'', autor:'', org:m.unidad || '',
       hoja:'A4', orient:'v', escala:'auto', capa:'topo', curvas:true, grilla:true, paleta:'oliva', figuras:'claras', ruta:'azul',
-      sec:{mapa:true, perfil:true, cuadro:true, matriz:true, luz:true, claves:true, apoyo:false, lista:false}};
+      sec:{mapa:true, perfil:true, cuadro:true, matriz:true, luz:true, claves:true, apoyo:false, material:true, lista:false}};
   }
 
   /* ---------- formulario ---------- */
@@ -138,6 +138,7 @@ const Documento = (function(){
     if(S.luz) partes.push(sec('Luz y visibilidad', luz(m, R, fig), partes.length>0));
     if(S.claves) partes.push(sec('Nombres clave y eventos para la radio', claves(m, R), partes.length>0));
     if(S.apoyo) partes.push(sec('Columna, calor y agua', A.apoyo(R) || '<p>Sin datos de columna ni de calor (pestaña Puntos).</p>', partes.length>0));
+    if(S.material) partes.push(sec('Material para la marcha', A.material(m, R), partes.length>0));
     if(S.lista) partes.push(sec('Lista de verificación', lista(m), partes.length>0));
     const firmas = mil ? `<div class="doc-firmas">${String(d.firmas || '').split(/\n+/).map(x=>x.trim()).filter(Boolean).map(x=>`<div><div class="linea"></div>${esc(x)}</div>`).join('')}</div>
         ${d.elab ? `<div class="doc-ref">Elaborado por: ${esc(d.elab)}</div>` : ''}
