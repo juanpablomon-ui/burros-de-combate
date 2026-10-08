@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — motor de cálculo de marchas (sin dependencias; funciona en el navegador y en Node para las pruebas).
    Coordenadas: UTM directa/inversa de Snyder (USGS PP 1395), cambio de datum de Molodensky (3 parámetros), convergencia
    de meridianos, declinación (manual o WMM2025), rumbo magnético en grados y milésimas (6400).
-   Tiempos: cartilla de la Escuela de Montaña (CRM 2013), MIDE / DIN 33466 y marcha general (velocidad por terreno).  */
+   Tiempos: montaña (por desnivel o por distancia según la pendiente), MIDE / DIN 33466 y marcha general (velocidad por terreno).  */
 const MARCHA = (function(){
   const rad = Math.PI/180, K0 = 0.9996;
 
@@ -90,7 +90,7 @@ const MARCHA = (function(){
     return aWgs84(lat, lon, num(p.cota)||0, dat);
   }
 
-  /* ---------- tabla de velocidades de marcha vertical en montaña (cartilla CRM 2013, Fig. 1-3), m de desnivel por hora ---------- */
+  /* ---------- tabla de velocidades de marcha vertical en montaña, m de desnivel por hora ---------- */
   const TERRENOS = {
     sinNieve: {n:'Sin nieve — a pie'},
     nieve:    {n:'Con nieve — a pie (nieve hasta 30 cm)'},
@@ -113,6 +113,33 @@ const MARCHA = (function(){
     const t = (TABLA_VERTICAL[tropa] || {})[terreno]; if(!t) return null;
     const c = [10, 20, 30].reduce((m, x)=>Math.abs(x - carga)<Math.abs(m - carga) ? x : m, 10), [s1, s2, b] = t[c];
     return {sub:criterio==='max' ? s2 : criterio==='media' ? (s1 + s2)/2 : s1, baj:b, rango:s1===s2 ? String(s1) : s1 + '–' + s2, carga:c};
+  }
+
+  /* ---------- nombres clave de los puntos (para la radio: «PASANDO ALFA») ----------
+     Cada punto (menos el primero) recibe el siguiente nombre de la lista elegida; si la ruta vuelve a pasar por el mismo lugar,
+     repite el nombre. Un nombre escrito a mano en el punto (p.clave) se respeta y no se usa para los demás. */
+  const CLAVES = {
+    otan:{n:'Alfabeto fonético (ALFA, BRAVO, CHARLIE…)', l:['ALFA', 'BRAVO', 'CHARLIE', 'DELTA', 'ECO', 'FOXTROT', 'GOLF', 'HOTEL', 'INDIA', 'JULIETT', 'KILO', 'LIMA', 'MIKE',
+      'NOVEMBER', 'OSCAR', 'PAPA', 'QUEBEC', 'ROMEO', 'SIERRA', 'TANGO', 'UNIFORM', 'VICTOR', 'WHISKEY', 'X-RAY', 'YANKEE', 'ZULU']},
+    animales:{n:'Animales de Chile (PUMA, CÓNDOR, HUEMUL…)', l:['PUMA', 'CÓNDOR', 'HUEMUL', 'GUANACO', 'ZORRO', 'PUDÚ', 'VICUÑA', 'ÑANDÚ', 'HALCÓN', 'LECHUZA', 'CHINCHILLA',
+      'QUIRQUINCHO', 'HUILLÍN', 'COIPO', 'VIZCACHA', 'CARANCHO', 'TIUQUE', 'QUELTEHUE', 'PEUCO', 'LOICA', 'ZORZAL', 'CHERCÁN', 'DEGÚ', 'TRARO']},
+    arboles:{n:'Árboles nativos (ALERCE, ARAUCARIA, COIGÜE…)', l:['ALERCE', 'ARAUCARIA', 'COIGÜE', 'RAULÍ', 'ROBLE', 'LENGA', 'ÑIRRE', 'CIPRÉS', 'MAÑÍO', 'QUILLAY', 'LITRE',
+      'BOLDO', 'PEUMO', 'MAITÉN', 'CANELO', 'ULMO', 'LAUREL', 'TEPA', 'LUMA', 'ARRAYÁN', 'TAMARUGO', 'ESPINO', 'QUEULE', 'RUIL']},
+    colores:{n:'Colores (ROJO, AZUL, VERDE…)', l:['ROJO', 'AZUL', 'VERDE', 'NEGRO', 'BLANCO', 'GRIS', 'ORO', 'PLATA', 'NARANJO', 'MORADO', 'CELESTE', 'CAFÉ', 'ROSADO',
+      'GRANATE', 'OCRE', 'BRONCE', 'CARMÍN', 'TURQUESA', 'MARFIL', 'CARBÓN']},
+    ninguna:{n:'Sin nombres clave', l:[]}
+  };
+  function claves(pts, lista){
+    const L = (CLAVES[lista] || CLAVES.otan).l, usadas = new Set(pts.map(p=>p.claveManual).filter(Boolean)), lugar = {}; let k = 0;
+    const libre = ()=>{ if(!L.length) return ''; for(let v=0; v<500; v++, k++){ const c = L[k%L.length] + (k>=L.length ? ' ' + (Math.floor(k/L.length) + 1) : ''); if(!usadas.has(c)){ usadas.add(c); k++; return c; } } return ''; };
+    pts.forEach((p, i)=>{
+      const sitio = p.ok ? p.lat.toFixed(5) + ',' + p.lon.toFixed(5) : null;
+      if(p.claveManual) p.clave = p.claveManual;
+      else if(i===0) p.clave = '';
+      else if(sitio && lugar[sitio]) p.clave = lugar[sitio];
+      else p.clave = libre();
+      if(sitio && p.clave && !lugar[sitio]) lugar[sitio] = p.clave;
+    });
   }
 
   /* ---------- marcha general (ATP 3-21.18 Foot Marches, 2025, párr. 1-92, 1-101 y 3-28; EB-MC-002 n.º 8b) ----------
@@ -154,14 +181,15 @@ const MARCHA = (function(){
 
   /* ---------- parámetros por defecto de una marcha ---------- */
   const METODOS = {
-    cartilla: 'Cartilla Escuela de Montaña (pendiente > 5 % por desnivel, si no por distancia)',
+    montana: 'Montaña (pendiente sobre 5 % por desnivel, si no por distancia)',
     mide: 'MIDE / DIN 33466 (mayor de horizontal y vertical + mitad del menor)',
     general: 'Marcha general (velocidad según terreno, día o noche)'
   };
   function porDefecto(){
-    return {metodo:'cartilla', tropa:'normal', terreno:'sinNieve', carga:20, criterio:'min',
+    return {metodo:'montana', tropa:'normal', terreno:'sinNieve', carga:20, criterio:'min',
       velSub:null, velBaj:null,   // null = de la tabla
       velLlano:4, pteCr:0.05, altos:0.10, imprev:0.10,
+      claves:'otan',   // lista de nombres clave de los puntos
       velGeneral:null, via:'camino', noche:false,   // marcha general: velocidad de la tabla ATP según vía y día/noche
       efectivo:'', filas:2, distHombres:null, unidades:1, distUnidades:null,   // columna
       wbgt:'', trabajo:'moderado',   // calor y agua
@@ -198,8 +226,9 @@ const MARCHA = (function(){
     const vel = {sub:num(par.velSub) || vt.sub, baj:num(par.velBaj) || vt.baj, tabla:vt};
     const pts = (m.puntos || []).map((p, i)=>{
       const g = puntoWgs(p, dat), cota = num(p.cota);
-      return {i, nombre:p.nombre || ('P' + (i + 1)), obs:p.obs || '', det:(num(p.det)||0)/60, ok:!!g && !isNaN(cota), lat:g && g.lat, lon:g && g.lon, cota};
+      return {i, nombre:p.nombre || ('P' + (i + 1)), claveManual:String(p.clave || '').trim().toUpperCase(), obs:p.obs || '', det:(num(p.det)||0)/60, ok:!!g && !isNaN(cota), lat:g && g.lat, lon:g && g.lon, cota};
     });
+    claves(pts, par.claves);
     const val = pts.filter(p=>p.ok);
     const zona = num(m.zona) || (val[0] ? Math.floor((val[0].lon + 180)/6) + 1 : 19);
     val.forEach(p=>Object.assign(p, {utm:llAUtm(p.lat, p.lon, zona)}));
@@ -211,7 +240,7 @@ const MARCHA = (function(){
       const azC = dg ? (Math.atan2(dE, dN)/rad + 360)%360 : 0, azG = (azC + A.utm.conv + 360)%360, azM = (azG - dec.valor + 360)%360;
       const via = m.puntos[B.i].via || par.via, tt = tiempoTramo(dh, dv, par, Object.assign({}, vel, {via}));
       acum += tt.t; dist += dh; if(dv>0) sube += dv; else baja -= dv;
-      tramos.push({de:A.nombre, a:B.nombre, iA:A.i, iB:B.i, dist:dh, distAcum:dist, cotaIni:A.cota, cotaFin:B.cota, dv,
+      tramos.push({de:A.nombre, a:B.nombre, claveA:A.clave, claveB:B.clave, iA:A.i, iB:B.i, dist:dh, distAcum:dist, cotaIni:A.cota, cotaFin:B.cota, dv,
         pte:dh ? dv/dh : 0, via, azC, azG, azM, mils:Math.round(azM*6400/360)%6400, t:tt.t, como:tt.como, tAcum:acum, obs:B.obs});
     }
     // detenciones planificadas en los puntos intermedios (comida, descanso, reorganización); no cuenta el último punto
@@ -229,7 +258,7 @@ const MARCHA = (function(){
     const ter = h0===null ? null : h0 + total;
     // avisos doctrinarios
     const avisos = [];
-    if(par.metodo==='general' && tramos.some(t=>Math.abs(t.pte)>=0.07)) avisos.push('Hay tramos con pendiente de 7 % o más: según ATP 3-21.18 (párr. 1-28) afectan la velocidad. Considera el método de la cartilla de montaña o MIDE.');
+    if(par.metodo==='general' && tramos.some(t=>Math.abs(t.pte)>=0.07)) avisos.push('Hay tramos con pendiente de 7 % o más: según ATP 3-21.18 (párr. 1-28) afectan la velocidad. Considera el método de montaña o MIDE.');
     if(dist>56000) avisos.push('Más de 56 km: sobre el máximo recomendado para una marcha forzada de 24 h (ATP 3-21.18 párr. 2-30). Divide en jornadas.');
     else if(dist>32000) avisos.push('Más de 32 km: es una marcha forzada (la jornada normal es 8 h a 4 km/h = 32 km, ATP 3-21.18 párr. 2-30). Planifica unas 24 h de recuperación.');
     return {par, vel, zona, decl:dec, puntos:pts, tramos, columna:col, calor:calor(par, total), avisos,
@@ -261,7 +290,7 @@ const MARCHA = (function(){
   const MGRS_LAT = 'CDEFGHJKLMNPQRSTUVWX';
   const banda = lat=>MGRS_LAT[Math.max(0, Math.min(19, Math.floor((lat + 80)/8)))];
 
-  return {rumboEntre, sobreTramo, deWgs84, camposDesde, VIAS, VEL_GENERAL, velGeneral, columna, CALOR, TRABAJOS, calor, DATUMS, TERRENOS, TABLA_VERTICAL, METODOS, llAUtm, utmALl, aWgs84, puntoWgs, velVertical, porDefecto, declinacion,
+  return {CLAVES, rumboEntre, sobreTramo, deWgs84, camposDesde, VIAS, VEL_GENERAL, velGeneral, columna, CALOR, TRABAJOS, calor, DATUMS, TERRENOS, TABLA_VERTICAL, METODOS, llAUtm, utmALl, aWgs84, puntoWgs, velVertical, porDefecto, declinacion,
     leerAng, tiempoTramo, calcular, horaAHoras, verDur, verHora, verGms, banda};
 })();
 if(typeof globalThis!=='undefined') globalThis.MARCHA = MARCHA;

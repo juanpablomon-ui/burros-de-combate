@@ -12,7 +12,7 @@ const Mapa = (function(){
     calles:{n:'Calles', url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', o:{maxZoom:19, attribution:'© OpenStreetMap'}}
   };
   let map = null, A = null, capaBase = null, capaRuta = null, capaGrid = null, cartasCapa = {}, agregar = false, sel = null, deshacer = [];
-  const pref = {base:'topo', grid:true};
+  const pref = {base:'topo', grid:true, perfil:false};
   try { Object.assign(pref, JSON.parse(localStorage.getItem('burros_mapa') || '{}')); } catch(e){}
   const guardarPref = ()=>{ try { localStorage.setItem('burros_mapa', JSON.stringify(pref)); } catch(e){} };
   const $ = (s, r)=>(r || document).querySelector(s);
@@ -40,12 +40,14 @@ const Mapa = (function(){
       <div class="m-cruz"></div>
       <div class="m-hoja" id="mHoja" hidden></div>
       <div class="m-inf">
+        <div class="m-perfil" id="mPerfil" hidden></div>
         <div class="m-res mono" id="mRes"></div>
         <div class="m-acc">
           <button class="btn ${agregar ? 'pri' : ''}" id="mAgregar">＋ Agregar puntos</button>
           <button class="btn" id="mDeshacer" title="Deshacer">↶</button>
           <button class="btn" id="mEncuadrar" title="Ver toda la ruta">⤢</button>
           <button class="btn" id="mYo" title="Mi posición">◎</button>
+          <button class="btn ${pref.perfil ? 'on' : ''}" id="mPerf" title="Perfil del terreno">⛰ Perfil</button>
         </div>
       </div>
     </div>`;
@@ -70,7 +72,8 @@ const Mapa = (function(){
     $('#mEncuadrar').onclick = encuadrar;
     $('#mYo').onclick = miPosicion;
     $('#mCartas').onclick = dialogoCartas;
-    cargarCartas(); ruta(); grid(); lectura(map.getCenter());
+    $('#mPerf').onclick = e=>{ pref.perfil = !pref.perfil; guardarPref(); e.currentTarget.classList.toggle('on', pref.perfil); perfil(); };
+    cargarCartas(); ruta(); grid(); lectura(map.getCenter()); perfil();
     const este = map; setTimeout(()=>{ if(map===este) map.invalidateSize({animate:false}); }, 50);
     return map;
   }
@@ -139,15 +142,51 @@ const Mapa = (function(){
     ok.forEach((p, i)=>{ if(!p.ok) return; const k = p.lat.toFixed(5) + ',' + p.lon.toFixed(5); if(!grupos.has(k)) grupos.set(k, []); grupos.get(k).push(i); });
     grupos.forEach(ids=>{
       const p = ok[ids[0]], horas = ids.map(i=>llega[i] ? M.verHora(llega[i].llegada) : (i===0 ? M.verHora(R.res.partida) : '')).filter(Boolean);
-      const nombres = [...new Set(ids.map(i=>ok[i].nombre))];
+      const nombres = [...new Set(ids.map(i=>ok[i].nombre))], cls = [...new Set(ids.map(i=>ok[i].clave).filter(Boolean))];
       const ic = L.divIcon({className:'m-pto' + (ids.includes(sel) ? ' sel' : '') + (ids.includes(0) ? ' ini' : '') + (ids.length>1 ? ' multi' : ''), iconSize:[26, 26], iconAnchor:[13, 13],
-        html:`<span class="n">${ids.map(i=>i + 1).join('·')}</span><span class="et"${ids.length>1 ? ` style="left:${ids.map(i=>i + 1).join('·').length*7.5 + 18}px"` : ''}><b>${A.esc(nombres.join(' / '))}</b> ${isNaN(p.cota) ? '' : A.f(p.cota) + ' m'}${horas.length ? ' · ' + horas.join(' / ') : ''}</span>`});
+        html:`<span class="n">${ids.map(i=>i + 1).join('·')}</span><span class="et"${ids.length>1 ? ` style="left:${ids.map(i=>i + 1).join('·').length*7.5 + 18}px"` : ''}>${cls.length ? `<i class="clave">${A.esc(cls.join(' / '))}</i> ` : ''}<b>${A.esc(nombres.join(' / '))}</b> ${isNaN(p.cota) ? '' : A.f(p.cota) + ' m'}${horas.length ? ' · ' + horas.join(' / ') : ''}</span>`});
       const mk = L.marker([p.lat, p.lon], {icon:ic, draggable:true, autoPan:true}).addTo(capaRuta);
       mk.on('click', e=>{ L.DomEvent.stop(e); abrirHoja(ids.includes(sel) && ids.length>1 ? ids[(ids.indexOf(sel) + 1)%ids.length] : ids[0]); });
       mk.on('dragstart', ()=>guardarDeshacer());
       mk.on('dragend', e=>{ const ll = e.target.getLatLng(); ids.forEach(i=>mover(i, ll, true)); A.guardar(); ruta(); ids.forEach(i=>cotaAuto(i)); if(ids.includes(sel)) abrirHoja(sel); });
     });
     resumen(R);
+    if(pref.perfil){ clearTimeout(ruta._t); ruta._t = setTimeout(perfil, 400); }
+  }
+
+  /* ---------- perfil bajo el mapa: al pasar el dedo o el mouse se marca el lugar en el mapa ---------- */
+  let capaCursor = null, terrenoAct = null;
+  function perfil(){
+    const el = $('#mPerfil'); if(!el || !map) return;
+    if(!pref.perfil){ el.hidden = true; if(capaCursor) capaCursor.clearLayers(); return; }
+    el.hidden = false; const R = A.calcular(A.actual());
+    if(!R.tramos.length){ el.innerHTML = '<div class="nota" style="padding:10px">Marca al menos dos puntos para ver el perfil.</div>'; return; }
+    const dibujar = T=>{ terrenoAct = T; el.innerHTML = A.svgPerfil(R, T, Math.max(420, Math.min(1000, Math.round((el.clientWidth || 600)*1.4)))) + `<div class="m-perfil-txt nota mono">${T ? '■ terreno real (SRTM) · ' : ''}— línea entre puntos · ${A.f(R.res.dist/1000, 2)} km · +${A.f(R.res.sube)}/−${A.f(R.res.baja)} m</div>`; cursor(el, R); };
+    dibujar(null);
+    A.terrenoDe(R).then(T=>{ if(T && pref.perfil && $('#mPerfil')===el) dibujar(T); });
+  }
+  function cursor(el, R){
+    const sv = el.querySelector('svg'); if(!sv) return;
+    if(!capaCursor) capaCursor = L.layerGroup().addTo(map);
+    const x0 = +sv.dataset.x0, x1 = +sv.dataset.x1, D = +sv.dataset.d, y0 = +sv.dataset.y0, y1 = +sv.dataset.y1, ar = +sv.dataset.ar, alto = +sv.dataset.alto;
+    const g = sv.querySelector('#pCursor');
+    const mover = e=>{
+      const r = sv.getBoundingClientRect(), VW = sv.viewBox.baseVal.width, vx = (e.clientX - r.left)/r.width*VW, d = Math.max(0, Math.min(D, (vx - x0)/(x1 - x0)*D));
+      const t = R.tramos.find(t=>t.distAcum>=d) || R.tramos[R.tramos.length - 1], ini = t.distAcum - t.dist, fr = t.dist ? (d - ini)/t.dist : 0;
+      const a = R.puntos[t.iA], b = R.puntos[t.iB], lat = a.lat + (b.lat - a.lat)*fr, lon = a.lon + (b.lon - a.lon)*fr;
+      let z = t.cotaIni + (t.cotaFin - t.cotaIni)*fr;
+      if(terrenoAct){ let mejor = terrenoAct[0]; terrenoAct.forEach(p=>{ if(Math.abs(p.x - d)<Math.abs(mejor.x - d)) mejor = p; }); z = mejor.z; }
+      const X = x0 + (x1 - x0)*d/D, Yc = ar + alto - alto*(z - y0)/(y1 - y0 || 1);
+      g.style.display = ''; g.querySelector('line').setAttribute('x1', X); g.querySelector('line').setAttribute('x2', X);
+      g.querySelector('circle').setAttribute('cx', X); g.querySelector('circle').setAttribute('cy', Yc);
+      const tx = g.querySelector('text'); tx.setAttribute('x', X + (X>VW*0.75 ? -8 : 8)); tx.setAttribute('text-anchor', X>VW*0.75 ? 'end' : 'start');
+      tx.textContent = A.f(d/1000, 2) + ' km · ' + A.f(z) + ' m';
+      capaCursor.clearLayers();
+      L.circleMarker([lat, lon], {radius:8, color:'#fff', weight:3, fillColor:'#e86a4c', fillOpacity:1, interactive:false}).addTo(capaCursor);
+      lectura(L.latLng(lat, lon), true);
+    };
+    sv.addEventListener('pointermove', mover); sv.addEventListener('pointerdown', mover);
+    sv.addEventListener('pointerleave', ()=>{ g.style.display = 'none'; capaCursor.clearLayers(); });
   }
   function resumen(R){
     const r = R.res, e = $('#mRes'); if(!e) return;
@@ -208,6 +247,8 @@ const Mapa = (function(){
       <div class="campos">
         <label class="c">Cota (m)${p.cotaAuto ? ' <small>≈ ' + A.esc(p.cotaSrc || 'terreno') + '</small>' : ''}<input class="num" data-h="cota" inputmode="numeric" value="${A.esc(p.cota)}"></label>
         <label class="c">Detención (min)<input class="num" data-h="det" inputmode="numeric" value="${A.esc(p.det)}" placeholder="0"></label>
+        ${i ? `<label class="c ancho">Nombre clave (vacío = automático)<input class="num clave" data-h="clave" value="${A.esc(p.clave || '')}" placeholder="${A.esc(g && g.clave || '')}" list="hClaves"></label>
+          <datalist id="hClaves">${(M.CLAVES[m.par.claves] || M.CLAVES.otan).l.map(c=>`<option value="${c}">`).join('')}</datalist>` : ''}
         <label class="c ancho">Observaciones<input data-h="obs" value="${A.esc(p.obs)}" placeholder="puente, portezuelo, cruce…"></label>
       </div>
       ${t || s ? `<div class="mono nota">${t ? 'Desde ' + A.esc(t.de) + ': ' + A.f(t.dist) + ' m, ' + (t.dv>=0 ? '+' : '') + A.f(t.dv) + ' m, llega ' + M.verHora(t.llegada) : ''}${t && s ? '<br>' : ''}${s ? 'Al siguiente: rumbo <b>' + A.f(s.azM, 0) + '°</b> / ' + s.mils + ' ‰, ' + A.f(s.dist) + ' m' : ''}</div>` : ''}
@@ -291,7 +332,7 @@ const Mapa = (function(){
     });
   }
 
-  function cerrar(){ if(!map) return; const m = map; map = null; try { m.stop(); m.off(); m.remove(); } catch(e){} }
+  function cerrar(){ if(!map) return; const m = map; map = null; capaCursor = null; try { m.stop(); m.off(); m.remove(); } catch(e){} }
   return {abrir, ruta, cerrar, BASES};
 })();
 if(typeof globalThis!=='undefined') globalThis.Mapa = Mapa;

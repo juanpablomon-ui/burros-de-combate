@@ -247,3 +247,46 @@ body.con-mapa .m-lectura{top:auto;bottom:118px;right:10px}
 .s-acc{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .s-acc #sLleg{grid-column:1/-1;padding:14px;font-size:16px}
 @media (min-width:700px){ .s-acc{grid-template-columns:repeat(4,1fr)} }
+/* perfil bajo el mapa */
+.m-perfil{background:#14150fee;border:1px solid var(--linea);border-radius:10px;padding:4px 6px 2px;max-height:42vh;overflow:hidden}
+.m-perfil svg{display:block;width:100%;height:auto;max-height:200px;touch-action:none;cursor:crosshair}
+.m-perfil svg text{font-family:var(--mono)}
+.m-perfil-txt{font-size:11px;padding:0 4px 4px}
+.m-acc .btn.on{border-color:var(--ocre);color:var(--ocre)}
+/* seguir: carta a pantalla completa */
+.s-carta #sMapa{position:absolute;inset:0;background:#d8d4c4}
+.s-modos{position:absolute;z-index:1001;top:8px;left:50%;transform:translateX(-50%);background:var(--panel);box-shadow:0 2px 10px #0008;white-space:nowrap}
+.s-modos button{padding:7px 10px;font-size:12.5px}
+#seguir>.s-modos{position:static;transform:none;margin-bottom:12px;display:flex;width:fit-content;max-width:100%}
+.s-hud{position:absolute;z-index:1000;top:52px;left:10px;right:10px;max-width:520px;background:#14150fee;border:1px solid var(--linea);border-radius:12px;padding:10px 12px;box-shadow:0 4px 16px #0009}
+.s-hud .hud1{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--suave);align-items:baseline}
+.s-hud .hud1 b{font-size:20px;color:var(--texto);margin-left:4px}
+.s-hud .hud1 small{color:var(--suave)}
+.s-hud .hud1 .mal{color:var(--rojo);font-weight:700} .s-hud .hud1 .bien{color:var(--verde);font-weight:700}
+.s-hud .hud2{display:flex;align-items:center;gap:14px;margin:4px 0}
+.s-hud .hud2 b{font-family:var(--mono);font-size:26px}
+.s-hud .hud2 b.ocre{color:var(--ocre)}
+.s-hud .hud2 small{font-family:var(--mono);color:var(--suave);font-size:13px}
+.s-hud .hud3{font-size:11px;color:var(--suave)}
+.s-hud .alerta,.s-hud .info{margin:6px 0 2px;padding:6px 8px}
+.s-flecha.mini{width:42px;height:42px;font-size:22px;margin-left:auto}
+.s-centrar{position:absolute;z-index:1000;right:10px;bottom:132px;box-shadow:0 2px 10px #0008;font-size:18px}
+.s-pie{position:absolute;z-index:1000;left:10px;right:10px;bottom:10px}
+.s-pie .s-acc{grid-template-columns:repeat(4,1fr);gap:6px}
+.s-pie .s-acc .btn{box-shadow:0 2px 10px #0008;padding:9px 4px;font-size:13px}
+.s-pie .s-acc #sLleg{padding:13px;font-size:16px}
+.s-etq{background:#14150fd9;color:#ece8d8;border:0;font-weight:700;font-size:11px;padding:1px 5px;box-shadow:none}
+.s-etq::before{display:none}
+/* nombres clave */
+.clave-et{display:inline-block;margin-left:6px;font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.06em;color:#14150f;background:var(--ocre);border-radius:4px;padding:1px 5px;vertical-align:1px}
+.clave-tx{font-family:var(--mono);color:var(--ocre);letter-spacing:.05em}
+input.clave{text-transform:uppercase;letter-spacing:.05em}
+@media print{ .clave-et{background:none;border:1px solid #000;color:#000} }
+.m-pto .et i.clave{font-style:normal;font-family:var(--mono);font-weight:700;color:#14150f;background:var(--ocre);border-radius:3px;padding:0 4px;margin-right:2px}
+/* matriz de eventos */
+table.matriz tr.pend td{color:var(--tenue)}
+table.matriz tr.pend td b{font-weight:500}
+table.matriz tr.alto td b{color:var(--azul)} table.matriz tr.nov td b{color:var(--rojo)}
+table.matriz tr.ini td b,table.matriz tr.fin td b{color:var(--ocre)}
+.s-prox small{display:block}
+.mapa-env:has(#mPerfil:not([hidden])) .m-lectura{display:none}

@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y ficha de navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.3', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.5', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -10,6 +10,7 @@
   /* ---------- datos ---------- */
   let S = {marchas:[], actual:null, v:'marchas'};
   try { const d = JSON.parse(localStorage.getItem(CLAVE)); if(d && Array.isArray(d.marchas)) S = Object.assign(S, d); } catch(e){}
+  S.marchas.forEach(m=>{ if(m.par && m.par.metodo==='cartilla') m.par.metodo = 'montana'; });   // nombre antiguo del método
   let tGuardar = null;
   const guardar = ()=>{ clearTimeout(tGuardar); tGuardar = setTimeout(()=>{ tGuardar = null; try { localStorage.setItem(CLAVE, JSON.stringify(S)); } catch(e){ aviso('⚠ No se pudo guardar en este equipo'); } }, 250); };
   // al cerrar o pasar a segundo plano se guarda de inmediato (no esperar la pausa)
@@ -91,7 +92,7 @@
       <div class="tarjeta nota">Marca la ruta <b>sobre el mapa o tu carta</b> (con cuadrícula UTM y cota automática) y calcula el <b>cuadro de marcha</b> (distancia, desnivel, pendiente, rumbo magnético en grados y milésimas, tiempos, altos,
         imprevistos y hora de llegada a cada punto), dibuja el <b>perfil del itinerario</b>, arma la <b>ficha de navegación</b> para imprimir y
         <b>envía el plan</b> al C2 (código de texto, QR, GPX, KML, GeoJSON o Excel).<br><br>
-        Tiempos según la <b>Cartilla de Planificación de Marcha en Montaña (Escuela de Montaña, CRM 2013)</b>, el método MIDE / DIN 33466 o la
+        Tiempos para <b>montaña</b> (tabla de velocidades por tropa, terreno y carga), el método MIDE / DIN 33466 o la
         <b>marcha general</b> (velocidades, columna y tiempo de paso de ATP 3-21.18 Foot Marches, 2025). Agua y calor según TB MED 507 (2022). Lista de verificación antes, durante y después.
         Declinación magnética automática con el modelo WMM2025 (NOAA).<br><br>App no oficial: verifica siempre los resultados con la carta.
         <div class="mono" style="margin-top:8px;color:var(--tenue)">Versión ${VERSION}</div></div>`;
@@ -122,7 +123,7 @@
       if(!pts.length) return aviso('⚠ No se encontraron puntos en el archivo');
       const sinCota = pts.filter(p=>p.cota==='').length;
       nueva({nombre:nombre.replace(/\.(gpx|kml)$/i, ''), puntos:pts.map(p=>punto(p.nombre, {tipo:'GEO', lat:Math.abs(p.lat).toFixed(6), lon:Math.abs(p.lon).toFixed(6),
-        norte:p.lat>0 || undefined, este:p.lon>0 || undefined, cota:p.cota}))});
+        norte:p.lat>0 || undefined, este:p.lon>0 || undefined, cota:p.cota, clave:p.clave}))});
       ir('mapa'); aviso('✔ ' + pts.length + ' puntos importados' + (sinCota ? ' — completa la cota de ' + sinCota : ''));
     });
   }
@@ -160,7 +161,8 @@
   }
 
   /* =====================================================================  RUTA  */
-  const apiMapa = {actual, guardar, punto, aviso, dialogo, cerrarDialogo, confirmar, copiar, descargar, esc, f, calcular:m=>M.calcular(m), vistaMapa:null};
+  const apiMapa = {actual, guardar, punto, aviso, dialogo, cerrarDialogo, confirmar, copiar, descargar, esc, f, calcular:m=>M.calcular(m), vistaMapa:null,
+    svgPerfil:(R, T, c)=>svgPerfil(R, T, c), terrenoDe:R=>terrenoDe(R), ir:v=>ir(v)};
   function vMapa(){ vista.innerHTML = '<div id="mapaCont"></div>'; Mapa.abrir($('#mapaCont'), apiMapa); }
   function vSeguir(){ vista.innerHTML = '<div id="seguirCont"></div>'; Seguir.abrir($('#seguirCont'), apiMapa); }
   function vRuta(){
@@ -178,12 +180,13 @@
           <label class="c">Hora de partida (PIM)<input type="time" data-m="hora" value="${esc(m.hora)}"></label>
           <label class="c ancho">Datum de las coordenadas<select data-m="datum">${opc(Object.fromEntries(Object.entries(M.DATUMS).map(([k, v])=>[k, v.n])), m.datum)}</select></label>
           <label class="c">Zona UTM de trabajo<input class="num" data-m="zona" inputmode="numeric" value="${esc(m.zona)}" placeholder="auto (${R.zona})"></label>
+          <label class="c ancho">Nombres clave de los puntos (para la radio: «PASANDO ALFA»)<select data-par="claves" data-redibujar>${opc(Object.fromEntries(Object.entries(M.CLAVES).map(([k, v])=>[k, v.n])), p.claves)}</select></label>
           <label class="c ancho"><span><input type="checkbox" data-par="noche" data-redibujar ${p.noche ? 'checked' : ''} style="width:auto;vertical-align:middle"> Marcha nocturna (menor velocidad y distancias más cortas)</span></label>
         </div>
         <p class="nota">GPS y cartas IGM nuevas: WGS84. Cartas IGM antiguas: PSAD56 o SAD69 (lo dice el margen de la carta).</p>
       </details>
 
-      <details class="tarjeta"><summary>Cálculo de tiempos<span class="res">${esc(({cartilla:'Cartilla montaña', mide:'MIDE', general:'Marcha general'})[p.metodo])} · altos ${pct(p.altos)} % · imprev. ${pct(p.imprev)} %</span></summary>
+      <details class="tarjeta"><summary>Cálculo de tiempos<span class="res">${esc(({montana:'Montaña', mide:'MIDE', general:'Marcha general'})[p.metodo])} · altos ${pct(p.altos)} % · imprev. ${pct(p.imprev)} %</span></summary>
         <div class="campos">
           <label class="c ancho">Método<select data-par="metodo" data-redibujar>${opc(M.METODOS, p.metodo)}</select></label>
           ${p.metodo!=='general' ? `
@@ -194,20 +197,20 @@
           <label class="c">Subida (m/h)<input class="num" data-par="velSub" inputmode="numeric" value="${esc(p.velSub||'')}" placeholder="${f(vt.sub)}"></label>
           <label class="c">Bajada (m/h)<input class="num" data-par="velBaj" inputmode="numeric" value="${esc(p.velBaj||'')}" placeholder="${f(vt.baj)}"></label>
           <label class="c">Llano (km/h)<input class="num" data-par="velLlano" inputmode="decimal" value="${esc(p.velLlano)}"></label>
-          ${p.metodo==='cartilla' ? `<label class="c">Pendiente crítica (%)<input class="num" data-par="pteCr" data-pct inputmode="decimal" value="${pct(p.pteCr)}"></label>` : ''}`
+          ${p.metodo==='montana' ? `<label class="c">Pendiente crítica (%)<input class="num" data-par="pteCr" data-pct inputmode="decimal" value="${pct(p.pteCr)}"></label>` : ''}`
           : `<label class="c">Vía principal<select data-par="via" data-redibujar>${opc(M.VIAS, p.via)}</select></label>
           <label class="c">Velocidad (km/h)<input class="num" data-par="velGeneral" inputmode="decimal" value="${esc(p.velGeneral||'')}" placeholder="${f(M.velGeneral(p.via, p.noche), 1)}"></label>`}
           <label class="c">Altos (% del tiempo de marcha)<input class="num" data-par="altos" data-pct inputmode="decimal" value="${pct(p.altos)}"></label>
           <label class="c">Imprevistos (%)<input class="num" data-par="imprev" data-pct inputmode="decimal" value="${pct(p.imprev)}"></label>
         </div>
-        ${p.metodo!=='general' ? `<p class="nota">Tabla de la cartilla (Fig. 1-3) para ${esc(tropas[p.tropa].toLowerCase())}, ${esc(M.TERRENOS[p.terreno].n.toLowerCase())}, ${vt.carga} kg:
+        ${p.metodo!=='general' ? `<p class="nota">Tabla de velocidades de marcha vertical en montaña para ${esc(tropas[p.tropa].toLowerCase())}, ${esc(M.TERRENOS[p.terreno].n.toLowerCase())}, ${vt.carga} kg:
           subida <b>${esc(vt.rango)} m/h</b>, bajada <b>${f(vt.baj)} m/h</b>.${p.terreno==='esquies' && p.tropa==='normal' ? ' <b>Esquíes: la tabla solo trae valores para tropa andina.</b>' : ''}
           Deja vacía la casilla para usar la tabla, o escribe otra velocidad si conoces el rendimiento real de tu unidad.</p>` : ''}
         ${p.metodo==='general' ? `<p class="nota">Velocidades de ATP 3-21.18 (2025): camino ${f(4, 1)} km/h de día y ${f(3.2, 1)} de noche; campo traviesa ${f(2.4, 1)} y ${f(1.6, 1)} km/h
           (con carga de 18 kg o menos). <b>Ya incluyen el alto de 10 min por hora</b>, por eso los altos quedan en 0 %. En cada punto puedes cambiar la vía del tramo.
           Con más carga, la ATP indica unos 2 km menos cada 6 h por cada 4,5 kg sobre 18 kg: escribe una velocidad menor si corresponde.</p>` : ''}
-        <p class="nota">${p.metodo==='cartilla' ? 'Cartilla: tramos con pendiente sobre la crítica (5 %) se calculan por el desnivel (DM = 60 × DV / VM); el resto por la distancia (DM = 60 × DH / VM). ' : ''}
-          La cartilla indica 10 % de altos y 10 % de imprevistos (sobre marcha + altos); súbelos según el entrenamiento, la carga y la dificultad.</p>
+        <p class="nota">${p.metodo==='montana' ? 'Tramos con pendiente sobre la crítica (5 %) se calculan por el desnivel (DM = 60 × DV / VM); el resto por la distancia (DM = 60 × DH / VM). ' : ''}
+          Por defecto 10 % de altos y 10 % de imprevistos (sobre marcha + altos); súbelos según el entrenamiento, la carga y la dificultad.</p>
         <h2>Declinación magnética</h2>
         <div class="campos">
           <label class="c ancho"><span><input type="checkbox" data-par="declAuto" data-redibujar ${p.declAuto ? 'checked' : ''} style="width:auto;vertical-align:middle"> Calcular automática (modelo WMM2025, según lugar y fecha)</span></label>
@@ -260,8 +263,8 @@
       guardar(); pintar(); aviso(n ? '✔ ' + n + ' cota' + (n===1 ? '' : 's') + ' del terreno (revísalas con la carta)' : 'Sin conexión: no se pudieron obtener las cotas'); };
   }
   function pintarPuntos(){
-    const m = actual(), cont = $('#puntos'); if(!cont) return;
-    cont.innerHTML = m.puntos.map((x, i)=>{
+    const m = actual(), cont = $('#puntos'); if(!cont) return; const Rc = M.calcular(m);
+    cont.innerHTML = `<datalist id="listaClaves">${(M.CLAVES[m.par.claves] || M.CLAVES.otan).l.map(c=>`<option value="${c}">`).join('')}</datalist>` + m.puntos.map((x, i)=>{
       const utm = x.tipo!=='GEO';
       return `${i ? `<div class="tramo-entre" id="tr${i}"></div>` : ''}
       <div class="tarjeta punto" data-i="${i}"><span class="ord">${i + 1}</span>
@@ -277,6 +280,7 @@
           <label class="c">Longitud ${x.este ? 'E' : 'W'}<input class="num" data-p="lon" inputmode="decimal" value="${esc(x.lon)}" placeholder="70 34 28"></label>
           <label class="c cota">Cota (m)${x.cotaAuto ? ' ≈' : ''}<input class="num" data-p="cota" inputmode="numeric" value="${esc(x.cota)}"></label></div>`}
         ${actual().par.metodo==='general' && i ? `<div class="extra" style="grid-template-columns:1fr"><label class="c">Vía desde el punto anterior<select data-p="via">${'<option value="">Igual que la marcha (' + esc(M.VIAS[actual().par.via]) + ')</option>' + Object.entries(M.VIAS).map(([k, n])=>`<option value="${k}"${x.via===k ? ' selected' : ''}>${n}</option>`).join('')}</select></label></div>` : ''}
+        ${i ? `<div class="extra" style="grid-template-columns:1fr"><label class="c">Nombre clave (vacío = automático)<input class="num clave" data-p="clave" value="${esc(x.clave||'')}" placeholder="${esc(Rc.puntos[i].clave || '')}" list="listaClaves"></label></div>` : ''}
         <div class="extra"><label class="c">Observaciones (punto característico)<input data-p="obs" value="${esc(x.obs)}" placeholder="puente, portezuelo, cruce…"></label>
           <label class="c">Detención (min)<input class="num" data-p="det" inputmode="numeric" value="${esc(x.det)}" placeholder="0"></label></div>
         <div class="estado" id="est${i}"></div>
@@ -288,6 +292,7 @@
   // recalcula y actualiza los textos sin redibujar los campos (para no perder el foco al escribir)
   function actualizarCalculos(){
     const m = actual(), R = M.calcular(m);
+    vista.querySelectorAll('.punto').forEach(c=>{ const k = c.querySelector('[data-p=clave]'), p = R.puntos[+c.dataset.i]; if(k && p) k.placeholder = p.clave || ''; });
     R.puntos.forEach((p, i)=>{ const e = $('#est' + i); if(!e) return;
       const x = m.puntos[i], tiene = x.tipo==='GEO' ? (x.lat!=='' || x.lon!=='') : (x.e!=='' || x.n!=='');
       e.className = 'estado' + (!p.ok && tiene ? ' mal' : '');
@@ -389,13 +394,13 @@
       <div class="tabla-env solo-ancho"><table class="t">
         <thead><tr><th class="tx">Tramo</th><th>Distancia<br>(m)</th><th>Dist. acum.<br>(km)</th><th>Cota<br>inicial</th><th>Cota<br>final</th><th>Desnivel<br>(m)</th><th>Pendiente</th>
           <th>Rumbo<br>mag. (°)</th><th>Rumbo<br>(‰)</th><th>Tiempo<br>tramo</th><th>Tiempo<br>acum.</th><th>Hora<br>llegada</th><th class="tx">Observaciones</th></tr></thead>
-        <tbody>${T.map(t=>`<tr><td class="tx"><b>${esc(t.de)}</b> → <b>${esc(t.a)}</b></td><td>${f(t.dist)}</td><td>${f(t.distAcum/1000, 2)}</td><td>${f(t.cotaIni)}</td><td>${f(t.cotaFin)}</td>
+        <tbody>${T.map(t=>`<tr><td class="tx"><b>${esc(t.de)}</b> → <b>${esc(t.a)}</b>${t.claveB ? `<span class="clave-et">${esc(t.claveB)}</span>` : ''}</td><td>${f(t.dist)}</td><td>${f(t.distAcum/1000, 2)}</td><td>${f(t.cotaIni)}</td><td>${f(t.cotaFin)}</td>
           <td class="${t.dv>0 ? 'sube' : t.dv<0 ? 'baja' : ''}">${t.dv>0 ? '+' : ''}${f(t.dv)}</td><td class="${pteC(t.pte)}">${f(t.pte*100, 1)} %</td>
           <td><b>${f(t.azM, 1)}</b><span class="s">cuad. ${f(t.azC, 1)} · geo. ${f(t.azG, 1)}</span></td><td>${t.mils}</td>
           <td>${como[t.como]||''} ${M.verDur(t.t)}</td><td>${M.verDur(t.tAcum)}</td><td><b>${M.verHora(t.llegada)}</b>${t.det ? `<span class="s">sale ${M.verHora(t.salida)}</span>` : ''}</td><td class="obs tx">${esc(t.obs)}${t.det ? (t.obs ? ' · ' : '') + 'detención ' + Math.round(t.det*60) + ' min' : ''}</td></tr>`).join('')}
           <tr class="tot"><td class="tx">Total</td><td>${f(R.res.dist)}</td><td>${f(R.res.dist/1000, 2)}</td><td></td><td></td><td>+${f(R.res.sube)} / −${f(R.res.baja)}</td><td></td><td></td><td></td><td>${M.verDur(R.res.marcha)}</td><td></td><td>${M.verHora(R.res.termino)}</td><td class="tx obs">con altos, detenciones e imprevistos</td></tr>
         </tbody></table></div>
-      <div class="tramos-cel">${T.map(t=>`<div class="tc"><div class="cab"><b>${esc(t.de)} → ${esc(t.a)}</b><span class="hora">${M.verHora(t.llegada)}</span></div>
+      <div class="tramos-cel">${T.map(t=>`<div class="tc"><div class="cab"><b>${esc(t.de)} → ${esc(t.a)}${t.claveB ? ` <span class="clave-et">${esc(t.claveB)}</span>` : ''}</b><span class="hora">${M.verHora(t.llegada)}</span></div>
         <div class="datos"><div><span>Rumbo mag.</span><b class="rumbo">${f(t.azM, 0)}°</b> <small>${t.mils} ‰</small></div><div><span>Distancia</span>${f(t.dist)} m</div><div><span>Tiempo</span>${M.verDur(t.t)}</div>
           <div><span>Desnivel</span>${t.dv>0 ? '+' : ''}${f(t.dv)} m</div><div><span>Pendiente</span>${f(t.pte*100, 1)} %</div><div><span>Acumulado</span>${f(t.distAcum/1000, 2)} km · ${M.verDur(t.tAcum)}</div></div>
         ${t.obs || t.det ? `<div class="nota" style="margin-top:6px">${esc(t.obs)}${t.det ? (t.obs ? ' · ' : '') + 'detención ' + Math.round(t.det*60) + ' min, sale ' + M.verHora(t.salida) : ''}</div>` : ''}</div>`).join('')}</div>
@@ -403,9 +408,9 @@
       ${apoyo(R)}
       <h2 class="salto">Ficha de navegación</h2>
       <div class="tabla-env"><table class="t">
-        <thead><tr><th class="tx">Punto</th><th>Hora<br>llegada</th><th>Hora<br>salida</th><th>Altitud<br>(m)</th><th>Rumbo al siguiente<br>(° / ‰)</th><th>Distancia<br>(m)</th><th class="tx">Observaciones</th></tr></thead>
+        <thead><tr><th class="tx">Punto</th><th class="tx">Nombre<br>clave</th><th>Hora<br>llegada</th><th>Hora<br>salida</th><th>Altitud<br>(m)</th><th>Rumbo al siguiente<br>(° / ‰)</th><th>Distancia<br>(m)</th><th class="tx">Observaciones</th></tr></thead>
         <tbody>${R.puntos.filter(p=>p.ok).map(p=>{ const ll = T.find(t=>t.iB===p.i), sig = T.find(t=>t.iA===p.i), sal = ll ? ll.salida : R.res.partida + p.det;
-          return `<tr><td class="tx"><b>${esc(p.nombre)}</b></td><td>${ll ? M.verHora(ll.llegada) : '—'}</td><td>${sig ? M.verHora(sal) : '—'}</td><td>${f(p.cota)}</td>
+          return `<tr><td class="tx"><b>${esc(p.nombre)}</b></td><td class="tx"><b class="clave-tx">${esc(p.clave || '—')}</b></td><td>${ll ? M.verHora(ll.llegada) : '—'}</td><td>${sig ? M.verHora(sal) : '—'}</td><td>${f(p.cota)}</td>
             <td>${sig ? '<b>' + f(sig.azM, 0) + '°</b> / ' + sig.mils : '—'}</td><td>${sig ? f(sig.dist) : '—'}</td><td class="obs tx">${esc(p.obs)}</td></tr>`; }).join('')}</tbody></table></div>
       <p class="nota">Rumbos magnéticos con declinación ${f(R.decl.valor, 2)}° (${esc(R.decl.fuente)}) a la fecha de la marcha. Horas con ${Math.round(R.par.altos*100)} % de altos; los imprevistos (${M.verDur(R.res.imprev)}) quedan como reserva al final.</p>
       <div class="btns no-imp"><button class="btn pri" id="bImp">🖨 Imprimir / PDF</button><button class="btn" id="bPerf">Ver perfil ›</button><button class="btn" id="bEnv">Enviar ›</button></div>`;
@@ -422,9 +427,11 @@
     return DEM.perfil(pts, 25).then(pf=>{ if(pf){ const ini = [0].concat(R.tramos.map(t=>t.distAcum));
       pf.forEach(p=>p.x = ini[p.tramo] + p.t*R.tramos[p.tramo].dist); } terrenos.set(k, pf); return pf; });
   }
-  function svgPerfil(R, T){
+  // compacto: versión baja para el panel del mapa (solo nombres de los puntos)
+  function svgPerfil(R, T, compacto){
     const ok = R.puntos.filter(p=>p.ok); if(R.tramos.length<1) return '';
-    const xs = [0], W = 1000, iz = 78, de = 16, ar = 14, alto = 260, barras = [['Horario', 28], ['Distancia (km)', 28], ['Desnivel (m)', 28], ['Puntos', 40]];
+    const xs = [0], W = typeof compacto==='number' ? compacto : 1000, iz = compacto ? 46 : 78, de = 16, ar = 14, alto = compacto ? 150 : 260,
+      barras = compacto ? [['Puntos', 22]] : [['Horario', 28], ['Distancia (km)', 28], ['Desnivel (m)', 28], ['Puntos', 40]];
     R.tramos.forEach(t=>xs.push(t.distAcum));
     const D = R.res.dist || 1, cotas = ok.map(p=>p.cota).concat(T ? T.map(p=>p.z) : []), cmin = Math.min(...cotas), cmax = Math.max(...cotas), pad = Math.max(20, (cmax - cmin)*0.12);
     const y0 = Math.floor((cmin - pad)/50)*50, y1 = Math.ceil((cmax + pad)/50)*50;
@@ -449,18 +456,20 @@
     let yb = ar + alto + 18; const fin = yb + barras.reduce((a, b)=>a + b[1], 0);
     barras.forEach(([n, h], j)=>{ s += `<rect x="${iz}" y="${yb}" width="${W - iz - de}" height="${h}" fill="${j%2 ? '#1c1e16' : '#22251b'}"/><text x="${iz - 6}" y="${yb + h/2 + 4}" text-anchor="end" font-size="10" fill="#a3a28c">${n.split(' ')[0]}</text>`;
       serie.forEach((p, i)=>{ const x = X(p.d), lim = i===0 ? 'start' : i===serie.length - 1 ? 'end' : 'middle';
-        const txt = [M.verHora(p.h), f(p.d/1000, 1), i ? (p.t.dv>0 ? '+' : '') + f(p.t.dv) : '0', p.n][j];
+        const jj = compacto ? 3 : j, txt = [M.verHora(p.h), f(p.d/1000, 1), i ? (p.t.dv>0 ? '+' : '') + f(p.t.dv) : '0', compacto && i && p.t.claveB ? p.t.claveB : p.n][jj];
         // no amontonar textos: solo si hay espacio desde el anterior
-        if(i && X(p.d) - X(serie[i - 1].d)<34 && j<3) return;
-        s += j===3 ? `<text x="${x}" y="${yb + 15}" text-anchor="${lim}" font-size="11" font-weight="700" fill="#ece8d8">${esc(txt)}</text>`
+        if(i && X(p.d) - X(serie[i - 1].d)<(jj===3 && compacto ? 50 : 34) && (jj<3 || compacto)) return;
+        s += jj===3 ? `<text x="${x}" y="${yb + 15}" text-anchor="${lim}" font-size="11" font-weight="700" fill="#ece8d8">${esc(txt)}</text>`
           : `<text x="${x}" y="${yb + h/2 + 4}" text-anchor="${lim}" font-size="10.5" fill="${j===0 ? '#f2c46b' : j===2 && i ? (p.t.dv>0 ? '#e86a4c' : '#6fb3d9') : '#ece8d8'}">${txt}</text>`; });
       yb += h; });
     // líneas verticales de cada punto
     serie.forEach(p=>{ s += `<line x1="${X(p.d)}" x2="${X(p.d)}" y1="${Y(p.c)}" y2="${fin}" stroke="#6f705e" stroke-width=".8" stroke-dasharray="3 3"/><circle cx="${X(p.d)}" cy="${Y(p.c)}" r="4" fill="#14150f" stroke="#f2c46b" stroke-width="2"/>`; });
-    // exageración vertical (la cartilla usa 1:25.000 vertical / 1:50.000 horizontal = ×2)
+    // exageración vertical del dibujo
     const exa = ((W - iz - de)/D)/(alto/(y1 - y0 || 1));
-    s += `<text x="${W - de}" y="${ar - 2}" text-anchor="end" font-size="10" fill="#6f705e">exageración vertical ×${f(1/exa, 1)}</text>`;
-    return `<svg viewBox="0 0 ${W} ${fin + 6}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Perfil del itinerario">${s}</svg>`;
+    if(!compacto) s += `<text x="${W - de}" y="${ar - 2}" text-anchor="end" font-size="10" fill="#6f705e">exageración vertical ×${f(1/exa, 1)}</text>`;
+    // línea del cursor (la mueve el panel del mapa)
+    if(compacto) s += `<g id="pCursor" style="display:none"><line y1="${ar}" y2="${ar + alto}" stroke="#fff" stroke-width="1.5"/><circle r="5" fill="#fff" stroke="#14150f" stroke-width="2"/><text y="${ar + 10}" font-size="13" font-weight="700" fill="#fff" stroke="#14150f" stroke-width="3" paint-order="stroke"></text></g>`;
+    return `<svg viewBox="0 0 ${W} ${fin + 6}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Perfil del itinerario" data-x0="${iz}" data-x1="${W - de}" data-d="${D}" data-y0="${y0}" data-y1="${y1}" data-ar="${ar}" data-alto="${alto}">${s}</svg>`;
   }
   function vPerfil(){
     const m = actual(), R = M.calcular(m);
@@ -485,7 +494,7 @@
         .filter(x=>x.mx>=40);
       e.innerHTML = `<span style="color:#a3a28c">■</span> Terreno real (modelo SRTM ~30 m): sube <b>${f(d.sube)} m</b> y baja <b>${f(d.baja)} m</b> (los puntos de control dan +${f(R.res.sube)}/−${f(R.res.baja)} m).
         Pendiente máxima del terreno ≈ <b>${f(pmax*100, 0)} %</b>.` +
-        (extra>=30 || desv.length ? `<div class="alerta">${extra>=30 ? 'El terreno sube ' + f(extra) + ' m más de lo que muestran los puntos: el tiempo calculado puede quedar corto. ' : ''}${desv.length ? 'Agrega puntos de control donde cambia la pendiente en: <b>' + desv.map(x=>esc(x.t.de) + ' → ' + esc(x.t.a) + ' (se aparta ' + f(x.mx) + ' m)').join(', ') + '</b>. La cartilla pide tramos de igual pendiente.' : ''}</div>` : '');
+        (extra>=30 || desv.length ? `<div class="alerta">${extra>=30 ? 'El terreno sube ' + f(extra) + ' m más de lo que muestran los puntos: el tiempo calculado puede quedar corto. ' : ''}${desv.length ? 'Agrega puntos de control donde cambia la pendiente en: <b>' + desv.map(x=>esc(x.t.de) + ' → ' + esc(x.t.a) + ' (se aparta ' + f(x.mx) + ' m)').join(', ') + '</b>. Así cada tramo queda con una pendiente pareja.' : ''}</div>` : '');
     });
   }
 
@@ -495,7 +504,7 @@
     vista.innerHTML = `<h2>Lista de verificación</h2><p class="nota" id="lCuenta"></p>` + LISTA.map(g=>`<h2>${esc(g.fase)}</h2><div class="tarjeta lista">` +
       g.items.map(([id, t, fuente])=>`<label class="item"><input type="checkbox" data-l="${id}" ${L[id] ? 'checked' : ''}><span>${esc(t)}${fuente ? ` <small>${esc(fuente)}</small>` : ''}</span></label>`).join('') + '</div>').join('') +
       `<div class="btns no-imp"><button class="btn" id="bLimpia">Desmarcar todo</button><button class="btn" id="bImp">🖨 Imprimir</button></div>`;
-    const cuenta = ()=>$('#lCuenta').innerHTML = `<b>${hechos()} de ${tot}</b> listos. Fuentes: Cartilla de Planificación de Marcha en Montaña (CRM 2013), ATP 3-21.18 Foot Marches (2025) y TB MED 507 (2022).`;
+    const cuenta = ()=>$('#lCuenta').innerHTML = `<b>${hechos()} de ${tot}</b> listos. Referencias: ATP 3-21.18 Foot Marches (2025) y TB MED 507 (2022).`;
     cuenta();
     vista.querySelectorAll('[data-l]').forEach(c=>c.onchange = ()=>{ L[c.dataset.l] = c.checked; guardar(); cuenta(); });
     $('#bLimpia').onclick = ()=>{ m.lista = {}; guardar(); pintar(); };
