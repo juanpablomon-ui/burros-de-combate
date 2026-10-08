@@ -12,7 +12,7 @@ const Mapa = (function(){
     calles:{n:'Calles', url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', o:{maxZoom:19, attribution:'© OpenStreetMap'}}
   };
   let map = null, A = null, capaBase = null, capaRuta = null, capaGrid = null, cartasCapa = {}, agregar = false, sel = null, deshacer = [];
-  const pref = {base:'topo', grid:true, perfil:false};
+  const pref = {base:'topo', grid:true, perfil:false, curvas:true};
   try { Object.assign(pref, JSON.parse(localStorage.getItem('burros_mapa') || '{}')); } catch(e){}
   const guardarPref = ()=>{ try { localStorage.setItem('burros_mapa', JSON.stringify(pref)); } catch(e){} };
   const $ = (s, r)=>(r || document).querySelector(s);
@@ -34,6 +34,7 @@ const Mapa = (function(){
       <div class="m-sup">
         <div class="seg m-bases">${Object.entries(BASES).map(([k, b])=>`<button data-base="${k}" class="${pref.base===k ? 'on' : ''}">${b.n}</button>`).join('')}</div>
         <button class="btn mini ${pref.grid ? 'on' : ''}" id="mGrid" title="Cuadrícula UTM">▦ UTM</button>
+        <button class="btn mini ${pref.curvas ? 'on' : ''}" id="mCurvas" title="Curvas de nivel sobre cualquier capa">〰 Curvas</button>
         <button class="btn mini" id="mCartas" title="Cartas propias">🗺 Cartas</button>
       </div>
       <div class="m-lectura mono" id="mLect"></div>
@@ -55,15 +56,18 @@ const Mapa = (function(){
     map = L.map($('#mapa', cont), {zoomControl:true, attributionControl:true, doubleClickZoom:false}).setView(ok.length ? [ok[0].lat, ok[0].lon] : [-33.45, -70.66], ok.length ? 14 : 9);
     if(ok.length>1) map.fitBounds(L.latLngBounds(ok.map(p=>[p.lat, p.lon])), {padding:[40, 40], animate:false});
     else if(A.vistaMapa) map.setView(A.vistaMapa.c, A.vistaMapa.z, {animate:false});
-    ponerBase(pref.base);
+    ponerBase(pref.base, true);
     map.createPane('cartas').style.zIndex = 250;
+    map.createPane('curvas').style.zIndex = 300; map.getPane('curvas').style.pointerEvents = 'none';
     capaGrid = L.layerGroup().addTo(map); capaRuta = L.layerGroup().addTo(map);
     map.on('moveend', ()=>{ A.vistaMapa = {c:map.getCenter(), z:map.getZoom()}; grid(); lectura(map.getCenter()); });
     map.on('mousemove', e=>lectura(e.latlng, true));
     map.on('click', e=>{ if(agregar) agregarPunto(e.latlng); else cerrarHoja(); });
     // botones
-    cont.querySelectorAll('[data-base]').forEach(b=>b.onclick = ()=>{ pref.base = b.dataset.base; guardarPref(); ponerBase(pref.base);
+    cont.querySelectorAll('[data-base]').forEach(b=>b.onclick = ()=>{ pref.base = b.dataset.base; guardarPref(); ponerBase(pref.base); curvas();
       cont.querySelectorAll('[data-base]').forEach(x=>x.classList.toggle('on', x===b)); });
+    $('#mCurvas').onclick = e=>{ pref.curvas = !pref.curvas; guardarPref(); e.currentTarget.classList.toggle('on', pref.curvas); curvas();
+      if(pref.curvas && map.getZoom()<10) A.aviso('Acerca el mapa para ver las curvas de nivel'); };
     $('#mGrid').onclick = e=>{ pref.grid = !pref.grid; guardarPref(); e.currentTarget.classList.toggle('on', pref.grid); grid(); };
     $('#mAgregar').onclick = ()=>{ agregar = !agregar; $('#mAgregar').classList.toggle('pri', agregar); cont.querySelector('.mapa-env').classList.toggle('agregando', agregar);
       A.aviso(agregar ? 'Toca el mapa para agregar puntos en orden de marcha' : 'Modo agregar desactivado'); };
@@ -73,9 +77,15 @@ const Mapa = (function(){
     $('#mYo').onclick = miPosicion;
     $('#mCartas').onclick = dialogoCartas;
     $('#mPerf').onclick = e=>{ pref.perfil = !pref.perfil; guardarPref(); e.currentTarget.classList.toggle('on', pref.perfil); perfil(); };
-    cargarCartas(); ruta(); grid(); lectura(map.getCenter()); perfil();
+    cargarCartas(); ruta(); grid(); lectura(map.getCenter()); perfil(); curvas();
     const este = map; setTimeout(()=>{ if(map===este) map.invalidateSize({animate:false}); }, 50);
     return map;
+  }
+  // curvas de nivel calculadas del modelo de terreno (claras sobre el satélite, café sobre los mapas)
+  let capaCurvas = null;
+  function curvas(){
+    if(!map) return; if(capaCurvas){ map.removeLayer(capaCurvas); capaCurvas = null; }
+    if(pref.curvas) capaCurvas = Curvas.capa({claro:pref.base==='sat', pane:'curvas'}).addTo(map);
   }
   function ponerBase(k){ if(capaBase) map.removeLayer(capaBase); const b = BASES[k] || BASES.topo; capaBase = L.tileLayer(b.url, Object.assign({crossOrigin:'anonymous'}, b.o)).addTo(map); }
   function encuadrar(){ const ok = A.calcular(A.actual()).puntos.filter(p=>p.ok); if(!ok.length) return A.aviso('Aún no hay puntos');
@@ -342,7 +352,7 @@ const Mapa = (function(){
     });
   }
 
-  function cerrar(){ if(!map) return; const m = map; map = null; capaCursor = null; try { m.stop(); m.off(); m.remove(); } catch(e){} }
+  function cerrar(){ if(!map) return; const m = map; map = null; capaCursor = null; capaCurvas = null; try { m.stop(); m.off(); m.remove(); } catch(e){} }
   return {abrir, ruta, cerrar, BASES};
 })();
 if(typeof globalThis!=='undefined') globalThis.Mapa = Mapa;

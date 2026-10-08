@@ -292,6 +292,8 @@ ${E.track.map(t=>`<trkpt lat="${t[0]}" lon="${t[1]}"><time>${new Date(t[2]).toIS
     mapa = L.map(el, {zoomControl:false, attributionControl:false}).setView([P.pts[0].lat, P.pts[0].lon], 15);
     let base = 'topo'; try { base = JSON.parse(localStorage.getItem('burros_mapa') || '{}').base || 'topo'; } catch(e){}
     const b = Mapa.BASES[base] || Mapa.BASES.topo; L.tileLayer(b.url, Object.assign({crossOrigin:'anonymous'}, b.o)).addTo(mapa);
+    let conCurvas = true; try { conCurvas = JSON.parse(localStorage.getItem('burros_mapa') || '{}').curvas!==false; } catch(e){}
+    if(conCurvas && typeof Curvas!=='undefined'){ mapa.createPane('curvas').style.zIndex = 300; mapa.getPane('curvas').style.pointerEvents = 'none'; Curvas.capa({claro:base==='sat', pane:'curvas'}).addTo(mapa); }
     L.polyline(P.pts.map(p=>[p.lat, p.lon]), {color:'#14150f', weight:8, opacity:.5}).addTo(mapa);
     L.polyline(P.pts.map(p=>[p.lat, p.lon]), {color:'#e3a63a', weight:4, opacity:.95, dashArray:'8 6'}).addTo(mapa);
     P.pts.forEach((p, k)=>{ if(!p.ev){ L.circleMarker([p.lat, p.lon], {radius:3, color:'#14150f', weight:1, fillColor:'#fff', fillOpacity:1}).addTo(mapa); return; }
