@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y ficha de navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.10', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.11', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -426,7 +426,7 @@
     const pteC = p=>Math.abs(p)>=0.3 ? 'fuerte' : '';
     const nom = n=>n ? esc(n) : '·';
     // detalle de los quiebres (puntos de ruta) dentro de un tramo entre eventos
-    const subs = t=>!t.quiebres ? '' : t.subs.map(u=>`<tr class="sub"><td class="tx">↳ ${nom(u.de)} → ${nom(u.a)}</td><td>${f(u.dist)}</td><td></td><td>${f(u.cotaIni)}</td><td>${f(u.cotaFin)}</td>
+    const subs = (t, g)=>!t.quiebres ? '' : t.subs.map(u=>`<tr class="sub" data-g="${g}"><td class="tx">↳ ${nom(u.de)} → ${nom(u.a)}</td><td>${f(u.dist)}</td><td></td><td>${f(u.cotaIni)}</td><td>${f(u.cotaFin)}</td>
       <td class="${u.dv>0 ? 'sube' : u.dv<0 ? 'baja' : ''}">${u.dv>0 ? '+' : ''}${f(u.dv)}</td><td class="${pteC(u.pte)}">${f(u.pte*100, 1)} %</td><td>${f(u.azM, 1)}</td><td>${u.mils}</td>
       <td>${como[u.como]||''} ${M.verDur(u.t)}</td><td></td><td></td><td></td><td></td></tr>`).join('');
     vista.innerHTML = `${encabezado(m, R)}
@@ -438,10 +438,10 @@
       <div class="tabla-env solo-ancho"><table class="t">
         <thead><tr><th class="tx">Tramo</th><th>Distancia<br>(m)</th><th>Dist. acum.<br>(km)</th><th>Cota<br>inicial</th><th>Cota<br>final</th><th>Desnivel<br>(m)</th><th>Pendiente</th>
           <th>Rumbo<br>mag. (°)</th><th>Rumbo<br>(‰)</th><th>Tiempo<br>tramo</th><th>Tiempo<br>acum.</th><th>Hora<br>llegada</th><th class="tx">Observaciones</th><th class="tx">Evento<br>(radio)</th></tr></thead>
-        <tbody>${R.tramosEv.map(t=>`<tr class="${t.quiebres ? 'conq' : ''}"><td class="tx"><b>${esc(t.de)}</b> → <b>${esc(t.a)}</b>${t.quiebres ? `<span class="s">${t.quiebres} quiebre${t.quiebres===1 ? '' : 's'} · +${f(t.sube)} / −${f(t.baja)} m</span>` : ''}</td><td>${f(t.dist)}</td><td>${f(t.distAcum/1000, 2)}</td><td>${f(t.cotaIni)}</td><td>${f(t.cotaFin)}</td>
+        <tbody>${R.tramosEv.map((t, g)=>`<tr class="${t.quiebres ? 'conq' : ''}" ${t.quiebres ? `data-abre="${g}" title="Tocar para ver los quiebres"` : ''}><td class="tx">${t.quiebres ? '<span class="plie">▸</span>' : ''}<b>${esc(t.de)}</b> → <b>${esc(t.a)}</b>${t.quiebres ? `<span class="s">${t.quiebres} quiebre${t.quiebres===1 ? '' : 's'} · +${f(t.sube)} / −${f(t.baja)} m</span>` : ''}</td><td>${f(t.dist)}</td><td>${f(t.distAcum/1000, 2)}</td><td>${f(t.cotaIni)}</td><td>${f(t.cotaFin)}</td>
           <td class="${t.dv>0 ? 'sube' : t.dv<0 ? 'baja' : ''}">${t.dv>0 ? '+' : ''}${f(t.dv)}</td><td class="${pteC(t.quiebres ? t.pteMax : t.pte)}">${t.quiebres ? 'máx ' + f(t.pteMax*100, 1) : f(t.pte*100, 1)} %</td>
           ${t.quiebres ? `<td><span class="s">ver quiebres</span></td><td></td>` : `<td><b>${f(t.azM, 1)}</b><span class="s">cuad. ${f(t.azC, 1)} · geo. ${f(t.azG, 1)}</span></td><td>${t.mils}</td>`}
-          <td>${como[t.como]||''} ${M.verDur(t.t)}</td><td>${M.verDur(t.tAcum)}</td><td><b>${M.verHora(t.llegada)}</b>${t.det ? `<span class="s">sale ${M.verHora(t.salida)}</span>` : ''}</td><td class="obs tx">${esc(t.obs)}${t.det ? (t.obs ? ' · ' : '') + 'detención ' + Math.round(t.det*60) + ' min' : ''}</td><td class="tx">${evento(t.claveB)}</td></tr>` + subs(t)).join('')}
+          <td>${como[t.como]||''} ${M.verDur(t.t)}</td><td>${M.verDur(t.tAcum)}</td><td><b>${M.verHora(t.llegada)}</b>${t.det ? `<span class="s">sale ${M.verHora(t.salida)}</span>` : ''}</td><td class="obs tx">${esc(t.obs)}${t.det ? (t.obs ? ' · ' : '') + 'detención ' + Math.round(t.det*60) + ' min' : ''}</td><td class="tx">${evento(t.claveB)}</td></tr>` + subs(t, g)).join('')}
           <tr class="tot"><td class="tx">Total</td><td>${f(R.res.dist)}</td><td>${f(R.res.dist/1000, 2)}</td><td></td><td></td><td>+${f(R.res.sube)} / −${f(R.res.baja)}</td><td></td><td></td><td></td><td>${M.verDur(R.res.marcha)}</td><td></td><td>${M.verHora(R.res.termino)}</td><td class="tx obs">con altos, detenciones e imprevistos</td><td></td></tr>
         </tbody></table></div>
       <div class="tramos-cel">${R.tramosEv.map(t=>`<div class="tc"><div class="cab"><b>${esc(t.de)} → ${esc(t.a)}</b><span class="hora">${M.verHora(t.llegada)}</span></div>
@@ -450,15 +450,19 @@
         ${t.obs || t.det ? `<div class="nota" style="margin-top:6px">${esc(t.obs)}${t.det ? (t.obs ? ' · ' : '') + 'detención ' + Math.round(t.det*60) + ' min, sale ' + M.verHora(t.salida) : ''}</div>` : ''}</div>`).join('')}</div>
 
       ${apoyo(R)}
-      <h2 class="salto">Ficha de navegación</h2>
+      <p class="nota no-imp">Toca un tramo con quiebres (▸) para ver su detalle. La <b>ficha de navegación</b> (rumbo y distancia punto por punto, para plastificar) sale al imprimir.</p>
+      <div class="solo-imp"><h2 class="salto">Ficha de navegación</h2>
       <div class="tabla-env"><table class="t">
         <thead><tr><th class="tx">Punto</th><th>Hora<br>llegada</th><th>Hora<br>salida</th><th>Altitud<br>(m)</th><th>Rumbo al siguiente<br>(° / ‰)</th><th>Distancia<br>(m)</th><th class="tx">Observaciones</th><th class="tx">Evento<br>(radio)</th></tr></thead>
         <tbody>${R.puntos.filter(p=>p.ok).map(p=>{ const ll = T.find(t=>t.iB===p.i), sig = T.find(t=>t.iA===p.i), sal = ll ? ll.salida : R.res.partida + p.det;
           return `<tr class="${p.ev ? '' : 'sub'}"><td class="tx">${p.ev ? '<b>' + esc(p.nombre) + '</b>' : '↳ quiebre'}</td><td>${ll ? M.verHora(ll.llegada) : '—'}</td><td>${sig ? M.verHora(sal) : '—'}</td><td>${f(p.cota)}</td>
             <td>${sig ? '<b>' + f(sig.azM, 0) + '°</b> / ' + sig.mils : '—'}</td><td>${sig ? f(sig.dist) : '—'}</td><td class="obs tx">${esc(p.obs)}</td><td class="tx">${ll && p.ev ? evento(p.clave) : ''}</td></tr>`; }).join('')}</tbody></table></div>
+      </div>
       <p class="nota">Rumbos magnéticos con declinación ${f(R.decl.valor, 2)}° (${esc(R.decl.fuente)}) a la fecha de la marcha. Horas con ${Math.round(R.par.altos*100)} % de altos; los imprevistos (${M.verDur(R.res.imprev)}) quedan como reserva al final.</p>
-      <div class="btns no-imp"><button class="btn pri" id="bImp">🖨 Imprimir / PDF</button><button class="btn" id="bPerf">Ver perfil ›</button><button class="btn" id="bEnv">Enviar ›</button></div>`;
+      <div class="btns no-imp"><button class="btn pri" id="bImp">🖨 Imprimir cuadro y ficha de navegación</button><button class="btn" id="bPerf">Ver perfil ›</button><button class="btn" id="bEnv">Enviar ›</button></div>`;
     $('#bImp').onclick = ()=>window.print(); $('#bPerf').onclick = ()=>ir('perfil'); $('#bEnv').onclick = ()=>ir('enviar');
+    vista.querySelectorAll('[data-abre]').forEach(tr=>tr.onclick = ()=>{ const g = tr.dataset.abre, ab = tr.classList.toggle('abierto');
+      vista.querySelectorAll('tr.sub[data-g="' + g + '"]').forEach(x=>x.classList.toggle('ver', ab)); });
   }
 
   /* =====================================================================  PERFIL (ficha de itinerario)  */
