@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.13', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.14', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -63,13 +63,13 @@
   function pintar(){
     const m = actual(); if(!m && S.v!=='marchas') S.v = 'marchas';
     if(S.v==='ficha') S.v = 'cuadro';   // la ficha de navegación ahora está dentro del cuadro
-    if(!({marchas:1, mapa:1, ruta:1, cuadro:1, perfil:1, lista:1, seguir:1, enviar:1})[S.v]) S.v = 'marchas';
+    if(!({marchas:1, mapa:1, ruta:1, cuadro:1, perfil:1, lista:1, luz:1, seguir:1, enviar:1})[S.v]) S.v = 'marchas';
     if(S.v!=='mapa') Mapa.cerrar();
     if(S.v!=='seguir') Seguir.cerrar();
     document.body.classList.toggle('con-mapa', S.v==='mapa');
     document.querySelectorAll('#pestanas button').forEach(b=>{ b.classList.toggle('on', b.dataset.v===(PESTANA[S.v] || S.v)); b.disabled = !m && b.dataset.v!=='marchas'; b.style.opacity = b.disabled ? .35 : 1; });
     $('#subtitulo').textContent = m ? m.nombre + (m.unidad ? ' · ' + m.unidad : '') : 'Planificación de marchas';
-    ({marchas:vMarchas, mapa:vMapa, ruta:vRuta, cuadro:vCuadro, perfil:vPerfil, lista:vLista, seguir:vSeguir, enviar:vEnviar})[S.v]();
+    ({marchas:vMarchas, mapa:vMapa, ruta:vRuta, cuadro:vCuadro, perfil:vPerfil, luz:vLuz, lista:vLista, seguir:vSeguir, enviar:vEnviar})[S.v]();
     if(PESTANA[S.v] || S.v==='cuadro') vista.insertAdjacentHTML('afterbegin', subCuadro());
   }
 
@@ -96,7 +96,8 @@
         imprevistos y hora de llegada a cada punto), dibuja el <b>perfil del itinerario</b>, lo deja listo para imprimir y
         <b>envía el plan</b> al C2 (código de texto, QR, GPX, KML, GeoJSON o Excel).<br><br>
         Tiempos para <b>montaña</b> (tabla de velocidades por tropa, terreno y carga), el método MIDE / DIN 33466 o la
-        <b>marcha general</b> (velocidades, columna y tiempo de paso de ATP 3-21.18 Foot Marches, 2025). Agua y calor según TB MED 507 (2022). Lista de verificación antes, durante y después.
+        <b>marcha general</b> (a pie o montada, según la vía), con velocidades de día o de noche según la hora de cada tramo. Pestaña <b>Luz</b>: sol, crepúsculos y luna del día de la marcha.
+        Columna y tiempo de paso, agua y calor, lista de verificación antes, durante y después.
         Declinación magnética automática con el modelo WMM2025 (NOAA).<br><br>App no oficial: verifica siempre los resultados con la carta.
         <div class="mono" style="margin-top:8px;color:var(--tenue)">Versión ${VERSION}</div></div>`;
     vista.querySelectorAll('[data-abrir]').forEach(d=>d.onclick = e=>{
@@ -166,6 +167,7 @@
   /* =====================================================================  RUTA  */
   const apiMapa = {actual, guardar, punto, aviso, dialogo, cerrarDialogo, confirmar, copiar, descargar, esc, f, calcular:m=>M.calcular(m), vistaMapa:null,
     svgPerfil:(R, T, c)=>svgPerfil(R, T, c), terrenoDe:R=>terrenoDe(R), ir:v=>ir(v)};
+  function vLuz(){ PantallaLuz.pintar(vista, Object.assign({}, apiMapa, {M, evento})); }
   function vMapa(){ vista.innerHTML = '<div id="mapaCont"></div>'; Mapa.abrir($('#mapaCont'), apiMapa); }
   function vSeguir(){ vista.innerHTML = '<div id="seguirCont"></div>'; Seguir.abrir($('#seguirCont'), apiMapa); }
   function vRuta(){
@@ -183,7 +185,7 @@
           <label class="c">Hora de partida (PIM)<input type="time" data-m="hora" value="${esc(m.hora)}"></label>
           <label class="c ancho">Datum de las coordenadas<select data-m="datum">${opc(Object.fromEntries(Object.entries(M.DATUMS).map(([k, v])=>[k, v.n])), m.datum)}</select></label>
           <label class="c">Zona UTM de trabajo<input class="num" data-m="zona" inputmode="numeric" value="${esc(m.zona)}" placeholder="auto (${R.zona})"></label>
-          <label class="c ancho"><span><input type="checkbox" data-par="noche" data-redibujar ${p.noche ? 'checked' : ''} style="width:auto;vertical-align:middle"> Marcha nocturna (menor velocidad y distancias más cortas)</span></label>
+          <label class="c ancho">Día y noche para las velocidades<select data-par="luz" data-redibujar>${opc({auto:'Automático según la hora de cada tramo (recomendado)', dia:'Toda la marcha de día', noche:'Toda la marcha de noche'}, p.luz==='auto' && p.noche===true ? 'noche' : p.luz)}</select></label>
         </div>
         <p class="nota">GPS y cartas IGM nuevas: WGS84. Cartas IGM antiguas: PSAD56 o SAD69 (lo dice el margen de la carta).</p>
       </details>
@@ -200,17 +202,23 @@
           <label class="c">Bajada (m/h)<input class="num" data-par="velBaj" inputmode="numeric" value="${esc(p.velBaj||'')}" placeholder="${f(vt.baj)}"></label>
           <label class="c">Llano (km/h)<input class="num" data-par="velLlano" inputmode="decimal" value="${esc(p.velLlano)}"></label>
           ${p.metodo==='montana' ? `<label class="c">Pendiente crítica (%)<input class="num" data-par="pteCr" data-pct inputmode="decimal" value="${pct(p.pteCr)}"></label>` : ''}`
-          : `<label class="c">Vía principal<select data-par="via" data-redibujar>${opc(M.VIAS, p.via)}</select></label>
-          <label class="c">Velocidad (km/h)<input class="num" data-par="velGeneral" inputmode="decimal" value="${esc(p.velGeneral||'')}" placeholder="${f(M.velGeneral(p.via, p.noche), 1)}"></label>`}
+          : `<label class="c">Tipo de unidad<select data-par="unidadTipo" data-redibujar>${opc(M.UNIDADES, p.unidadTipo)}</select></label>
+          <label class="c">Vía principal<select data-par="via" data-redibujar>${opc(M.VIAS, M.VIAS[p.via] ? p.via : 'camino1')}</select></label>
+          <label class="c">Velocidad de día (km/h)<input class="num" data-par="velGeneral" inputmode="decimal" value="${esc(p.velGeneral||'')}" placeholder="${f(M.velGeneral(p.via, false, p.unidadTipo), 1)}"></label>`}
+          ${p.metodo!=='general' ? `<label class="c">Reducción de noche (%)<input class="num" data-par="redNoche" inputmode="numeric" value="${esc(p.redNoche)}"></label>` : ''}
           <label class="c">Altos (% del tiempo de marcha)<input class="num" data-par="altos" data-pct inputmode="decimal" value="${pct(p.altos)}"></label>
           <label class="c">Imprevistos (%)<input class="num" data-par="imprev" data-pct inputmode="decimal" value="${pct(p.imprev)}"></label>
         </div>
         ${p.metodo!=='general' ? `<p class="nota">Tabla de velocidades de marcha vertical en montaña para ${esc(tropas[p.tropa].toLowerCase())}, ${esc(M.TERRENOS[p.terreno].n.toLowerCase())}, ${vt.carga} kg:
           subida <b>${esc(vt.rango)} m/h</b>, bajada <b>${f(vt.baj)} m/h</b>.${p.terreno==='esquies' && p.tropa==='normal' ? ' <b>Esquíes: la tabla solo trae valores para tropa andina.</b>' : ''}
           Deja vacía la casilla para usar la tabla, o escribe otra velocidad si conoces el rendimiento real de tu unidad.</p>` : ''}
-        ${p.metodo==='general' ? `<p class="nota">Velocidades de ATP 3-21.18 (2025): camino ${f(4, 1)} km/h de día y ${f(3.2, 1)} de noche; campo traviesa ${f(2.4, 1)} y ${f(1.6, 1)} km/h
-          (con carga de 18 kg o menos). <b>Ya incluyen el alto de 10 min por hora</b>, por eso los altos quedan en 0 %. En cada punto puedes cambiar la vía del tramo.
-          Con más carga, la ATP indica unos 2 km menos cada 6 h por cada 4,5 kg sobre 18 kg: escribe una velocidad menor si corresponde.</p>` : ''}
+        ${p.metodo==='general' ? `<div class="tabla-env" style="margin:10px 0"><table class="t"><thead><tr><th class="tx">Velocidades ${esc(M.UNIDADES[p.unidadTipo].toLowerCase())} (km/h)</th>${Object.values(M.VIAS).map(v=>`<th>${esc(v)}</th>`).join('')}</tr></thead>
+          <tbody>${['dia', 'noche'].map(dn=>`<tr><td class="tx">${dn==='dia' ? 'Día' : 'Noche'}</td>${Object.keys(M.VIAS).map(v=>`<td>${f(M.VEL_GENERAL[p.unidadTipo][v][dn], 1)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+          <p class="nota">En cada punto puedes cambiar la vía del tramo. Jornada de marcha ${esc(M.UNIDADES[p.unidadTipo].toLowerCase())}: <b>${M.JORNADA[p.unidadTipo]} km</b>.
+          Si escribes una velocidad de día, la de noche baja en la misma proporción que la tabla. Si la velocidad de tu unidad ya incluye los altos, deja los altos en 0 %.</p>` : ''}
+        <p class="nota">${p.luz==='dia' ? 'Toda la marcha se calcula con velocidades de día.' : p.luz==='noche' ? 'Toda la marcha se calcula con velocidades de noche.'
+          : 'Día o noche se decide solo, tramo por tramo: si la mitad del tramo cae <b>después del crepúsculo náutico</b> (sol más de 12° bajo el horizonte), se usa la velocidad de noche. Detalle en la pestaña <b>Luz</b>.'}
+          ${p.metodo!=='general' ? ' De noche, en montaña y MIDE la velocidad baja en el porcentaje indicado.' : ''}</p>
         <p class="nota">${p.metodo==='montana' ? 'Tramos con pendiente sobre la crítica (5 %) se calculan por el desnivel (DM = 60 × DV / VM); el resto por la distancia (DM = 60 × DH / VM). ' : ''}
           Por defecto 10 % de altos y 10 % de imprevistos (sobre marcha + altos); súbelos según el entrenamiento, la carga y la dificultad.</p>
         <h2>Declinación magnética</h2>
@@ -228,11 +236,11 @@
         <div class="campos">
           <label class="c">Efectivo (hombres)<input class="num" data-par="efectivo" inputmode="numeric" value="${esc(p.efectivo)}" placeholder="p. ej. 120"></label>
           <label class="c">Formación<select data-par="filas" data-numero>${opc({2:'Columna de a dos', 1:'Fila india'}, String(p.filas))}</select></label>
-          <label class="c">Distancia entre hombres (m)<input class="num" data-par="distHombres" inputmode="decimal" value="${esc(p.distHombres||'')}" placeholder="${p.noche ? 2 : 5}"></label>
+          <label class="c">Distancia entre hombres (m)<input class="num" data-par="distHombres" inputmode="decimal" value="${esc(p.distHombres||'')}" placeholder="${R.fracNoche>0.5 ? 2 : 5}"></label>
           <label class="c">Unidades de marcha<input class="num" data-par="unidades" inputmode="numeric" value="${esc(p.unidades)}" placeholder="1"></label>
-          <label class="c">Distancia entre unidades (m)<input class="num" data-par="distUnidades" inputmode="numeric" value="${esc(p.distUnidades||'')}" placeholder="${p.noche ? 25 : 50}"></label>
+          <label class="c">Distancia entre unidades (m)<input class="num" data-par="distUnidades" inputmode="numeric" value="${esc(p.distUnidades||'')}" placeholder="${R.fracNoche>0.5 ? 25 : 50}"></label>
         </div>
-        <p class="nota">ATP 3-21.18: entre hombres 2–5 m de día y 1–3 m de noche; entre pelotones 50 m (noche 25 m) y entre compañías 100 m (noche 50 m).
+        <p class="nota">Referencia: entre hombres 2–5 m de día y 1–3 m de noche; entre pelotones 50 m (noche 25 m) y entre compañías 100 m (noche 50 m).
           Con esto se calcula el largo de la columna y el <b>tiempo de paso</b> (lo que demora la columna completa en pasar por un punto), y la hora en que la cola llega al final.</p>
       </details>
 
@@ -344,7 +352,7 @@
       if(t.dataset.pct) v = v==='' ? 0 : Number(String(v).replace(',', '.'))/100;
       else if(t.dataset.numero) v = Number(v);
       else if(['velSub', 'velBaj', 'velLlano', 'velGeneral', 'decl', 'declVar'].includes(t.dataset.par)) v = v==='' ? null : String(v).replace(',', '.');
-      if(t.dataset.par==='metodo'){ if(v==='general' && m.par.metodo!=='general') m.par.altos = 0; else if(v!=='general' && m.par.metodo==='general' && !m.par.altos) m.par.altos = 0.10; }
+      if(t.dataset.par==='luz') delete m.par.noche;
       if(t.dataset.par==='verboSel'){ m.par.verbo = v==='otra' ? '' : v; guardar(); return; }
       if(t.dataset.par==='verbo') v = String(v).toUpperCase();
       m.par[t.dataset.par] = v; }
@@ -430,6 +438,10 @@
     const filas = R.puntos.filter(p=>p.ok).map(p=>{ const ll = T.find(t=>t.iB===p.i), sig = T.find(t=>t.iA===p.i);
       return {p, ll, sig, sal:ll ? ll.salida : R.res.partida + p.det, acum:ll ? ll.distAcum : 0, tac:ll ? ll.tAcum : 0}; });
     const nombre = p=>p.ev ? '<b>' + esc(p.nombre) + '</b>' : '↳ quiebre';
+    // condición de luz al llegar a cada punto: ☀ día · ◐ crepúsculo · ☾ noche con luna · ● noche sin luna
+    const p0 = R.puntos.find(q=>q.ok), icoLuz = h=>{ if(!R.conLuz || h===null || h===undefined) return '';
+      const c = LUZ.condicion(new Date(LUZ.inicioDia(m.fecha) + h*36e5), p0.lat, p0.lon);
+      return `<span class="luzico" title="${LUZ.TIPOS[c.tipo]}${c.oscuro ? (c.conLuna ? ', con luna' : ', sin luna') : ''}">${c.tipo==='dia' ? '☀' : c.oscuro ? (c.conLuna ? '☾' : '●') : '◐'}</span>`; };
     const obs = (p, ll)=>esc(p.obs) + (ll && ll.det ? (p.obs ? ' · ' : '') + 'detención ' + Math.round(ll.det*60) + ' min' : '');
     vista.innerHTML = `${encabezado(m, R)}
       <h2>Resumen</h2>${kpis(R)}
@@ -442,7 +454,7 @@
           <th class="sig">Rumbo al siguiente<br>(° / ‰)</th><th class="sig">Distancia<br>(m)</th><th class="sig">Desnivel<br>(m)</th><th class="sig">Pendiente</th><th class="sig">Tiempo</th>
           <th>Dist. acum.<br>(km)</th><th>Tiempo<br>acum.</th><th class="tx">Observaciones</th><th class="tx">Evento<br>(radio)</th></tr></thead>
         <tbody>${filas.map(({p, ll, sig, sal, acum, tac})=>`<tr class="${p.ev ? '' : 'sub'}"><td class="tx">${nombre(p)}</td>
-          <td>${ll ? '<b>' + M.verHora(ll.llegada) + '</b>' : '—'}</td><td>${sig ? M.verHora(sal) : '—'}</td><td>${f(p.cota)}</td>
+          <td>${ll ? '<b>' + M.verHora(ll.llegada) + '</b>' + icoLuz(ll.llegada) : '—'}</td><td>${sig ? M.verHora(sal) : '—'}</td><td>${f(p.cota)}</td>
           ${sig ? `<td class="sig"><b>${f(sig.azM, 0)}°</b> / ${sig.mils}<span class="s">cuad. ${f(sig.azC, 1)} · geo. ${f(sig.azG, 1)}</span></td><td class="sig">${f(sig.dist)}</td>
             <td class="sig ${sig.dv>0 ? 'sube' : sig.dv<0 ? 'baja' : ''}">${sig.dv>0 ? '+' : ''}${f(sig.dv)}</td><td class="sig ${pteC(sig.pte)}">${f(sig.pte*100, 1)} %</td><td class="sig">${como[sig.como]||''} ${M.verDur(sig.t)}</td>`
             : '<td class="sig">—</td><td class="sig"></td><td class="sig"></td><td class="sig"></td><td class="sig"></td>'}
@@ -458,7 +470,8 @@
 
       ${apoyo(R)}
       <p class="nota">Rumbos magnéticos con declinación ${f(R.decl.valor, 2)}° (${esc(R.decl.fuente)}) a la fecha de la marcha. Horas con ${Math.round(R.par.altos*100)} % de altos; los imprevistos (${M.verDur(R.res.imprev)}) quedan como reserva al final.
-        Los quiebres (puntos de ruta) van en gris; los datos «al siguiente» son del tramo que sale de ese punto.</p>
+        Los quiebres (puntos de ruta) van en gris; los datos «al siguiente» son del tramo que sale de ese punto.
+        ${R.conLuz ? 'Luz al llegar: ☀ día · ◐ crepúsculo · ☾ noche con luna · ● noche sin luna' + (R.tramos.some(t=>t.noche) ? '; los tramos de noche (☾/●) se calcularon con velocidad de noche' : '') + '. Detalle en la pestaña <b>Luz</b>.' : ''}</p>
       <div class="btns no-imp"><button class="btn pri" id="bImp">🖨 Imprimir / PDF</button><button class="btn" id="bPerf">Ver perfil ›</button><button class="btn" id="bEnv">Enviar ›</button></div>`;
     $('#bImp').onclick = ()=>window.print(); $('#bPerf').onclick = ()=>ir('perfil'); $('#bEnv').onclick = ()=>ir('enviar');
   }
@@ -553,7 +566,7 @@
     vista.innerHTML = `<h2>Lista de verificación</h2><p class="nota" id="lCuenta"></p>` + LISTA.map(g=>`<h2>${esc(g.fase)}</h2><div class="tarjeta lista">` +
       g.items.map(([id, t, fuente])=>`<label class="item"><input type="checkbox" data-l="${id}" ${L[id] ? 'checked' : ''}><span>${esc(t)}${fuente ? ` <small>${esc(fuente)}</small>` : ''}</span></label>`).join('') + '</div>').join('') +
       `<div class="btns no-imp"><button class="btn" id="bLimpia">Desmarcar todo</button><button class="btn" id="bImp">🖨 Imprimir</button></div>`;
-    const cuenta = ()=>$('#lCuenta').innerHTML = `<b>${hechos()} de ${tot}</b> listos. Referencias: ATP 3-21.18 Foot Marches (2025) y TB MED 507 (2022).`;
+    const cuenta = ()=>$('#lCuenta').innerHTML = `<b>${hechos()} de ${tot}</b> listos.`;
     cuenta();
     vista.querySelectorAll('[data-l]').forEach(c=>c.onchange = ()=>{ L[c.dataset.l] = c.checked; guardar(); cuenta(); });
     $('#bLimpia').onclick = ()=>{ m.lista = {}; guardar(); pintar(); };

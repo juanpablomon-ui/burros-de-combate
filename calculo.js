@@ -158,22 +158,27 @@ const MARCHA = (function(){
     });
   }
 
-  /* ---------- marcha general (ATP 3-21.18 Foot Marches, 2025, párr. 1-92, 1-101 y 3-28; EB-MC-002 n.º 8b) ----------
-     Velocidades promedio en km/h que YA INCLUYEN el alto de 10 min por hora (paso 76 cm a 106 pasos/min = 4,8 km/h de marcha). */
-  const VIAS = {camino:'Camino', campo:'Campo traviesa'};
-  const VEL_GENERAL = {camino:{dia:4, noche:3.2}, campo:{dia:2.4, noche:1.6}};
-  const velGeneral = (via, noche)=>(VEL_GENERAL[via] || VEL_GENERAL.camino)[noche ? 'noche' : 'dia'];
+  /* ---------- marcha general: velocidades promedio en km/h según tipo de unidad, vía y día/noche ---------- */
+  const VIAS = {camino1:'Camino de 1.ª clase', camino23:'Camino de 2.ª y 3.ª clase', sendero:'Sendero', campo:'Campo traviesa'};
+  const UNIDADES = {pie:'A pie', montada:'Montada'};
+  const VEL_GENERAL = {
+    pie:     {camino1:{dia:5, noche:4}, camino23:{dia:5, noche:4}, sendero:{dia:4, noche:3}, campo:{dia:2.5, noche:1.5}},
+    montada: {camino1:{dia:8, noche:6}, camino23:{dia:8, noche:6}, sendero:{dia:5, noche:2}, campo:{dia:5, noche:3}}};
+  const JORNADA = {pie:40, montada:64};   // km por jornada de marcha
+  const viaOk = v=>VIAS[v] ? v : v==='campo' ? 'campo' : 'camino1';   // 'camino' de versiones anteriores = camino de 1.ª clase
+  const velGeneral = (via, noche, unidad)=>((VEL_GENERAL[unidad] || VEL_GENERAL.pie)[viaOk(via)])[noche ? 'noche' : 'dia'];
 
   /* ---------- columna (ATP 3-21.18 párr. 1-99, 1-104, 1-107, tabla 1-1; FM 21-18) ----------
      Cada soldado ocupa la distancia entre hombres + 0,4 m; en columna de a dos el largo se divide por 2
      (fila india 2 m = 2,4 m/hombre; de a dos 2 m = 1,2; de a dos 5 m = 2,7, como la tabla 1-1).
      Distancias por defecto: entre hombres 2–5 m de día / 1–3 m de noche; entre pelotones 50 m / 25 m; entre compañías 100 m / 50 m. */
-  function columna(par, vKmh){
+  function columna(par, vKmh, noche){
+    noche = noche===undefined ? par.luz==='noche' : noche;
     const n = Math.max(0, Math.round(num(par.efectivo)||0)); if(!n) return null;
-    const filas = num(par.filas)===1 ? 1 : 2, dh = num(par.distHombres) || (par.noche ? 2 : 5), u = Math.max(1, Math.round(num(par.unidades)||1));
-    const du = num(par.distUnidades) || (par.noche ? 25 : 50), factor = (dh + 0.4)/filas;
+    const filas = num(par.filas)===1 ? 1 : 2, dh = num(par.distHombres) || (noche ? 2 : 5), u = Math.max(1, Math.round(num(par.unidades)||1));
+    const du = num(par.distUnidades) || (noche ? 25 : 50), factor = (dh + 0.4)/filas;
     const largo = n*factor + (u - 1)*du, paso = largo/(vKmh*1000/60)/60;   // tiempo de paso en horas
-    return {n, filas, dh, u, du, factor, largo, paso, vKmh};
+    return {n, filas, dh, u, du, factor, largo, paso, vKmh, noche};
   }
 
   /* ---------- calor y agua (TB MED 507, 2022, tabla 3-2) ----------
@@ -199,7 +204,7 @@ const MARCHA = (function(){
   const METODOS = {
     montana: 'Montaña (pendiente sobre 5 % por desnivel, si no por distancia)',
     mide: 'MIDE / DIN 33466 (mayor de horizontal y vertical + mitad del menor)',
-    general: 'Marcha general (velocidad según terreno, día o noche)'
+    general: 'Marcha general (velocidad según unidad, vía y día o noche)'
   };
   function porDefecto(){
     return {metodo:'montana', tropa:'normal', terreno:'sinNieve', carga:20, criterio:'min',
@@ -209,7 +214,8 @@ const MARCHA = (function(){
       verbo:'PASANDO',                   // palabra para informar el paso por un punto («PASANDO ALFA»)
       motivosAlto:'Alto horario\nComida\nLesionado\nReorganización\nOrientación\nAbastecimiento de agua\nContacto',
       novedades:'Lesionado\nRezagado\nRuta cortada\nCambio de itinerario\nContacto con el enemigo\nSin enlace\nMaterial perdido',
-      velGeneral:null, via:'camino', noche:false,   // marcha general: velocidad de la tabla ATP según vía y día/noche
+      velGeneral:null, via:'camino1', unidadTipo:'pie',   // marcha general: velocidad de la tabla según unidad, vía y día/noche
+      luz:'auto', redNoche:25,   // luz: 'auto' (según la hora de cada tramo) | 'dia' | 'noche'; reducción nocturna (%) para montaña y MIDE
       efectivo:'', filas:2, distHombres:null, unidades:1, distUnidades:null,   // columna
       wbgt:'', trabajo:'moderado',   // calor y agua
       declAuto:true, decl:0, declFecha:'', declVar:0};
@@ -226,11 +232,19 @@ const MARCHA = (function(){
   }
 
   /* ---------- tiempo de un tramo (horas) ---------- */
-  function tiempoTramo(dh, dv, par, vel){
+  function tiempoTramo(dh, dv, par, vel, noche){
+    const r = tiempoTramo0(dh, dv, par, vel, noche);
+    if(noche && par.metodo!=='general'){ const red = Math.min(80, Math.max(0, num(par.redNoche)||0))/100; r.t = r.t/(1 - red); }
+    return Object.assign(r, {noche:!!noche});
+  }
+  function tiempoTramo0(dh, dv, par, vel, noche){
     const th = dh/1000/(num(par.velLlano)||4), sub = Math.max(dv, 0), baj = Math.max(-dv, 0);
     const tv = sub/vel.sub + baj/vel.baj;
     if(par.metodo==='mide') return {t:Math.max(th, tv) + Math.min(th, tv)/2, como:'MIDE'};
-    if(par.metodo==='general'){ const v = num(par.velGeneral) || velGeneral(vel.via || par.via, par.noche); return {t:dh/1000/v, como:'general', v}; }
+    if(par.metodo==='general'){ const via = vel.via || par.via, u = par.unidadTipo, base = velGeneral(via, noche, u);
+      // velocidad escrita a mano = la de día; de noche se reduce en la misma proporción que la tabla
+      const v = num(par.velGeneral) ? num(par.velGeneral)*(noche ? velGeneral(via, true, u)/velGeneral(via, false, u) : 1) : base;
+      return {t:dh/1000/v, como:'general', v}; }
     const pte = dh>0 ? dv/dh : (dv ? Infinity*Math.sign(dv) : 0), cr = num(par.pteCr) || 0.05;
     if(pte>cr) return {t:dv/vel.sub, como:'subida'};
     if(pte< -cr) return {t:-dv/vel.baj, como:'bajada'};
@@ -258,20 +272,31 @@ const MARCHA = (function(){
     const zona = num(m.zona) || (val[0] ? Math.floor((val[0].lon + 180)/6) + 1 : 19);
     val.forEach(p=>Object.assign(p, {utm:llAUtm(p.lat, p.lon, zona)}));
     const ref = val[0], dec = declinacion(par, ref && ref.lat, ref && ref.lon, m.fecha, ref && ref.cota);
+    const h0 = horaAHoras(m.hora);
+    if(par.noche===true && par.luz==='auto') par.luz = 'noche';   // casilla «Marcha nocturna» de versiones anteriores
+    // ¿está oscuro a esa hora? (después del crepúsculo náutico, según el sol en el PIM y la fecha de la marcha)
+    const conLuz = typeof LUZ!=='undefined' && ref && m.fecha && h0!==null;
+    const luzEn = h=>{ if(!conLuz || h===null) return null; return LUZ.condicion(new Date(LUZ.inicioDia(m.fecha) + h*36e5), ref.lat, ref.lon); };
+    const esNoche = h=>par.luz==='noche' ? true : par.luz==='dia' ? false : !!((luzEn(h) || {}).oscuro);
+    const fAl = 1 + (num(par.altos)||0);
+    let detL = pts[0] ? pts[0].det : 0, tNoche = 0;
     const tramos = []; let acum = 0, dist = 0, sube = 0, baja = 0;
     for(let i=0; i<pts.length - 1; i++){
       const A = pts[i], B = pts[i + 1]; if(!A.ok || !B.ok) continue;
       const dE = B.utm.e - A.utm.e, dN = B.utm.n - A.utm.n, dg = Math.hypot(dE, dN), dh = dg/((A.utm.k + B.utm.k)/2), dv = B.cota - A.cota;
       const azC = dg ? (Math.atan2(dE, dN)/rad + 360)%360 : 0, azG = (azC + A.utm.conv + 360)%360, azM = (azG - dec.valor + 360)%360;
-      const via = m.puntos[B.i].via || par.via, tt = tiempoTramo(dh, dv, par, Object.assign({}, vel, {via}));
-      acum += tt.t; dist += dh; if(dv>0) sube += dv; else baja -= dv;
+      const via = m.puntos[B.i].via || par.via, vv = Object.assign({}, vel, {via}), hIni = h0===null ? null : h0 + acum*fAl + detL;
+      // primero con velocidad de día; si la mitad del tramo cae de noche, se recalcula con la de noche
+      let tt = tiempoTramo(dh, dv, par, vv, false), mitad = hIni===null ? null : hIni + tt.t*fAl/2;
+      if(esNoche(mitad)){ tt = tiempoTramo(dh, dv, par, vv, true); mitad = hIni===null ? null : hIni + tt.t*fAl/2; tNoche += tt.t; }
+      const luz = luzEn(mitad);
+      acum += tt.t; dist += dh; if(dv>0) sube += dv; else baja -= dv; detL += B.det;
       tramos.push({de:A.nombre, a:B.nombre, evA:A.ev, evB:B.ev, claveA:A.clave, claveB:B.clave, iA:A.i, iB:B.i, dist:dh, distAcum:dist, cotaIni:A.cota, cotaFin:B.cota, dv,
-        pte:dh ? dv/dh : 0, via, azC, azG, azM, mils:Math.round(azM*6400/360)%6400, t:tt.t, como:tt.como, tAcum:acum, obs:B.obs});
+        pte:dh ? dv/dh : 0, via, azC, azG, azM, mils:Math.round(azM*6400/360)%6400, t:tt.t, como:tt.como, noche:tt.noche, luz, tAcum:acum, obs:B.obs});
     }
     // detenciones planificadas en los puntos intermedios (comida, descanso, reorganización); no cuenta el último punto
     const det = pts.slice(0, -1).reduce((a, p)=>a + p.det, 0);
     const altos = acum*(num(par.altos)||0), imprev = (acum + altos + det)*(num(par.imprev)||0), total = acum + altos + det + imprev;
-    const h0 = horaAHoras(m.hora);
     // hora estimada de llegada y salida en cada punto: partida + marcha acumulada con sus altos + detenciones anteriores
     // (los imprevistos quedan como reserva al final)
     let detAc = pts[0] ? pts[0].det : 0;
@@ -290,14 +315,15 @@ const MARCHA = (function(){
     const eventos = pts.filter(p=>p.ok && p.ev).map(p=>p.i);
     const alto = val.reduce((x, p)=>!x || p.cota>x.cota ? p : x, null);
     // columna: velocidad media de la marcha (distancia / tiempo de marcha) para el tiempo de paso
-    const vMedia = acum ? dist/1000/(acum*(1 + (num(par.altos)||0))) : velGeneral(par.via, par.noche), col = columna(par, vMedia || 4);
+    const fracNoche = acum ? tNoche/acum : (par.luz==='noche' ? 1 : 0);
+    const vMedia = acum ? dist/1000/(acum*(1 + (num(par.altos)||0))) : velGeneral(par.via, false, par.unidadTipo), col = columna(par, vMedia || 4, fracNoche>0.5);
     const ter = h0===null ? null : h0 + total;
     // avisos doctrinarios
     const avisos = [];
-    if(par.metodo==='general' && tramos.some(t=>Math.abs(t.pte)>=0.07)) avisos.push('Hay tramos con pendiente de 7 % o más: según ATP 3-21.18 (párr. 1-28) afectan la velocidad. Considera el método de montaña o MIDE.');
-    if(dist>56000) avisos.push('Más de 56 km: sobre el máximo recomendado para una marcha forzada de 24 h (ATP 3-21.18 párr. 2-30). Divide en jornadas.');
-    else if(dist>32000) avisos.push('Más de 32 km: es una marcha forzada (la jornada normal es 8 h a 4 km/h = 32 km, ATP 3-21.18 párr. 2-30). Planifica unas 24 h de recuperación.');
-    return {par, vel, zona, decl:dec, puntos:pts, tramos, tramosEv, eventos, columna:col, calor:calor(par, total), avisos,
+    if(par.metodo==='general' && tramos.some(t=>Math.abs(t.pte)>=0.07)) avisos.push('Hay tramos con pendiente de 7 % o más: afectan la velocidad. Considera el método de montaña o MIDE.');
+    const jor = JORNADA[par.unidadTipo] || JORNADA.pie;
+    if(dist>jor*1000) avisos.push('Más de ' + jor + ' km: sobre la jornada de marcha ' + (par.unidadTipo==='montada' ? 'montada' : 'a pie') + ' (' + jor + ' km). Divide en jornadas o planifica descanso y recuperación.');
+    return {par, vel, zona, decl:dec, puntos:pts, tramos, tramosEv, eventos, columna:col, fracNoche, conLuz, calor:calor(par, total), avisos,
       res:{dist, sube, baja, marcha:acum, altos, det, imprev, total, partida:h0, termino:ter, terminoCola:ter===null || !col ? null : ter + col.paso, alto,
         conv:ref ? ref.utm.conv : null, lejos:val.some(p=>Math.abs(p.lon - (zona*6 - 183))>4)}};
   }
@@ -326,7 +352,7 @@ const MARCHA = (function(){
   const MGRS_LAT = 'CDEFGHJKLMNPQRSTUVWX';
   const banda = lat=>MGRS_LAT[Math.max(0, Math.min(19, Math.floor((lat + 80)/8)))];
 
-  return {CLAVES, listaPropia, rumboEntre, sobreTramo, deWgs84, camposDesde, VIAS, VEL_GENERAL, velGeneral, columna, CALOR, TRABAJOS, calor, DATUMS, TERRENOS, TABLA_VERTICAL, METODOS, llAUtm, utmALl, aWgs84, puntoWgs, velVertical, porDefecto, declinacion,
+  return {CLAVES, listaPropia, rumboEntre, sobreTramo, deWgs84, camposDesde, VIAS, UNIDADES, VEL_GENERAL, JORNADA, velGeneral, columna, CALOR, TRABAJOS, calor, DATUMS, TERRENOS, TABLA_VERTICAL, METODOS, llAUtm, utmALl, aWgs84, puntoWgs, velVertical, porDefecto, declinacion,
     leerAng, tiempoTramo, calcular, horaAHoras, verDur, verHora, verGms, banda};
 })();
 if(typeof globalThis!=='undefined') globalThis.MARCHA = MARCHA;

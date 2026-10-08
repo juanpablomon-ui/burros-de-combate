@@ -324,3 +324,17 @@ table.cmn td.sig{background:#ffffff05}
 table.cmn tr.sub td.sig{background:#ffffff03}
 .tc.quiebre{padding:6px 12px;font-size:12px;color:var(--tenue);font-family:var(--mono);border-style:dashed;background:transparent}
 .tc.quiebre b{color:var(--suave)}
+
+/* pestaña Luz */
+.luz-cab{display:flex;flex-wrap:wrap;gap:16px 28px;align-items:center;justify-content:space-between}
+.luz-cab .k{font-size:11px;color:var(--suave);text-transform:uppercase;letter-spacing:.05em}
+.luz-cab .v{font-size:20px;font-weight:700}
+.luz-graf svg{min-width:640px}
+.luz-ley{display:flex;flex-wrap:wrap;gap:6px 14px;margin:6px 0 12px}
+.luz-ley i,.pz{display:inline-block;width:12px;height:12px;border-radius:2px;vertical-align:-1px;margin-right:5px;border:1px solid #444}
+.luz-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.tarjeta h3{margin:0 0 8px;font-size:15px;display:flex;align-items:center;gap:8px}
+table.luz-t td{padding:6px 4px}
+table.t tr.noct td{background:#161a2b}
+.luzico{margin-left:4px;font-size:12px;color:var(--suave)}
+table.luz-crep td.obs{min-width:280px}
