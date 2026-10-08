@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y ficha de navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.7', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.8', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -10,7 +10,7 @@
   /* ---------- datos ---------- */
   let S = {marchas:[], actual:null, v:'marchas'};
   try { const d = JSON.parse(localStorage.getItem(CLAVE)); if(d && Array.isArray(d.marchas)) S = Object.assign(S, d); } catch(e){}
-  S.marchas.forEach(m=>{ if(m.par && m.par.metodo==='cartilla') m.par.metodo = 'montana'; });   // nombre antiguo del método
+  S.marchas.forEach(m=>{ m.par = Object.assign(M.porDefecto(), m.par || {}); if(m.par.metodo==='cartilla') m.par.metodo = 'montana'; });   // parámetros completos; nombre antiguo del método
   let tGuardar = null;
   const guardar = ()=>{ clearTimeout(tGuardar); tGuardar = setTimeout(()=>{ tGuardar = null; try { localStorage.setItem(CLAVE, JSON.stringify(S)); } catch(e){ aviso('⚠ No se pudo guardar en este equipo'); } }, 250); };
   // al cerrar o pasar a segundo plano se guarda de inmediato (no esperar la pausa)
@@ -21,7 +21,7 @@
   function nueva(datos){
     const m = Object.assign({id:nid(), nombre:'Nueva marcha', unidad:'', fecha:hoy(), hora:'08:00', datum:'WGS84', zona:'', par:M.porDefecto(), puntos:[]}, datos || {});
     m.par = Object.assign(M.porDefecto(), m.par || {}); m.id = nid();
-    if(!m.puntos.length) m.puntos = [punto('PIM'), punto('PC1')];
+    if(!m.puntos.length) m.puntos = [punto('PIM')];
     S.marchas.unshift(m); S.actual = m.id; guardar(); return m;
   }
   function punto(nombre, base){ return Object.assign({nombre, tipo:'UTM', zona:19, e:'', n:'', lat:'', lon:'', cota:'', obs:'', det:''}, base || {}); }
@@ -123,7 +123,7 @@
       if(!pts.length) return aviso('⚠ No se encontraron puntos en el archivo');
       const sinCota = pts.filter(p=>p.cota==='').length;
       nueva({nombre:nombre.replace(/\.(gpx|kml)$/i, ''), puntos:pts.map(p=>punto(p.nombre, {tipo:'GEO', lat:Math.abs(p.lat).toFixed(6), lon:Math.abs(p.lon).toFixed(6),
-        norte:p.lat>0 || undefined, este:p.lon>0 || undefined, cota:p.cota, clave:p.clave}))});
+        norte:p.lat>0 || undefined, este:p.lon>0 || undefined, cota:p.cota, clave:p.clave, ev:p.ev}))});
       ir('mapa'); aviso('✔ ' + pts.length + ' puntos importados' + (sinCota ? ' — completa la cota de ' + sinCota : ''));
     });
   }
@@ -251,8 +251,8 @@
         </div>
         <p class="nota">Por radio: <b class="mono">«${esc((p.verbo || 'PASANDO').toUpperCase())} ${esc(R.puntos[1] && R.puntos[1].clave || 'ALFA')}»</b>. Cada punto recibe el siguiente nombre de la lista; si la ruta vuelve
           a pasar por el mismo lugar, se repite. Escribe un nombre en la tabla para cambiarlo a mano (vacío = el de la lista).</p>
-        <div class="tabla-env"><table class="t"><thead><tr><th class="tx">N.º</th><th class="tx">Punto</th><th class="tx">Nombre clave</th><th class="tx">Evento (radio)</th></tr></thead><tbody>
-          ${m.puntos.map((x, i)=>i ? `<tr><td class="tx">${i + 1}</td><td class="tx"><b>${esc(x.nombre)}</b></td><td class="tx"><input class="num clave" data-pc="${i}" value="${esc(x.clave || '')}" placeholder="${esc(R.puntos[i].clave || '')}" list="listaClaves" style="max-width:180px;padding:5px 8px"></td>
+        <div class="tabla-env"><table class="t"><thead><tr><th class="tx">Evento N.º</th><th class="tx">Punto</th><th class="tx">Nombre clave</th><th class="tx">Evento (radio)</th></tr></thead><tbody>
+          ${m.puntos.map((x, i)=>i && R.puntos[i].ev ? `<tr><td class="tx">${R.eventos.indexOf(i) + 1}</td><td class="tx"><b>${esc(x.nombre)}</b></td><td class="tx"><input class="num clave" data-pc="${i}" value="${esc(x.clave || '')}" placeholder="${esc(R.puntos[i].clave || '')}" list="listaClaves" style="max-width:180px;padding:5px 8px"></td>
             <td class="tx" id="ev${i}">${evento(R.puntos[i].clave)}</td></tr>` : '').join('')}
         </tbody></table></div>
         <div class="btns"><button class="btn mini" id="bClavesAuto">↺ Todos automáticos (borrar los escritos a mano)</button></div>
@@ -270,7 +270,7 @@
       <div class="btns"><button class="btn pri" id="bPunto">＋ Agregar punto</button><button class="btn" id="bRegreso">↩ Agregar regreso (misma ruta)</button><button class="btn" id="bCotas">⛰ Completar cotas desde el terreno</button><button class="btn" id="bVer">Ver cuadro de marcha ›</button></div>`;
     pintarPuntos(); actualizarCalculos();
     $('#bPunto').onclick = ()=>{ const u = m.puntos[m.puntos.length - 1];
-      m.puntos.push(punto('PC' + m.puntos.length, u ? {tipo:u.tipo, zona:u.zona} : {})); guardar(); pintarPuntos(); actualizarCalculos();
+      m.puntos.push(punto('PC' + M.calcular(m).eventos.length, Object.assign(u ? {tipo:u.tipo, zona:u.zona} : {}, {ev:true}))); guardar(); pintarPuntos(); actualizarCalculos();
       const c = vista.querySelectorAll('.punto'); c[c.length - 1].scrollIntoView({behavior:'smooth', block:'center'}); };
     $('#bRegreso').onclick = ()=>{ if(m.puntos.length<2) return aviso('Primero ingresa la ida');
       m.puntos.slice(0, -1).reverse().forEach(x=>m.puntos.push(Object.assign({}, x, {det:'', obs:x.obs ? 'Regreso — ' + x.obs : 'Regreso'})));
@@ -293,8 +293,9 @@
     cont.innerHTML = `<datalist id="listaClaves">${(m.par.claves==='propia' ? M.listaPropia(m.par.clavesPropias) : (M.CLAVES[m.par.claves] || M.CLAVES.otan).l).map(c=>`<option value="${c}">`).join('')}</datalist>` + m.puntos.map((x, i)=>{
       const utm = x.tipo!=='GEO';
       return `${i ? `<div class="tramo-entre" id="tr${i}"></div>` : ''}
-      <div class="tarjeta punto" data-i="${i}"><span class="ord">${i + 1}</span>
-        <div class="fila"><label class="c">Nombre del punto<input data-p="nombre" value="${esc(x.nombre)}"></label>
+      <div class="tarjeta punto${Rc.puntos[i].ev ? '' : ' ruta'}" data-i="${i}"><span class="ord">${Rc.puntos[i].ev ? Rc.eventos.indexOf(i) + 1 || '·' : '·'}</span>
+        <label class="h-ev"><input type="checkbox" data-ev ${Rc.puntos[i].ev ? 'checked' : ''} ${Rc.eventos[0]===i || Rc.eventos[Rc.eventos.length - 1]===i ? 'disabled' : ''}> <b>Evento</b> (se informa por radio)${Rc.puntos[i].ev ? '' : ' — sin marcar es solo un punto de ruta'}</label>
+        <div class="fila"><label class="c">Nombre del punto<input data-p="nombre" value="${esc(x.nombre)}" placeholder="${Rc.puntos[i].ev ? '' : 'punto de ruta'}"></label>
           <div class="seg"><button data-tipo="UTM" class="${utm ? 'on' : ''}">UTM</button><button data-tipo="GEO" class="${utm ? '' : 'on'}">Geográficas</button></div></div>
         ${utm ? `<div class="coords">
           <label class="c">Zona<input class="num" data-p="zona" inputmode="numeric" value="${esc(x.zona)}"></label>
@@ -306,7 +307,7 @@
           <label class="c">Longitud ${x.este ? 'E' : 'W'}<input class="num" data-p="lon" inputmode="decimal" value="${esc(x.lon)}" placeholder="70 34 28"></label>
           <label class="c cota">Cota (m)${x.cotaAuto ? ' ≈' : ''}<input class="num" data-p="cota" inputmode="numeric" value="${esc(x.cota)}"></label></div>`}
         ${actual().par.metodo==='general' && i ? `<div class="extra" style="grid-template-columns:1fr"><label class="c">Vía desde el punto anterior<select data-p="via">${'<option value="">Igual que la marcha (' + esc(M.VIAS[actual().par.via]) + ')</option>' + Object.entries(M.VIAS).map(([k, n])=>`<option value="${k}"${x.via===k ? ' selected' : ''}>${n}</option>`).join('')}</select></label></div>` : ''}
-        ${i ? `<div class="extra" style="grid-template-columns:1fr"><label class="c">Nombre clave (vacío = automático)<input class="num clave" data-p="clave" value="${esc(x.clave||'')}" placeholder="${esc(Rc.puntos[i].clave || '')}" list="listaClaves"></label></div>` : ''}
+        ${i && Rc.puntos[i].ev ? `<div class="extra" style="grid-template-columns:1fr"><label class="c">Nombre clave (vacío = automático)<input class="num clave" data-p="clave" value="${esc(x.clave||'')}" placeholder="${esc(Rc.puntos[i].clave || '')}" list="listaClaves"></label></div>` : ''}
         <div class="extra"><label class="c">Observaciones (punto característico)<input data-p="obs" value="${esc(x.obs)}" placeholder="puente, portezuelo, cruce…"></label>
           <label class="c">Detención (min)<input class="num" data-p="det" inputmode="numeric" value="${esc(x.det)}" placeholder="0"></label></div>
         <div class="estado" id="est${i}"></div>
@@ -349,7 +350,11 @@
     if(t.dataset.redibujar!==undefined) return;   // lo redibuja el evento «change»
     actualizarCalculos();
   });
-  vista.addEventListener('change', e=>{ if(S.v==='ruta' && e.target.dataset.redibujar!==undefined){ const y = window.scrollY; pintar(); window.scrollTo(0, y);
+  vista.addEventListener('change', e=>{
+    if(S.v==='ruta' && e.target.dataset.ev!==undefined){ const m = actual(), i = +e.target.closest('.punto').dataset.i, p = m.puntos[i];
+      p.ev = e.target.checked; if(p.ev && !p.nombre) p.nombre = 'PC' + M.calcular(m).eventos.filter(x=>x<i).length; if(!p.ev){ p.clave = ''; if(/^PC\d+$/.test(p.nombre)) p.nombre = ''; }
+      guardar(); const y = window.scrollY; pintar(); window.scrollTo(0, y); return; }
+    if(S.v==='ruta' && e.target.dataset.redibujar!==undefined){ const y = window.scrollY; pintar(); window.scrollTo(0, y);
     const d = vista.querySelectorAll('details');
     if(['claves', 'verboSel'].includes(e.target.dataset.par)){ const c = $('#dClaves'); if(c) c.open = true; } else if(d[1]) d[1].open = true; } });
   vista.addEventListener('click', e=>{
@@ -416,6 +421,11 @@
     const malos = R.puntos.filter(p=>!p.ok);
     const como = {subida:'↗', bajada:'↘', llano:'→', MIDE:'', general:''};
     const pteC = p=>Math.abs(p)>=0.3 ? 'fuerte' : '';
+    const nom = n=>n ? esc(n) : '·';
+    // detalle de los quiebres (puntos de ruta) dentro de un tramo entre eventos
+    const subs = t=>!t.quiebres ? '' : t.subs.map(u=>`<tr class="sub"><td class="tx">↳ ${nom(u.de)} → ${nom(u.a)}</td><td>${f(u.dist)}</td><td></td><td>${f(u.cotaIni)}</td><td>${f(u.cotaFin)}</td>
+      <td class="${u.dv>0 ? 'sube' : u.dv<0 ? 'baja' : ''}">${u.dv>0 ? '+' : ''}${f(u.dv)}</td><td class="${pteC(u.pte)}">${f(u.pte*100, 1)} %</td><td>${f(u.azM, 1)}</td><td>${u.mils}</td>
+      <td>${como[u.como]||''} ${M.verDur(u.t)}</td><td></td><td></td><td></td><td></td></tr>`).join('');
     vista.innerHTML = `${encabezado(m, R)}
       <h2>Resumen</h2>${kpis(R)}
       ${malos.length ? `<div class="alerta">${malos.length} punto${malos.length===1 ? '' : 's'} sin coordenada o cota válida (${malos.map(p=>esc(p.nombre)).join(', ')}): sus tramos no se calcularon.</div>` : ''}
@@ -425,14 +435,14 @@
       <div class="tabla-env solo-ancho"><table class="t">
         <thead><tr><th class="tx">Tramo</th><th>Distancia<br>(m)</th><th>Dist. acum.<br>(km)</th><th>Cota<br>inicial</th><th>Cota<br>final</th><th>Desnivel<br>(m)</th><th>Pendiente</th>
           <th>Rumbo<br>mag. (°)</th><th>Rumbo<br>(‰)</th><th>Tiempo<br>tramo</th><th>Tiempo<br>acum.</th><th>Hora<br>llegada</th><th class="tx">Observaciones</th><th class="tx">Evento<br>(radio)</th></tr></thead>
-        <tbody>${T.map(t=>`<tr><td class="tx"><b>${esc(t.de)}</b> → <b>${esc(t.a)}</b></td><td>${f(t.dist)}</td><td>${f(t.distAcum/1000, 2)}</td><td>${f(t.cotaIni)}</td><td>${f(t.cotaFin)}</td>
-          <td class="${t.dv>0 ? 'sube' : t.dv<0 ? 'baja' : ''}">${t.dv>0 ? '+' : ''}${f(t.dv)}</td><td class="${pteC(t.pte)}">${f(t.pte*100, 1)} %</td>
-          <td><b>${f(t.azM, 1)}</b><span class="s">cuad. ${f(t.azC, 1)} · geo. ${f(t.azG, 1)}</span></td><td>${t.mils}</td>
-          <td>${como[t.como]||''} ${M.verDur(t.t)}</td><td>${M.verDur(t.tAcum)}</td><td><b>${M.verHora(t.llegada)}</b>${t.det ? `<span class="s">sale ${M.verHora(t.salida)}</span>` : ''}</td><td class="obs tx">${esc(t.obs)}${t.det ? (t.obs ? ' · ' : '') + 'detención ' + Math.round(t.det*60) + ' min' : ''}</td><td class="tx">${evento(t.claveB)}</td></tr>`).join('')}
+        <tbody>${R.tramosEv.map(t=>`<tr class="${t.quiebres ? 'conq' : ''}"><td class="tx"><b>${esc(t.de)}</b> → <b>${esc(t.a)}</b>${t.quiebres ? `<span class="s">${t.quiebres} quiebre${t.quiebres===1 ? '' : 's'} · +${f(t.sube)} / −${f(t.baja)} m</span>` : ''}</td><td>${f(t.dist)}</td><td>${f(t.distAcum/1000, 2)}</td><td>${f(t.cotaIni)}</td><td>${f(t.cotaFin)}</td>
+          <td class="${t.dv>0 ? 'sube' : t.dv<0 ? 'baja' : ''}">${t.dv>0 ? '+' : ''}${f(t.dv)}</td><td class="${pteC(t.quiebres ? t.pteMax : t.pte)}">${t.quiebres ? 'máx ' + f(t.pteMax*100, 1) : f(t.pte*100, 1)} %</td>
+          ${t.quiebres ? `<td><span class="s">ver quiebres</span></td><td></td>` : `<td><b>${f(t.azM, 1)}</b><span class="s">cuad. ${f(t.azC, 1)} · geo. ${f(t.azG, 1)}</span></td><td>${t.mils}</td>`}
+          <td>${como[t.como]||''} ${M.verDur(t.t)}</td><td>${M.verDur(t.tAcum)}</td><td><b>${M.verHora(t.llegada)}</b>${t.det ? `<span class="s">sale ${M.verHora(t.salida)}</span>` : ''}</td><td class="obs tx">${esc(t.obs)}${t.det ? (t.obs ? ' · ' : '') + 'detención ' + Math.round(t.det*60) + ' min' : ''}</td><td class="tx">${evento(t.claveB)}</td></tr>` + subs(t)).join('')}
           <tr class="tot"><td class="tx">Total</td><td>${f(R.res.dist)}</td><td>${f(R.res.dist/1000, 2)}</td><td></td><td></td><td>+${f(R.res.sube)} / −${f(R.res.baja)}</td><td></td><td></td><td></td><td>${M.verDur(R.res.marcha)}</td><td></td><td>${M.verHora(R.res.termino)}</td><td class="tx obs">con altos, detenciones e imprevistos</td><td></td></tr>
         </tbody></table></div>
-      <div class="tramos-cel">${T.map(t=>`<div class="tc"><div class="cab"><b>${esc(t.de)} → ${esc(t.a)}</b><span class="hora">${M.verHora(t.llegada)}</span></div>
-        <div class="datos"><div><span>Rumbo mag.</span><b class="rumbo">${f(t.azM, 0)}°</b> <small>${t.mils} ‰</small></div><div><span>Distancia</span>${f(t.dist)} m</div><div><span>Tiempo</span>${M.verDur(t.t)}</div>
+      <div class="tramos-cel">${R.tramosEv.map(t=>`<div class="tc"><div class="cab"><b>${esc(t.de)} → ${esc(t.a)}</b><span class="hora">${M.verHora(t.llegada)}</span></div>
+        <div class="datos"><div><span>Rumbo mag.</span>${t.quiebres ? `<b class="rumbo">${t.subs.map(u=>f(u.azM, 0) + '°').join(' › ')}</b>` : `<b class="rumbo">${f(t.azM, 0)}°</b> <small>${t.mils} ‰</small>`}</div><div><span>Distancia</span>${f(t.dist)} m</div><div><span>Tiempo</span>${M.verDur(t.t)}</div>
           <div><span>Desnivel</span>${t.dv>0 ? '+' : ''}${f(t.dv)} m</div><div><span>Pendiente</span>${f(t.pte*100, 1)} %</div><div><span>Acumulado</span>${f(t.distAcum/1000, 2)} km · ${M.verDur(t.tAcum)}</div></div>${t.claveB ? `<div class="tc-ev">${evento(t.claveB)}</div>` : ''}
         ${t.obs || t.det ? `<div class="nota" style="margin-top:6px">${esc(t.obs)}${t.det ? (t.obs ? ' · ' : '') + 'detención ' + Math.round(t.det*60) + ' min, sale ' + M.verHora(t.salida) : ''}</div>` : ''}</div>`).join('')}</div>
 
@@ -441,8 +451,8 @@
       <div class="tabla-env"><table class="t">
         <thead><tr><th class="tx">Punto</th><th>Hora<br>llegada</th><th>Hora<br>salida</th><th>Altitud<br>(m)</th><th>Rumbo al siguiente<br>(° / ‰)</th><th>Distancia<br>(m)</th><th class="tx">Observaciones</th><th class="tx">Evento<br>(radio)</th></tr></thead>
         <tbody>${R.puntos.filter(p=>p.ok).map(p=>{ const ll = T.find(t=>t.iB===p.i), sig = T.find(t=>t.iA===p.i), sal = ll ? ll.salida : R.res.partida + p.det;
-          return `<tr><td class="tx"><b>${esc(p.nombre)}</b></td><td>${ll ? M.verHora(ll.llegada) : '—'}</td><td>${sig ? M.verHora(sal) : '—'}</td><td>${f(p.cota)}</td>
-            <td>${sig ? '<b>' + f(sig.azM, 0) + '°</b> / ' + sig.mils : '—'}</td><td>${sig ? f(sig.dist) : '—'}</td><td class="obs tx">${esc(p.obs)}</td><td class="tx">${ll ? evento(p.clave) : ''}</td></tr>`; }).join('')}</tbody></table></div>
+          return `<tr class="${p.ev ? '' : 'sub'}"><td class="tx">${p.ev ? '<b>' + esc(p.nombre) + '</b>' : '↳ quiebre'}</td><td>${ll ? M.verHora(ll.llegada) : '—'}</td><td>${sig ? M.verHora(sal) : '—'}</td><td>${f(p.cota)}</td>
+            <td>${sig ? '<b>' + f(sig.azM, 0) + '°</b> / ' + sig.mils : '—'}</td><td>${sig ? f(sig.dist) : '—'}</td><td class="obs tx">${esc(p.obs)}</td><td class="tx">${ll && p.ev ? evento(p.clave) : ''}</td></tr>`; }).join('')}</tbody></table></div>
       <p class="nota">Rumbos magnéticos con declinación ${f(R.decl.valor, 2)}° (${esc(R.decl.fuente)}) a la fecha de la marcha. Horas con ${Math.round(R.par.altos*100)} % de altos; los imprevistos (${M.verDur(R.res.imprev)}) quedan como reserva al final.</p>
       <div class="btns no-imp"><button class="btn pri" id="bImp">🖨 Imprimir / PDF</button><button class="btn" id="bPerf">Ver perfil ›</button><button class="btn" id="bEnv">Enviar ›</button></div>`;
     $('#bImp').onclick = ()=>window.print(); $('#bPerf').onclick = ()=>ir('perfil'); $('#bEnv').onclick = ()=>ir('enviar');
@@ -468,7 +478,7 @@
     const y0 = Math.floor((cmin - pad)/50)*50, y1 = Math.ceil((cmax + pad)/50)*50;
     const X = d=>iz + (W - iz - de)*d/D, Y = c=>ar + alto - alto*(c - y0)/(y1 - y0 || 1);
     // la ruta puede pasar varias veces por el mismo punto (ida y vuelta): los puntos del perfil son los de cada tramo
-    const serie = [{d:0, c:R.tramos[0].cotaIni, n:R.tramos[0].de, h:R.res.partida}].concat(R.tramos.map(t=>({d:t.distAcum, c:t.cotaFin, n:t.a, h:t.llegada, t})));
+    const serie = [{d:0, c:R.tramos[0].cotaIni, n:R.tramos[0].de, h:R.res.partida, ev:true}].concat(R.tramos.map(t=>({d:t.distAcum, c:t.cotaFin, n:t.a, h:t.llegada, t, ev:t.evB})));
     let s = '';
     // cuadrícula de cotas
     const paso = [50, 100, 200, 250, 500, 1000].find(p=>(y1 - y0)/p<=7) || 1000;
@@ -486,15 +496,18 @@
     // barras inferiores
     let yb = ar + alto + 18; const fin = yb + barras.reduce((a, b)=>a + b[1], 0);
     barras.forEach(([n, h], j)=>{ s += `<rect x="${iz}" y="${yb}" width="${W - iz - de}" height="${h}" fill="${j%2 ? '#1c1e16' : '#22251b'}"/><text x="${iz - 6}" y="${yb + h/2 + 4}" text-anchor="end" font-size="10" fill="#a3a28c">${n.split(' ')[0]}</text>`;
-      serie.forEach((p, i)=>{ const x = X(p.d), lim = i===0 ? 'start' : i===serie.length - 1 ? 'end' : 'middle';
-        const jj = compacto ? 3 : j, txt = [M.verHora(p.h), f(p.d/1000, 1), i ? (p.t.dv>0 ? '+' : '') + f(p.t.dv) : '0', compacto && i && p.t.claveB ? p.t.claveB : p.n][jj];
+      // rótulos solo en los eventos (los puntos de ruta son quiebres sin nombre); el desnivel es desde el evento anterior
+      const evs = serie.filter(p=>p.ev);
+      evs.forEach((p, i)=>{ const x = X(p.d), lim = i===0 ? 'start' : i===evs.length - 1 ? 'end' : 'middle', dv = i ? p.c - evs[i - 1].c : 0;
+        const jj = compacto ? 3 : j, txt = [M.verHora(p.h), f(p.d/1000, 1), i ? (dv>0 ? '+' : '') + f(dv) : '0', compacto && i && p.t.claveB ? p.t.claveB : p.n][jj];
         // no amontonar textos: solo si hay espacio desde el anterior
-        if(i && X(p.d) - X(serie[i - 1].d)<(jj===3 && compacto ? 50 : 34) && (jj<3 || compacto)) return;
+        if(i && X(p.d) - X(evs[i - 1].d)<(jj===3 && compacto ? 50 : 34) && (jj<3 || compacto)) return;
         s += jj===3 ? `<text x="${x}" y="${yb + 15}" text-anchor="${lim}" font-size="11" font-weight="700" fill="#ece8d8">${esc(txt)}</text>`
-          : `<text x="${x}" y="${yb + h/2 + 4}" text-anchor="${lim}" font-size="10.5" fill="${j===0 ? '#f2c46b' : j===2 && i ? (p.t.dv>0 ? '#e86a4c' : '#6fb3d9') : '#ece8d8'}">${txt}</text>`; });
+          : `<text x="${x}" y="${yb + h/2 + 4}" text-anchor="${lim}" font-size="10.5" fill="${j===0 ? '#f2c46b' : j===2 && i ? (dv>0 ? '#e86a4c' : '#6fb3d9') : '#ece8d8'}">${txt}</text>`; });
       yb += h; });
-    // líneas verticales de cada punto
-    serie.forEach(p=>{ s += `<line x1="${X(p.d)}" x2="${X(p.d)}" y1="${Y(p.c)}" y2="${fin}" stroke="#6f705e" stroke-width=".8" stroke-dasharray="3 3"/><circle cx="${X(p.d)}" cy="${Y(p.c)}" r="4" fill="#14150f" stroke="#f2c46b" stroke-width="2"/>`; });
+    // líneas verticales en los eventos; los quiebres solo llevan un punto chico
+    serie.forEach(p=>{ s += p.ev ? `<line x1="${X(p.d)}" x2="${X(p.d)}" y1="${Y(p.c)}" y2="${fin}" stroke="#6f705e" stroke-width=".8" stroke-dasharray="3 3"/><circle cx="${X(p.d)}" cy="${Y(p.c)}" r="4" fill="#14150f" stroke="#f2c46b" stroke-width="2"/>`
+      : `<circle cx="${X(p.d)}" cy="${Y(p.c)}" r="2.5" fill="#ece8d8"/>`; });
     // exageración vertical del dibujo
     const exa = ((W - iz - de)/D)/(alto/(y1 - y0 || 1));
     if(!compacto) s += `<text x="${W - de}" y="${ar - 2}" text-anchor="end" font-size="10" fill="#6f705e">exageración vertical ×${f(1/exa, 1)}</text>`;

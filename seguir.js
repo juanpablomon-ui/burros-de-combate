@@ -14,8 +14,8 @@ const Seguir = (function(){
     const R = A.calcular(m), r = R.res, pts = [];
     if(!R.tramos.length) return null;
     const p0 = R.puntos[R.tramos[0].iA];
-    pts.push({i:p0.i, nombre:p0.nombre, clave:p0.clave, obs:p0.obs, lat:p0.lat, lon:p0.lon, cota:p0.cota, lleg:0, sal:p0.det});
-    R.tramos.forEach(t=>{ const p = R.puntos[t.iB]; pts.push({i:p.i, nombre:p.nombre, clave:p.clave, obs:p.obs, lat:p.lat, lon:p.lon, cota:p.cota,
+    pts.push({i:p0.i, ev:true, nombre:p0.nombre, clave:p0.clave, obs:p0.obs, lat:p0.lat, lon:p0.lon, cota:p0.cota, lleg:0, sal:p0.det});
+    R.tramos.forEach(t=>{ const p = R.puntos[t.iB]; pts.push({i:p.i, ev:p.ev, nombre:p.nombre, clave:p.clave, obs:p.obs, lat:p.lat, lon:p.lon, cota:p.cota,
       lleg:t.llegada - r.partida, sal:t.salida - r.partida, tramo:t}); });
     return {R, pts};
   }
@@ -27,6 +27,10 @@ const Seguir = (function(){
   const rotulo = p=>p.clave || p.nombre;   // por radio se usa el nombre clave
   const verbo = ()=>String((A.actual().par || {}).verbo || 'PASANDO').toUpperCase();   // palabra elegida para informar el paso
   const lineas = (k, def)=>String((A.actual().par || {})[k] || def).split(/\n+/).map(x=>x.trim()).filter(Boolean);
+  // próximo evento (punto de control que se informa) aún no pasado
+  function proxEv(m, P){ const E = m.ejec; for(let k=1; k<P.pts.length; k++) if(P.pts[k].ev && !E.llegadas[k]) return k; return null; }
+  // distancia por la ruta desde la posición hasta el punto k (pasando por los quiebres)
+  function distRuta(P, desde, k0, k){ let d = M.rumboEntre(desde, P.pts[k0], P.R.zona, 0).dist; for(let j=k0 + 1; j<=k; j++) d += P.pts[j].tramo.dist; return d; }
   function siguiente(m, P){ const E = m.ejec; for(let k=1; k<P.pts.length; k++) if(!E.llegadas[k]) return k; return null; }
 
   /* ---------- adelanto / atraso ---------- */
@@ -81,7 +85,8 @@ const Seguir = (function(){
   }
   function llegar(k, auto){
     const m = A.actual(), E = m.ejec, P = plan(m); if(!E || E.llegadas[k]) return;
-    for(let j=1; j<k; j++) if(!E.llegadas[j]) E.llegadas[j] = -1;   // puntos saltados
+    if(!P.pts[k].ev){ E.llegadas[k] = ahora(); A.guardar(); pintarVivo(); return; }   // quiebre de la ruta: sin aviso ni mensaje
+    for(let j=1; j<k; j++) if(!E.llegadas[j]) E.llegadas[j] = P.pts[j].ev ? -1 : ahora();   // eventos saltados / quiebres ya pasados
     E.llegadas[k] = ahora();
     const d = (E.llegadas[k] - E.inicio)/60000 - P.pts[k].lleg*60, p = P.pts[k];
     if(navigator.vibrate) navigator.vibrate([200, 100, 200]);
@@ -199,19 +204,22 @@ const Seguir = (function(){
     c.querySelectorAll('[data-smodo]').forEach(b=>b.onclick = ()=>{ modo = b.dataset.smodo; try { localStorage.setItem('burros_seguir', modo); } catch(e){} pintar(); });
     $('#sAlto').onclick = alto; $('#sNov').onclick = novedad; $('#sFin').onclick = ()=>terminar(false);
     $('#sPos').onclick = ()=>verMensaje(mensaje('POS', {}));
-    $('#sLleg').onclick = ()=>{ const k = siguiente(m, P); if(k!==null) llegar(k, false); };
+    $('#sLleg').onclick = ()=>{ const k = proxEv(m, P); if(k!==null) llegar(k, false); };
     if(modo==='carta'){ hacerMapa(P); $('#sCentrar').onclick = ()=>{ centrar = true; if(pos && mapa) mapa.setView([pos.lat, pos.lon], Math.max(mapa.getZoom(), 16)); else A.aviso('Esperando señal GPS…'); }; }
     pintarVivo();
   }
   function pintarVivo(){
     const m = A.actual(), E = m && m.ejec; if(!E || E.estado==='fin' || !$('#seguir')) return; const P = plan(m);
-    const k = siguiente(m, P), p = k!==null ? P.pts[k] : null, at = atraso(m, P), t = ahora(), c = $('#sCab');
+    const k = siguiente(m, P), q = k!==null ? P.pts[k] : null, ke = proxEv(m, P), p = ke!==null ? P.pts[ke] : null, at = atraso(m, P), t = ahora(), c = $('#sCab');
     const b = $('#sLleg'); if(b) b.textContent = p ? '✔ ' + verbo() + ' ' + rotulo(p) : '';
     ficha(); mapaVivo();
     if(!c) return;
     let dist = '—', rumbo = '—', mils = '', fuera = '', eta = '';
-    if(p && pos){ const r = M.rumboEntre(pos, p, P.R.zona, P.R.decl.valor); dist = r.dist>=1000 ? A.f(r.dist/1000, 2) + ' km' : A.f(r.dist) + ' m'; rumbo = A.f(r.azM, 0) + '°'; mils = r.mils + ' ‰'; c.dataset.az = r.azM;
-      const a = P.pts[k - 1], s = M.sobreTramo(pos, a, p); if(s.d>Math.max(120, 3*(pos.acc||0))) fuera = `<div class="alerta">Fuera de la ruta: ${A.f(s.d)} m de la línea ${A.esc(rotulo(a))} → ${A.esc(rotulo(p))}</div>`; }
+    let quiebre = '';
+    if(p && q && pos){ const r = M.rumboEntre(pos, q, P.R.zona, P.R.decl.valor), dr = distRuta(P, pos, k, ke);
+      dist = dr>=1000 ? A.f(dr/1000, 2) + ' km' : A.f(dr) + ' m'; rumbo = A.f(r.azM, 0) + '°'; mils = r.mils + ' ‰'; c.dataset.az = r.azM;
+      if(k!==ke) quiebre = 'rumbo al próximo quiebre (' + A.f(r.dist) + ' m) · distancia por la ruta';
+      const a = P.pts[k - 1], s = M.sobreTramo(pos, a, q); if(s.d>Math.max(120, 3*(pos.acc||0))) fuera = `<div class="alerta">Fuera de la ruta: ${A.f(s.d)} m de la línea</div>`; }
     if(p) eta = 'llega plan ' + hh(E.inicio + p.lleg*3600000) + (at!==null ? ' · estimada ' + hh(E.inicio + p.lleg*3600000 + at*60000) : '');
     const ultAlto = E.estado==='alto' ? E.altos[E.altos.length - 1] : null, cls = at===null ? '' : at>5 ? 'mal' : at< -5 ? 'bien' : '';
     const gps = pos ? 'GPS ±' + Math.round(pos.acc||0) + ' m · ' + utmTxt(pos) : (navigator.geolocation ? 'Esperando señal GPS…' : 'Este equipo no tiene GPS: marca las llegadas a mano');
@@ -219,13 +227,13 @@ const Seguir = (function(){
     if(modo==='carta'){
       c.innerHTML = `<div class="hud1"><span>PRÓXIMO <b class="clave-tx">${p ? A.esc(rotulo(p)) : '—'}</b>${p ? ' <small>' + A.esc(p.clave ? p.nombre + (p.obs ? ' · ' + p.obs : '') : p.obs || '') + '</small>' : ''}</span><span class="${cls}">${at===null ? '' : dif(at)}</span></div>
         <div class="hud2"><b>${dist}</b><b class="ocre">${rumbo}</b><small>${mils}</small><div class="s-flecha mini" id="sFlecha">↑</div></div>
-        <div class="hud3 mono">⏱ ${dur(t - E.inicio)}${eta ? ' · ' + eta : ''}</div>${enAlto}${fuera}<div class="hud3 mono" id="sGps">${gps}</div>`;
+        <div class="hud3 mono">⏱ ${dur(t - E.inicio)}${eta ? ' · ' + eta : ''}</div>${quiebre ? `<div class="hud3 mono">↪ ${quiebre}</div>` : ''}${enAlto}${fuera}<div class="hud3 mono" id="sGps">${gps}</div>`;
     } else {
       c.innerHTML = `<div class="s-estado"><span>⏱ ${dur(t - E.inicio)} de marcha</span><span class="${cls}">${at===null ? '' : dif(at)}</span></div>${enAlto}
         ${p ? `<div class="s-prox">PRÓXIMO <b class="clave-tx">${A.esc(rotulo(p))}</b><small>${A.esc(p.clave ? p.nombre + (p.obs ? ' · ' + p.obs : '') : p.obs || '')}</small></div>
         <div class="s-grande"><div><span>Distancia</span><b>${dist}</b></div><div><span>Rumbo mag.</span><b class="ocre">${rumbo}</b><small>${mils}</small></div>
           <div class="s-flecha" id="sFlecha" title="Dirección al punto según la brújula del teléfono">↑</div></div>
-        <div class="nota mono">${eta}</div>` : ''}${fuera}<div class="nota mono" id="sGps">${gps}</div>`;
+        <div class="nota mono">${eta}${quiebre ? '<br>↪ ' + quiebre : ''}</div>` : ''}${fuera}<div class="nota mono" id="sGps">${gps}</div>`;
     }
     flecha();
   }
@@ -240,7 +248,7 @@ const Seguir = (function(){
     const c = $('#sFicha'); if(!c) return; const m = A.actual(), P = plan(m), E = m.ejec, ev = [];
     const posTxt = (la, lo)=>la===undefined || la===null ? '' : utmTxt({lat:la, lon:lo});
     ev.push({t:E.inicio, real:true, ev:'Inicio de marcha', punto:P.pts[0].nombre, plan:E.inicio, dif:0, tipo:'ini'});
-    P.pts.forEach((p, k)=>{ if(!k) return; const r = E.llegadas[k], pl = E.inicio + p.lleg*3600000;
+    P.pts.forEach((p, k)=>{ if(!k || !p.ev) return; const r = E.llegadas[k], pl = E.inicio + p.lleg*3600000;
       ev.push({t:r>0 ? r : pl, real:r>0, ev:verbo() + ' ' + rotulo(p), punto:p.nombre, plan:pl, dif:r>0 ? (r - pl)/60000 : null, salta:r===-1, tipo:'pc'}); });
     E.altos.forEach(a=>ev.push({t:a.ini, real:true, ev:'Alto — ' + a.motivo + (a.fin ? ' (' + dur(a.fin - a.ini) + ')' : ' (en curso)'), pos:posTxt(a.lat, a.lon), tipo:'alto'}));
     E.nov.forEach(n=>ev.push({t:n.t, real:true, ev:'Novedad — ' + n.txt, pos:posTxt(n.lat, n.lon), tipo:'nov'}));
@@ -286,8 +294,9 @@ ${E.track.map(t=>`<trkpt lat="${t[0]}" lon="${t[1]}"><time>${new Date(t[2]).toIS
     const b = Mapa.BASES[base] || Mapa.BASES.topo; L.tileLayer(b.url, Object.assign({crossOrigin:'anonymous'}, b.o)).addTo(mapa);
     L.polyline(P.pts.map(p=>[p.lat, p.lon]), {color:'#14150f', weight:8, opacity:.5}).addTo(mapa);
     L.polyline(P.pts.map(p=>[p.lat, p.lon]), {color:'#e3a63a', weight:4, opacity:.95, dashArray:'8 6'}).addTo(mapa);
-    P.pts.forEach((p, k)=>L.circleMarker([p.lat, p.lon], {radius:7, color:'#14150f', weight:2, fillColor:'#e3a63a', fillOpacity:1})
-      .bindTooltip(p.clave || p.nombre, {permanent:true, direction:'right', className:'s-etq'}).addTo(mapa));
+    P.pts.forEach((p, k)=>{ if(!p.ev){ L.circleMarker([p.lat, p.lon], {radius:3, color:'#14150f', weight:1, fillColor:'#fff', fillOpacity:1}).addTo(mapa); return; }
+      L.circleMarker([p.lat, p.lon], {radius:7, color:'#14150f', weight:2, fillColor:'#e3a63a', fillOpacity:1})
+      .bindTooltip(p.clave || p.nombre, {permanent:true, direction:'right', className:'s-etq'}).addTo(mapa); });
     capas = L.layerGroup().addTo(mapa);
     mapa.fitBounds(L.latLngBounds(P.pts.map(p=>[p.lat, p.lon])), {padding:[40, 40], animate:false});
     mapa.on('dragstart', ()=>centrar = false);
@@ -297,9 +306,9 @@ ${E.track.map(t=>`<trkpt lat="${t[0]}" lon="${t[1]}"><time>${new Date(t[2]).toIS
   function mapaVivo(){
     if(!mapa || !capas) return; capas.clearLayers(); const m = A.actual(), E = m.ejec, P = plan(m);
     if(E.track.length>1) L.polyline(E.track.map(t=>[t[0], t[1]]), {color:'#2a7fd4', weight:4}).addTo(capas);
-    const k = siguiente(m, P);
-    if(k!==null){ const q = P.pts[k]; L.circleMarker([q.lat, q.lon], {radius:13, color:'#fff', weight:3, fill:false}).addTo(capas);
-      if(pos) L.polyline([[pos.lat, pos.lon], [q.lat, q.lon]], {color:'#fff', weight:2, dashArray:'4 6', opacity:.9}).addTo(capas); }
+    const k = siguiente(m, P), ke = proxEv(m, P);
+    if(ke!==null){ const e = P.pts[ke]; L.circleMarker([e.lat, e.lon], {radius:13, color:'#fff', weight:3, fill:false}).addTo(capas); }
+    if(k!==null && pos){ const q = P.pts[k]; L.polyline([[pos.lat, pos.lon], [q.lat, q.lon]], {color:'#fff', weight:2, dashArray:'4 6', opacity:.9}).addTo(capas); }
     if(pos){ L.circle([pos.lat, pos.lon], {radius:pos.acc||20, color:'#2a7fd4', weight:1, fillOpacity:.12}).addTo(capas);
       L.circleMarker([pos.lat, pos.lon], {radius:8, color:'#fff', weight:3, fillColor:'#2a7fd4', fillOpacity:1}).addTo(capas);
       if(centrar){ if(primera){ mapa.setView([pos.lat, pos.lon], Math.max(mapa.getZoom(), 16), {animate:false}); primera = false; } else mapa.panTo([pos.lat, pos.lon], {animate:false}); } }

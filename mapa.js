@@ -138,13 +138,19 @@ const Mapa = (function(){
       l2.bindTooltip(`${A.esc(t.de)} → ${A.esc(t.a)}: ${A.f(t.dist)} m · ${t.dv>=0 ? '+' : ''}${A.f(t.dv)} m (${A.f(t.pte*100, 0)} %) · rumbo ${A.f(t.azM, 0)}° / ${t.mils} ‰ · ${M.verDur(t.t)}`, {sticky:true});
     });
     // los puntos en el mismo lugar (ida y vuelta) van en un solo marcador; al arrastrarlo se mueven todos
-    const grupos = new Map();
-    ok.forEach((p, i)=>{ if(!p.ok) return; const k = p.lat.toFixed(5) + ',' + p.lon.toFixed(5); if(!grupos.has(k)) grupos.set(k, []); grupos.get(k).push(i); });
+    const grupos = new Map(), nEv = {}; R.eventos.forEach((i, k)=>nEv[i] = k + 1);
+    ok.forEach((p, i)=>{ if(!p.ok) return;
+      if(!p.ev){ // punto de ruta: solo marca el camino
+        const mk = L.marker([p.lat, p.lon], {icon:L.divIcon({className:'m-ruta' + (sel===i ? ' sel' : ''), iconSize:[14, 14], iconAnchor:[7, 7]}), draggable:true, autoPan:true}).addTo(capaRuta);
+        mk.on('click', e=>{ L.DomEvent.stop(e); abrirHoja(i); });
+        mk.on('dragstart', ()=>guardarDeshacer()); mk.on('dragend', e=>mover(i, e.target.getLatLng()));
+        return; }
+      const k = p.lat.toFixed(5) + ',' + p.lon.toFixed(5); if(!grupos.has(k)) grupos.set(k, []); grupos.get(k).push(i); });
     grupos.forEach(ids=>{
       const p = ok[ids[0]], horas = ids.map(i=>llega[i] ? M.verHora(llega[i].llegada) : (i===0 ? M.verHora(R.res.partida) : '')).filter(Boolean);
       const nombres = [...new Set(ids.map(i=>ok[i].nombre))], cls = [...new Set(ids.map(i=>ok[i].clave).filter(Boolean))];
       const ic = L.divIcon({className:'m-pto' + (ids.includes(sel) ? ' sel' : '') + (ids.includes(0) ? ' ini' : '') + (ids.length>1 ? ' multi' : ''), iconSize:[26, 26], iconAnchor:[13, 13],
-        html:`<span class="n">${ids.map(i=>i + 1).join('·')}</span><span class="et"${ids.length>1 ? ` style="left:${ids.map(i=>i + 1).join('·').length*7.5 + 18}px"` : ''}>${cls.length ? `<i class="clave">${A.esc(cls.join(' / '))}</i> ` : ''}<b>${A.esc(nombres.join(' / '))}</b> ${isNaN(p.cota) ? '' : A.f(p.cota) + ' m'}${horas.length ? ' · ' + horas.join(' / ') : ''}</span>`});
+        html:`<span class="n">${ids.map(i=>nEv[i]).join('·')}</span><span class="et"${ids.length>1 ? ` style="left:${ids.map(i=>nEv[i]).join('·').length*7.5 + 18}px"` : ''}>${cls.length ? `<i class="clave">${A.esc(cls.join(' / '))}</i> ` : ''}<b>${A.esc(nombres.join(' / '))}</b> ${isNaN(p.cota) ? '' : A.f(p.cota) + ' m'}${horas.length ? ' · ' + horas.join(' / ') : ''}</span>`});
       const mk = L.marker([p.lat, p.lon], {icon:ic, draggable:true, autoPan:true}).addTo(capaRuta);
       mk.on('click', e=>{ L.DomEvent.stop(e); abrirHoja(ids.includes(sel) && ids.length>1 ? ids[(ids.indexOf(sel) + 1)%ids.length] : ids[0]); });
       mk.on('dragstart', ()=>guardarDeshacer());
@@ -195,13 +201,12 @@ const Mapa = (function(){
   }
   // si los nombres siguen el patrón PIM, PC1, PC2… sin repetirse, se renumeran en orden al insertar o borrar
   function renumerar(m){
-    const ns = m.puntos.map(p=>p.nombre);
-    if(new Set(ns).size!==ns.length || !ns.every((n, i)=>/^PC\d+$/.test(n) || (i===0 && n==='PIM'))) return;
-    let k = 0; m.puntos.forEach((p, i)=>{ if(i===0 && p.nombre==='PIM') return; p.nombre = 'PC' + (++k); });
+    const R = A.calcular(m), ev = R.eventos.slice(1).filter(i=>i!==R.eventos[R.eventos.length - 1] || m.puntos[i].ev);   // eventos intermedios (y el final si fue marcado)
+    const ns = ev.map(i=>m.puntos[i].nombre);
+    if(new Set(ns).size!==ns.length || !ns.every(n=>!n || /^PC\d+$/.test(n))) return;
+    ev.forEach((i, k)=>{ m.puntos[i].nombre = 'PC' + (k + 1); });
   }
   function guardarDeshacer(){ deshacer.push(JSON.parse(JSON.stringify(A.actual().puntos))); if(deshacer.length>30) deshacer.shift(); }
-  function nombreNuevo(m, pos){ if(pos===0 && !m.puntos.length) return 'PIM'; let k = m.puntos.length; const usados = new Set(m.puntos.map(p=>p.nombre));
-    while(usados.has('PC' + k)) k++; return 'PC' + k; }
   function campos(m, ll, base){
     const tipo = base && base.tipo || (m.puntos.length ? m.puntos[m.puntos.length - 1].tipo : 'UTM');
     return Object.assign({tipo}, M.camposDesde(ll.lat, ll.lng, tipo, m.datum, +m.zona || undefined));
@@ -211,14 +216,15 @@ const Mapa = (function(){
   function agregarPunto(ll){
     const m = A.actual(); guardarDeshacer();
     let i = m.puntos.findIndex(vacio);
-    if(i<0){ m.puntos.push(A.punto(nombreNuevo(m, 0), campos(m, ll))); i = m.puntos.length - 1; }
+    if(i<0){ m.puntos.push(A.punto('', Object.assign(campos(m, ll), {ev:false}))); i = m.puntos.length - 1; }
     else Object.assign(m.puntos[i], campos(m, ll, m.puntos[i]));
+    if(i===0){ m.puntos[0].ev = true; if(!m.puntos[0].nombre) m.puntos[0].nombre = 'PIM'; }
     A.guardar(); ruta(); cotaAuto(i);
   }
   function insertar(pos, ll){
     const m = A.actual(); guardarDeshacer();
-    const p = A.punto(nombreNuevo(m, pos), campos(m, ll, m.puntos[pos])); m.puntos.splice(pos, 0, p); renumerar(m);
-    A.guardar(); ruta(); cotaAuto(pos); A.aviso('Punto insertado: ' + p.nombre); abrirHoja(pos);
+    const p = A.punto('', Object.assign(campos(m, ll, m.puntos[pos]), {ev:false})); m.puntos.splice(pos, 0, p);
+    A.guardar(); ruta(); cotaAuto(pos); A.aviso('Punto de ruta insertado (márcalo como evento si se informa por radio)'); abrirHoja(pos);
   }
   function mover(i, ll, sinDibujar){
     const m = A.actual(), p = m.puntos[i]; Object.assign(p, campos(m, ll, p));
@@ -242,12 +248,14 @@ const Mapa = (function(){
     sel = i; const m = A.actual(), p = m.puntos[i], R = A.calcular(m), g = R.puntos[i], h = $('#mHoja'); if(!p || !h) return;
     const t = R.tramos.find(x=>x.iB===i), s = R.tramos.find(x=>x.iA===i);
     h.hidden = false;
-    h.innerHTML = `<div class="cab"><span class="ord">${i + 1}</span><input data-h="nombre" value="${A.esc(p.nombre)}" aria-label="Nombre"><button class="btn mini" id="hCerrar" aria-label="Cerrar">✕</button></div>
+    const fijo = R.eventos[0]===i || R.eventos[R.eventos.length - 1]===i, esEv = g && g.ev;
+    h.innerHTML = `<div class="cab"><span class="ord">${esEv ? R.eventos.indexOf(i) + 1 : '·'}</span><input data-h="nombre" value="${A.esc(p.nombre)}" aria-label="Nombre" placeholder="${esEv ? '' : 'punto de ruta'}"><button class="btn mini" id="hCerrar" aria-label="Cerrar">✕</button></div>
+      <label class="h-ev"><input type="checkbox" id="hEv" ${esEv ? 'checked' : ''} ${fijo ? 'disabled' : ''}> <b>Evento</b> — punto de control que se informa por radio${fijo ? ' (la partida y la llegada siempre lo son)' : ''}</label>
       <div class="mono nota">${g && g.ok ? M.verGms(g.lat, 'N', 'S') + ' ' + M.verGms(g.lon, 'E', 'W') : ''}<br>${p.tipo==='GEO' ? '' : 'UTM ' + A.esc(p.zona) + ' · ' + A.f(+p.e) + ' E · ' + A.f(+p.n) + ' N (' + A.esc(m.datum) + ')'}</div>
       <div class="campos">
         <label class="c">Cota (m)${p.cotaAuto ? ' <small>≈ ' + A.esc(p.cotaSrc || 'terreno') + '</small>' : ''}<input class="num" data-h="cota" inputmode="numeric" value="${A.esc(p.cota)}"></label>
         <label class="c">Detención (min)<input class="num" data-h="det" inputmode="numeric" value="${A.esc(p.det)}" placeholder="0"></label>
-        ${i ? `<label class="c ancho">Nombre clave (vacío = automático)<input class="num clave" data-h="clave" value="${A.esc(p.clave || '')}" placeholder="${A.esc(g && g.clave || '')}" list="hClaves"></label>
+        ${i && esEv ? `<label class="c ancho">Nombre clave (vacío = automático)<input class="num clave" data-h="clave" value="${A.esc(p.clave || '')}" placeholder="${A.esc(g && g.clave || '')}" list="hClaves"></label>
           <datalist id="hClaves">${(m.par.claves==='propia' ? M.listaPropia(m.par.clavesPropias) : (M.CLAVES[m.par.claves] || M.CLAVES.otan).l).map(c=>`<option value="${c}">`).join('')}</datalist>` : ''}
         <label class="c ancho">Observaciones<input data-h="obs" value="${A.esc(p.obs)}" placeholder="puente, portezuelo, cruce…"></label>
       </div>
@@ -257,6 +265,8 @@ const Mapa = (function(){
     h.querySelectorAll('[data-h]').forEach(inp=>inp.oninput = ()=>{ const k = inp.dataset.h; p[k] = inp.value; if(k==='cota'){ delete p.cotaAuto; delete p.cotaSrc; }
       A.guardar(); clearTimeout(h._t); h._t = setTimeout(()=>{ ruta(); }, 300); });
     $('#hCerrar').onclick = cerrarHoja;
+    $('#hEv').onchange = e=>{ p.ev = e.target.checked; if(p.ev && !p.nombre){ p.nombre = 'PC' + (R.eventos.filter(x=>x<i).length); } if(!p.ev){ p.nombre = /^PC\d+$/.test(p.nombre) ? '' : p.nombre; p.clave = ''; }
+      renumerar(m); A.guardar(); ruta(); abrirHoja(i); };
     h.querySelectorAll('[data-hacc]').forEach(b=>b.onclick = ()=>{ const a = b.dataset.hacc;
       if(a==='ant') return abrirHoja(i - 1); if(a==='sig') return abrirHoja(i + 1);
       if(a==='borra'){ guardarDeshacer(); m.puntos.splice(i, 1); renumerar(m); A.guardar(); cerrarHoja(); ruta(); A.aviso('Punto borrado (↶ para deshacer)'); } });

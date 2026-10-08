@@ -39,14 +39,14 @@ const BDC = (function(){
   function datosPlan(m, R){
     // solo los parámetros distintos de los por defecto (QR más liviano)
     const def = MARCHA.porDefecto(), par = {}; Object.keys(R.par).forEach(k=>{ if(R.par[k]!==def[k] && R.par[k]!==null && R.par[k]!=='') par[k] = R.par[k]; });
-    return {n:m.nombre||'', u:m.unidad||'', f:m.fecha||'', h:m.hora||'', z:R.zona, par, p:R.puntos.filter(p=>p.ok).map(p=>[p.nombre, r6(p.lat), r6(p.lon), p.cota, p.obs||'', Math.round(p.det*60)||0, p.clave||'']),
+    return {n:m.nombre||'', u:m.unidad||'', f:m.fecha||'', h:m.hora||'', z:R.zona, par, p:R.puntos.filter(p=>p.ok).map(p=>[p.nombre, r6(p.lat), r6(p.lon), p.cota, p.obs||'', Math.round(p.det*60)||0, p.clave||'', p.ev ? 1 : 0]),
       r:{km:+(R.res.dist/1000).toFixed(2), sube:Math.round(R.res.sube), baja:Math.round(R.res.baja), total:+R.res.total.toFixed(3)}};
   }
   // Datos del plan → marcha editable
   function marchaDePlan(d){
     return {nombre:d.n||'Marcha recibida', unidad:d.u||'', fecha:d.f||'', hora:d.h||'', datum:'WGS84', zona:'', par:d.par||{},
-      puntos:(d.p||[]).map(([nombre, lat, lon, cota, obs, det, clave])=>({nombre, tipo:'GEO', lat:Math.abs(lat), lon:Math.abs(lon),
-        norte:lat>0 || undefined, este:lon>0 || undefined, cota, obs:obs||'', det:det||'', clave:clave||''}))};
+      puntos:(d.p||[]).map(([nombre, lat, lon, cota, obs, det, clave, ev])=>({nombre, tipo:'GEO', lat:Math.abs(lat), lon:Math.abs(lon),
+        norte:lat>0 || undefined, este:lon>0 || undefined, cota, obs:obs||'', det:det||'', clave:clave||'', ev:ev===undefined ? true : !!ev}))};
   }
   const hhmm = h=>MARCHA.verHora(h);
   function lineaPlan(m, R){
@@ -55,7 +55,7 @@ const BDC = (function(){
       ' — partida ' + (m.fecha ? m.fecha.split('-').reverse().join('-') + ' ' : '') + hhmm(R.res.partida) +
       ' — ' + (R.res.dist/1000).toFixed(1).replace('.', ',') + ' km, +' + Math.round(R.res.sube) + '/−' + Math.round(R.res.baja) + ' m' +
       ' — duración ' + MARCHA.verDur(R.res.total) + ', término ' + hhmm(R.res.termino) +
-      ' — ruta ' + ok.map(p=>p.clave ? p.nombre + ' (' + p.clave + ')' : p.nombre).join(' → ');
+      ' — ruta ' + ok.filter(p=>p.ev).map(p=>p.clave ? p.nombre + ' (' + p.clave + ')' : p.nombre).join(' → ');
   }
   function mensajePlan(m, R){ return lineaPlan(m, R) + '\n' + codigo('PLAN', datosPlan(m, R)); }
 
@@ -67,7 +67,7 @@ const BDC = (function(){
     return `<?xml version="1.0" encoding="UTF-8"?>
 <gpx version="1.1" creator="Burros de Combate" xmlns="http://www.topografix.com/GPX/1/1">
 <metadata><name>${xml(m.nombre)}</name><desc>${xml(lineaPlan(m, R))}</desc></metadata>
-${ok.map(p=>`<wpt ${w(p)}><ele>${p.cota}</ele><name>${xml(rot(p))}</name>${p.obs ? `<desc>${xml(p.obs)}</desc>` : ''}</wpt>`).join('\n')}
+${ok.filter(p=>p.ev).map(p=>`<wpt ${w(p)}><ele>${p.cota}</ele><name>${xml(rot(p))}</name>${p.obs ? `<desc>${xml(p.obs)}</desc>` : ''}</wpt>`).join('\n')}
 <rte><name>${xml(m.nombre)}</name>
 ${ok.map(p=>`<rtept ${w(p)}><ele>${p.cota}</ele><name>${xml(rot(p))}</name></rtept>`).join('\n')}
 </rte>
@@ -82,7 +82,7 @@ ${ok.map(p=>`<rtept ${w(p)}><ele>${p.cota}</ele><name>${xml(rot(p))}</name></rte
 <name>${xml(m.nombre)}</name><description>${xml(lineaPlan(m, R))}</description>
 <Style id="ruta"><LineStyle><color>ff3aa6e3</color><width>4</width></LineStyle></Style>
 <Placemark><name>${xml(m.nombre)}</name><styleUrl>#ruta</styleUrl><LineString><tessellate>1</tessellate><altitudeMode>clampToGround</altitudeMode><coordinates>${ok.map(c).join(' ')}</coordinates></LineString></Placemark>
-${ok.map(p=>`<Placemark><name>${xml(rot(p))}</name><description>${xml('Cota ' + p.cota + ' m' + (llega[p.i]!==undefined ? ' · llegada ' + hhmm(llega[p.i]) : ' · partida ' + hhmm(R.res.partida)) + (p.obs ? ' · ' + p.obs : ''))}</description><Point><coordinates>${c(p)}</coordinates></Point></Placemark>`).join('\n')}
+${ok.filter(p=>p.ev).map(p=>`<Placemark><name>${xml(rot(p))}</name><description>${xml('Cota ' + p.cota + ' m' + (llega[p.i]!==undefined ? ' · llegada ' + hhmm(llega[p.i]) : ' · partida ' + hhmm(R.res.partida)) + (p.obs ? ' · ' + p.obs : ''))}</description><Point><coordinates>${c(p)}</coordinates></Point></Placemark>`).join('\n')}
 </Document></kml>
 `;
   }
@@ -92,7 +92,7 @@ ${ok.map(p=>`<Placemark><name>${xml(rot(p))}</name><description>${xml('Cota ' + 
       distancia_km:+(R.res.dist/1000).toFixed(3), ascenso_m:Math.round(R.res.sube), descenso_m:Math.round(R.res.baja),
       duracion_h:+R.res.total.toFixed(3), termino:hhmm(R.res.termino)},
       geometry:{type:'LineString', coordinates:ok.map(p=>[r6(p.lon), r6(p.lat), p.cota])}}];
-    ok.forEach((p, j)=>{ const t = llega[p.i]; f.push({type:'Feature', properties:{tipo:'punto_control', orden:j + 1, nombre:p.nombre, clave:p.clave || null, cota:p.cota, obs:p.obs,
+    ok.filter(p=>p.ev).forEach((p, j)=>{ const t = llega[p.i]; f.push({type:'Feature', properties:{tipo:'punto_control', orden:j + 1, nombre:p.nombre, clave:p.clave || null, cota:p.cota, obs:p.obs,
       llegada:t ? hhmm(t.llegada) : hhmm(R.res.partida), rumbo_mag_desde_anterior:t ? +t.azM.toFixed(1) : null, milesimas:t ? t.mils : null},
       geometry:{type:'Point', coordinates:[r6(p.lon), r6(p.lat), p.cota]}}); });
     return JSON.stringify({type:'FeatureCollection', features:f}, null, 1);
@@ -103,7 +103,7 @@ ${ok.map(p=>`<Placemark><name>${xml(rot(p))}</name><description>${xml('Cota ' + 
     const q = s=>'"' + String(s===undefined || s===null ? '' : s).replace(/"/g, '""') + '"';
     const filas = [['Tramo', 'Nombre clave', 'Distancia (m)', 'Dist. acum. (km)', 'Cota inicial', 'Cota final', 'Desnivel (m)', 'Pendiente (%)',
       'Acimut cuadrícula (°)', 'Acimut geográfico (°)', 'Rumbo magnético (°)', 'Rumbo (milésimas)', 'Tiempo tramo', 'Tiempo acum.', 'Hora llegada', 'Observaciones']];
-    R.tramos.forEach(t=>filas.push([t.de + ' → ' + t.a, t.claveB || '', n(t.dist, 0), n(t.distAcum/1000, 2), t.cotaIni, t.cotaFin, t.dv, n(t.pte*100, 1),
+    R.tramosEv.forEach(t=>filas.push([t.de + ' → ' + t.a + (t.quiebres ? ' (' + t.quiebres + ' quiebres)' : ''), t.claveB || '', n(t.dist, 0), n(t.distAcum/1000, 2), t.cotaIni, t.cotaFin, t.dv, n(t.pte*100, 1),
       n(t.azC, 1), n(t.azG, 1), n(t.azM, 1), t.mils, MARCHA.verDur(t.t), MARCHA.verDur(t.tAcum), hhmm(t.llegada), t.obs]));
     filas.push([]);
     [['Distancia total (km)', n(R.res.dist/1000, 2)], ['Ascenso acumulado (m)', Math.round(R.res.sube)], ['Descenso acumulado (m)', Math.round(R.res.baja)],
@@ -126,13 +126,13 @@ ${ok.map(p=>`<Placemark><name>${xml(rot(p))}</name><description>${xml('Cota ' + 
     let pts = [];
     if(/<gpx/i.test(texto)){
       const de = t=>tags(texto, t).map(x=>({nombre:val(x.in, 'name'), lat:at(x.at, 'lat'), lon:at(x.at, 'lon'), cota:parseFloat(val(x.in, 'ele'))}));
-      pts = de('wpt'); if(!pts.length) pts = de('rtept'); if(!pts.length) pts = de('trkpt');
+      pts = de('wpt'); if(pts.length) pts.forEach(p=>p.ev = true); if(!pts.length) pts = de('rtept'); if(!pts.length) pts = de('trkpt');
       if(!pts.length){ let x; while((x = auto.exec(texto))) pts.push({nombre:'', lat:at(x[2], 'lat'), lon:at(x[2], 'lon'), cota:NaN}); }
     } else if(/<kml/i.test(texto)){
       tags(texto, 'Placemark').forEach(pm=>{
         const nombre = val(pm.in, 'name'), pt = tags(pm.in, 'Point')[0], ls = tags(pm.in, 'LineString')[0];
         const cs = s=>val(s, 'coordinates').split(/\s+/).filter(Boolean).map(c=>c.split(',').map(Number));
-        if(pt) cs(pt.in).forEach(([lon, lat, h])=>pts.push({nombre, lat, lon, cota:h}));
+        if(pt) cs(pt.in).forEach(([lon, lat, h])=>pts.push({nombre, lat, lon, cota:h, ev:true}));
         else if(ls && !pts.ruta) pts.ruta = cs(ls.in).map(([lon, lat, h], i)=>({nombre:'', lat, lon, cota:h}));
       });
       if(!pts.length && pts.ruta) pts = pts.ruta;
@@ -140,7 +140,7 @@ ${ok.map(p=>`<Placemark><name>${xml(rot(p))}</name><description>${xml('Cota ' + 
     pts = pts.filter(p=>isFinite(p.lat) && isFinite(p.lon));
     if(pts.length>max){ const k = (pts.length - 1)/(max - 1); pts = Array.from({length:max}, (_, i)=>pts[Math.round(i*k)]); }
     return pts.map((p, i)=>{ const c = /^([A-ZÁÉÍÓÚÑÜ0-9 -]+) \((.+)\)$/.exec(p.nombre || '');   // «ALFA (PC1)» exportado por esta app
-      return Object.assign(p, {nombre:c ? c[2] : p.nombre || (i===0 ? 'PIM' : 'PC' + i), clave:c ? c[1] : '', cota:isFinite(p.cota) && p.cota ? Math.round(p.cota) : ''}); });
+      return Object.assign(p, {ev:p.ev || i===0 || !!p.nombre, nombre:c ? c[2] : p.nombre || (i===0 ? 'PIM' : ''), clave:c ? c[1] : '', cota:isFinite(p.cota) && p.cota ? Math.round(p.cota) : ''}); });
   }
 
   return {PRE, TIPOS, codigo, leer, datosPlan, marchaDePlan, lineaPlan, mensajePlan, gpx, kml, geojson, csv, leerArchivo, b64e, b64d};

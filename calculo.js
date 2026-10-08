@@ -145,11 +145,12 @@ const MARCHA = (function(){
   // palabras de la lista propia: una por línea o separadas por coma
   const listaPropia = t=>String(t||'').split(/[\n,;]+/).map(x=>x.trim().toUpperCase()).filter(Boolean);
   function claves(pts, lista, propia){
-    const L = lista==='propia' ? listaPropia(propia) : (CLAVES[lista] || CLAVES.otan).l, usadas = new Set(pts.map(p=>p.claveManual).filter(Boolean)), lugar = {}; let k = 0;
+    const L = lista==='propia' ? listaPropia(propia) : (CLAVES[lista] || CLAVES.otan).l, usadas = new Set(pts.filter(p=>p.ev).map(p=>p.claveManual).filter(Boolean)), lugar = {}; let k = 0;
     const libre = ()=>{ if(!L.length) return ''; for(let v=0; v<500; v++, k++){ const c = L[k%L.length] + (k>=L.length ? ' ' + (Math.floor(k/L.length) + 1) : ''); if(!usadas.has(c)){ usadas.add(c); k++; return c; } } return ''; };
     pts.forEach((p, i)=>{
       const sitio = p.ok ? p.lat.toFixed(5) + ',' + p.lon.toFixed(5) : null;
-      if(p.claveManual) p.clave = p.claveManual;
+      if(!p.ev) p.clave = '';
+      else if(p.claveManual) p.clave = p.claveManual;
       else if(i===0) p.clave = '';
       else if(sitio && lugar[sitio]) p.clave = lugar[sitio];
       else p.clave = libre();
@@ -244,8 +245,14 @@ const MARCHA = (function(){
     const vel = {sub:num(par.velSub) || vt.sub, baj:num(par.velBaj) || vt.baj, tabla:vt};
     const pts = (m.puntos || []).map((p, i)=>{
       const g = puntoWgs(p, dat), cota = num(p.cota);
-      return {i, nombre:p.nombre || ('P' + (i + 1)), claveManual:String(p.clave || '').trim().toUpperCase(), obs:p.obs || '', det:(num(p.det)||0)/60, ok:!!g && !isNaN(cota), lat:g && g.lat, lon:g && g.lon, cota};
+      // ev: punto de control que se informa por radio (evento); si no, es solo un punto de ruta (quiebre del camino).
+      // Las marchas antiguas no tienen el campo: todos sus puntos son eventos.
+      return {i, nombre:p.nombre || '', ev:p.ev===undefined ? true : !!p.ev, claveManual:String(p.clave || '').trim().toUpperCase(), obs:p.obs || '', det:(num(p.det)||0)/60, ok:!!g && !isNaN(cota), lat:g && g.lat, lon:g && g.lon, cota};
     });
+    // el primer y el último punto válidos siempre son eventos (partida y llegada)
+    { const v = pts.filter(p=>p.ok); if(v.length){ v[0].ev = true; v[v.length - 1].ev = true;
+        if(!v[0].nombre) v[0].nombre = 'PIM'; if(v.length>1 && !v[v.length - 1].nombre) v[v.length - 1].nombre = 'TÉRMINO'; } }
+    pts.forEach((p, i)=>{ if(!p.nombre) p.nombre = p.ev ? 'P' + (i + 1) : ''; });
     claves(pts, par.claves, par.clavesPropias);
     const val = pts.filter(p=>p.ok);
     const zona = num(m.zona) || (val[0] ? Math.floor((val[0].lon + 180)/6) + 1 : 19);
@@ -258,7 +265,7 @@ const MARCHA = (function(){
       const azC = dg ? (Math.atan2(dE, dN)/rad + 360)%360 : 0, azG = (azC + A.utm.conv + 360)%360, azM = (azG - dec.valor + 360)%360;
       const via = m.puntos[B.i].via || par.via, tt = tiempoTramo(dh, dv, par, Object.assign({}, vel, {via}));
       acum += tt.t; dist += dh; if(dv>0) sube += dv; else baja -= dv;
-      tramos.push({de:A.nombre, a:B.nombre, claveA:A.clave, claveB:B.clave, iA:A.i, iB:B.i, dist:dh, distAcum:dist, cotaIni:A.cota, cotaFin:B.cota, dv,
+      tramos.push({de:A.nombre, a:B.nombre, evA:A.ev, evB:B.ev, claveA:A.clave, claveB:B.clave, iA:A.i, iB:B.i, dist:dh, distAcum:dist, cotaIni:A.cota, cotaFin:B.cota, dv,
         pte:dh ? dv/dh : 0, via, azC, azG, azM, mils:Math.round(azM*6400/360)%6400, t:tt.t, como:tt.como, tAcum:acum, obs:B.obs});
     }
     // detenciones planificadas en los puntos intermedios (comida, descanso, reorganización); no cuenta el último punto
@@ -270,6 +277,17 @@ const MARCHA = (function(){
     let detAc = pts[0] ? pts[0].det : 0;
     tramos.forEach(t=>{ t.llegada = h0===null ? null : h0 + t.tAcum*(1 + (num(par.altos)||0)) + detAc;
       t.det = pts[t.iB].det; t.salida = t.llegada===null ? null : t.llegada + t.det; detAc += t.det; });
+    // tramos entre eventos: suman los quiebres (puntos de ruta) que hay entre un punto de control y el siguiente
+    const tramosEv = []; let cur = null;
+    tramos.forEach(t=>{
+      if(!cur) cur = {de:t.de, iA:t.iA, claveA:t.claveA, cotaIni:t.cotaIni, dist:0, t:0, sube:0, baja:0, pteMax:0, subs:[], azM:t.azM, mils:t.mils, azC:t.azC, azG:t.azG, det:0};
+      cur.subs.push(t); cur.dist += t.dist; cur.t += t.t; if(t.dv>0) cur.sube += t.dv; else cur.baja -= t.dv;
+      if(Math.abs(t.pte)>Math.abs(cur.pteMax)) cur.pteMax = t.pte;
+      if(t.evB){ Object.assign(cur, {a:t.a, iB:t.iB, claveB:t.claveB, cotaFin:t.cotaFin, dv:t.cotaFin - cur.cotaIni, distAcum:t.distAcum, tAcum:t.tAcum,
+        llegada:t.llegada, salida:t.salida, det:t.det, obs:t.obs, quiebres:cur.subs.length - 1, como:cur.subs.length===1 ? t.como : ''});
+        cur.pte = cur.dist ? cur.dv/cur.dist : 0; tramosEv.push(cur); cur = null; }
+    });
+    const eventos = pts.filter(p=>p.ok && p.ev).map(p=>p.i);
     const alto = val.reduce((x, p)=>!x || p.cota>x.cota ? p : x, null);
     // columna: velocidad media de la marcha (distancia / tiempo de marcha) para el tiempo de paso
     const vMedia = acum ? dist/1000/(acum*(1 + (num(par.altos)||0))) : velGeneral(par.via, par.noche), col = columna(par, vMedia || 4);
@@ -279,7 +297,7 @@ const MARCHA = (function(){
     if(par.metodo==='general' && tramos.some(t=>Math.abs(t.pte)>=0.07)) avisos.push('Hay tramos con pendiente de 7 % o más: según ATP 3-21.18 (párr. 1-28) afectan la velocidad. Considera el método de montaña o MIDE.');
     if(dist>56000) avisos.push('Más de 56 km: sobre el máximo recomendado para una marcha forzada de 24 h (ATP 3-21.18 párr. 2-30). Divide en jornadas.');
     else if(dist>32000) avisos.push('Más de 32 km: es una marcha forzada (la jornada normal es 8 h a 4 km/h = 32 km, ATP 3-21.18 párr. 2-30). Planifica unas 24 h de recuperación.');
-    return {par, vel, zona, decl:dec, puntos:pts, tramos, columna:col, calor:calor(par, total), avisos,
+    return {par, vel, zona, decl:dec, puntos:pts, tramos, tramosEv, eventos, columna:col, calor:calor(par, total), avisos,
       res:{dist, sube, baja, marcha:acum, altos, det, imprev, total, partida:h0, termino:ter, terminoCola:ter===null || !col ? null : ter + col.paso, alto,
         conv:ref ? ref.utm.conv : null, lejos:val.some(p=>Math.abs(p.lon - (zona*6 - 183))>4)}};
   }

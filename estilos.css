@@ -298,3 +298,14 @@ table.matriz tr.pend td.ev{color:var(--tenue)}
 .clave-ev b{color:#14150f;background:var(--ocre);border-radius:4px;padding:1px 5px;letter-spacing:.05em}
 .tc-ev{margin-top:8px}
 @media print{ .clave-ev b{background:none;color:#000;border:1px solid #000} }
+/* puntos de ruta (quiebres) y eventos */
+.m-ruta{background:#fff;border:3px solid #14150f;border-radius:50%;box-shadow:0 1px 4px #0008}
+.m-ruta.sel{background:var(--ocre);transform:scale(1.3)}
+.mapa-env.agregando .m-ruta{cursor:move}
+.h-ev{display:flex;gap:8px;align-items:center;font-size:13px;margin:4px 0 8px;color:var(--suave)}
+.h-ev input{width:20px;height:20px;accent-color:var(--ocre)}
+.h-ev b{color:var(--ocre)}
+.punto.ruta{opacity:.8;border-style:dashed}
+.punto .h-ev{margin:-2px 0 8px}
+table.t tr.sub td{color:var(--tenue);font-size:12px;padding-top:4px;padding-bottom:4px;background:#191b14}
+table.t tr.sub td.sube,table.t tr.sub td.baja,table.t tr.sub td.fuerte{opacity:.8}
