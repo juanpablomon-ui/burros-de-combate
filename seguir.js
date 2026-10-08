@@ -47,7 +47,9 @@ const Seguir = (function(){
     if(watch!==null || !navigator.geolocation) return;
     watch = navigator.geolocation.watchPosition(p=>{
       pos = {lat:p.coords.latitude, lon:p.coords.longitude, acc:p.coords.accuracy, t:ahora(), vel:p.coords.speed};
-      const m = A.actual(), E = m && m.ejec; if(!E || E.estado==='fin') return;
+      const m = A.actual(), E = m && m.ejec;
+      if(!E){ pintarPrevio(); return; }   // antes de partir: solo se muestra la posición y la distancia al PIM
+      if(E.estado==='fin') return;
       const u = E.track[E.track.length - 1];
       if(!u || M.sobreTramo(pos, {lat:u[0], lon:u[1]}, {lat:u[0], lon:u[1]}).d>10 || pos.t - u[2]>60000){ E.track.push([+pos.lat.toFixed(6), +pos.lon.toFixed(6), pos.t]); if(E.track.length>8000) E.track.splice(0, E.track.length - 8000); }
       // llegada automática
@@ -167,18 +169,17 @@ const Seguir = (function(){
     const c = $('#seguir'); if(!c) return; const m = A.actual(), P = plan(m), E = m.ejec;
     cerrarMapa(); document.body.classList.remove('con-mapa');
     if(!P){ c.innerHTML = `<div class="tarjeta vacio">Completa la ruta (al menos dos puntos con cota) para poder seguir la marcha.</div>`; return; }
-    if(!E){ // antes de partir
-      c.innerHTML = `<h2>Seguir la marcha</h2>
-        <div class="tarjeta">
-          <div class="kpis"><div class="kpi"><div class="k">Puntos</div><div class="v">${P.pts.length}</div></div><div class="kpi"><div class="k">Distancia</div><div class="v">${A.f(P.R.res.dist/1000, 1)} <small>km</small></div></div>
-            <div class="kpi"><div class="k">Partida plan</div><div class="v">${M.verHora(P.R.res.partida)}</div></div><div class="kpi"><div class="k">Duración plan</div><div class="v">${M.verDur(P.R.res.total).replace(' min', '')}</div></div></div>
-          <button class="btn pri grande" id="sIni">▶ Iniciar marcha</button>
-          <p class="nota">Al iniciar se registra la hora real de partida y el teléfono muestra la carta con tu posición, el próximo punto de control, la distancia, el rumbo y si vas
-            adelantado o atrasado. Las llegadas se marcan solas al pasar a menos de 40 m del punto (o con el botón).<br>
-            <b>Mantén la app abierta y la pantalla encendida</b> (se pide automáticamente); con la pantalla apagada el teléfono deja de entregar el GPS a la app.
-            El GPS necesita que la app esté publicada en https o abierta en este mismo equipo.</p>
-        </div>`;
-      $('#sIni').onclick = iniciar; return;
+    if(!E){ // antes de partir: la carta a pantalla completa con el plan encima y el botón de inicio abajo
+      document.body.classList.add('con-mapa');
+      c.innerHTML = `<div class="mapa-env s-carta"><div id="sMapa"></div>
+        <div class="s-hud" id="sPrevio"></div>
+        <button class="btn s-centrar" id="sCentrar" title="Centrar en mi posición">◎</button>
+        <div class="s-pie"><button class="btn pri grande" id="sIni">▶ Iniciar marcha</button>
+          <p class="s-ayuda">Mantén la app abierta y la pantalla encendida durante la marcha. Las llegadas a cada evento se marcan solas a menos de 40 m.</p></div></div>`;
+      $('#sIni').onclick = iniciar;
+      pintarPrevio(); hacerMapa(P); centrar = false;
+      $('#sCentrar').onclick = ()=>{ if(pos && mapa){ centrar = true; mapa.setView([pos.lat, pos.lon], Math.max(mapa.getZoom(), 16)); } else A.aviso('Esperando señal GPS…'); };
+      iniciarGps(); pintarPrevio(); return;
     }
     if(E.estado==='fin') return pintarFin(c, m, P);
     const sel = `<div class="seg s-modos">${MODOS.map(([k, n])=>`<button data-smodo="${k}" class="${modo===k ? 'on' : ''}">${n}</button>`).join('')}</div>`;
@@ -285,6 +286,26 @@ ${E.track.map(t=>`<trkpt lat="${t[0]}" lon="${t[1]}"><time>${new Date(t[2]).toIS
     $('#fRe').onclick = ()=>A.confirmar('¿Borrar el registro de esta marcha (horas reales, altos, recorrido)?', ()=>{ delete m.ejec; A.guardar(); pintar(); });
   }
 
+  // datos del plan sobre la carta antes de partir, y dónde estoy respecto del PIM
+  function pintarPrevio(){
+    const c = $('#sPrevio'); if(!c) return; const m = A.actual(), P = plan(m); if(!P) return;
+    const r = P.R.res, nEv = P.pts.filter(p=>p.ev).length, nQ = P.pts.length - nEv, pim = P.pts[0];
+    let dPim = '';
+    if(pos){ const x = M.rumboEntre(pos, pim, P.R.zona, P.R.decl.valor);
+      dPim = x.dist<=Math.max(40, 15 + (pos.acc||0)) ? '<b class="bien">✔ Estás en el PIM</b>'
+        : `Al PIM: <b>${x.dist>=1000 ? A.f(x.dist/1000, 2) + ' km' : A.f(x.dist) + ' m'}</b> · rumbo <b class="ocre">${A.f(x.azM, 0)}°</b> / ${x.mils} ‰`; }
+    const luz = P.R.conLuz && typeof LUZ!=='undefined' ? LUZ.condicion(new Date(LUZ.inicioDia(m.fecha) + r.partida*36e5), pim.lat, pim.lon) : null;
+    c.innerHTML = `<div class="hud1"><span>PLAN <b>${A.esc(m.nombre || 'Marcha')}</b>${m.unidad ? ' <small>' + A.esc(m.unidad) + '</small>' : ''}</span></div>
+      <div class="prev-datos">
+        <div><span>Partida</span><b>${M.verHora(r.partida)}</b></div><div><span>Término</span><b class="ocre">${M.verHora(r.termino)}</b></div>
+        <div><span>Distancia</span><b>${A.f(r.dist/1000, 1)} km</b></div><div><span>Duración</span><b>${M.verDur(r.total).replace(/ min$/, '')}</b></div>
+        <div><span>Eventos</span><b>${nEv}</b>${nQ ? ` <small>+${nQ} quiebres</small>` : ''}</div><div><span>Desnivel</span><b>+${A.f(r.sube)}</b> <small>/ −${A.f(r.baja)} m</small></div>
+      </div>
+      <div class="hud3 mono">${luz ? (luz.tipo==='dia' ? '☀ parte de día' : luz.oscuro ? (luz.conLuna ? '☾ parte de noche, con luna' : '● parte de noche, sin luna') : '◐ parte en crepúsculo') + (P.R.fracNoche>0 ? ' · ' + Math.round(P.R.fracNoche*100) + ' % de la marcha de noche' : '') + ' · ' : ''}primer evento: ${A.esc(P.pts.find((p, k)=>k && p.ev) ? rotulo(P.pts.find((p, k)=>k && p.ev)) : '—')}</div>
+      <div class="hud3 mono" style="margin-top:4px">${pos ? dPim + ' · GPS ±' + Math.round(pos.acc||0) + ' m' : (navigator.geolocation ? 'Esperando señal GPS…' : 'Este equipo no tiene GPS')}</div>`;
+    mapaVivo();
+  }
+
   /* ---------- carta a pantalla completa ---------- */
   let primera = true;
   function hacerMapa(P){
@@ -296,17 +317,33 @@ ${E.track.map(t=>`<trkpt lat="${t[0]}" lon="${t[1]}"><time>${new Date(t[2]).toIS
     if(conCurvas && typeof Curvas!=='undefined'){ mapa.createPane('curvas').style.zIndex = 300; mapa.getPane('curvas').style.pointerEvents = 'none'; Curvas.capa({claro:base==='sat', pane:'curvas'}).addTo(mapa); }
     L.polyline(P.pts.map(p=>[p.lat, p.lon]), {color:'#14150f', weight:8, opacity:.5}).addTo(mapa);
     L.polyline(P.pts.map(p=>[p.lat, p.lon]), {color:'#e3a63a', weight:4, opacity:.95, dashArray:'8 6'}).addTo(mapa);
+    // un rótulo por lugar: si la ruta vuelve a pasar por el mismo punto, se juntan los nombres («PIM / ECO»)
+    const lugares = new Map();
     P.pts.forEach((p, k)=>{ if(!p.ev){ L.circleMarker([p.lat, p.lon], {radius:3, color:'#14150f', weight:1, fillColor:'#fff', fillOpacity:1}).addTo(mapa); return; }
-      L.circleMarker([p.lat, p.lon], {radius:7, color:'#14150f', weight:2, fillColor:'#e3a63a', fillOpacity:1})
-      .bindTooltip(p.clave || p.nombre, {permanent:true, direction:'right', className:'s-etq'}).addTo(mapa); });
+      const key = p.lat.toFixed(5) + ',' + p.lon.toFixed(5), n = p.clave || p.nombre;
+      if(!lugares.has(key)) lugares.set(key, {p, n:[]}); const l = lugares.get(key); if(!l.n.includes(n)) l.n.push(n); });
+    lugares.forEach(({p, n})=>L.circleMarker([p.lat, p.lon], {radius:7, color:'#14150f', weight:2, fillColor:'#e3a63a', fillOpacity:1})
+      .bindTooltip(n.join(' / '), {permanent:true, direction:'right', className:'s-etq'}).addTo(mapa));
     capas = L.layerGroup().addTo(mapa);
-    mapa.fitBounds(L.latLngBounds(P.pts.map(p=>[p.lat, p.lon])), {padding:[40, 40], animate:false});
+    // la ruta queda entre los datos de arriba y los botones de abajo
+    const hud = document.querySelector('.s-hud'), alto = hud ? hud.offsetHeight + 70 : 200;
+    mapa.fitBounds(L.latLngBounds(P.pts.map(p=>[p.lat, p.lon])), {paddingTopLeft:[40, alto], paddingBottomRight:[60, 170], animate:false});
     mapa.on('dragstart', ()=>centrar = false);
     primera = true;
     const este = mapa; setTimeout(()=>{ if(mapa===este) mapa.invalidateSize({animate:false}); }, 50);
   }
   function mapaVivo(){
     if(!mapa || !capas) return; capas.clearLayers(); const m = A.actual(), E = m.ejec, P = plan(m);
+    if(!E){ // antes de partir: mi posición y una línea hasta el PIM
+      if(pos){ L.circle([pos.lat, pos.lon], {radius:pos.acc||20, color:'#2a7fd4', weight:1, fillOpacity:.12}).addTo(capas);
+        L.circleMarker([pos.lat, pos.lon], {radius:8, color:'#fff', weight:3, fillColor:'#2a7fd4', fillOpacity:1}).addTo(capas);
+        L.polyline([[pos.lat, pos.lon], [P.pts[0].lat, P.pts[0].lon]], {color:'#fff', weight:2, dashArray:'4 6', opacity:.9}).addTo(capas);
+        if(centrar) mapa.panTo([pos.lat, pos.lon], {animate:false});
+        else if(!mapa._conPos){ mapa._conPos = true;   // con la primera señal, encuadrar la ruta y mi posición
+          const hud = document.querySelector('.s-hud'), alto = hud ? hud.offsetHeight + 70 : 200;
+          mapa.fitBounds(L.latLngBounds(P.pts.map(p=>[p.lat, p.lon]).concat([[pos.lat, pos.lon]])), {paddingTopLeft:[40, alto], paddingBottomRight:[70, 170], animate:false}); } }
+      L.circleMarker([P.pts[0].lat, P.pts[0].lon], {radius:13, color:'#fff', weight:3, fill:false}).addTo(capas);
+      return; }
     if(E.track.length>1) L.polyline(E.track.map(t=>[t[0], t[1]]), {color:'#2a7fd4', weight:4}).addTo(capas);
     const k = siguiente(m, P), ke = proxEv(m, P);
     if(ke!==null){ const e = P.pts[ke]; L.circleMarker([e.lat, e.lon], {radius:13, color:'#fff', weight:3, fill:false}).addTo(capas); }
@@ -317,6 +354,7 @@ ${E.track.map(t=>`<trkpt lat="${t[0]}" lon="${t[1]}"><time>${new Date(t[2]).toIS
   }
   function cerrarMapa(){ if(mapa){ try { mapa.remove(); } catch(e){} mapa = null; capas = null; } }
 
-  return {abrir, cerrar:cerrarMapa, siguiente, plan, atraso, enMarcha:()=>watch!==null};
+  function cerrar(){ cerrarMapa(); const m = A && A.actual(); if(!(m && m.ejec && m.ejec.estado!=='fin')) pararGps(); }
+  return {abrir, cerrar, siguiente, plan, atraso, enMarcha:()=>watch!==null};
 })();
 if(typeof globalThis!=='undefined') globalThis.Seguir = Seguir;
