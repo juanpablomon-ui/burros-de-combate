@@ -265,7 +265,7 @@ const Mapa = (function(){
       <div class="campos">
         <label class="c">Cota (m)${p.cotaAuto ? ' <small>≈ ' + A.esc(p.cotaSrc || 'terreno') + '</small>' : ''}<input class="num" data-h="cota" inputmode="numeric" value="${A.esc(p.cota)}"></label>
         <label class="c">Detención (min)<input class="num" data-h="det" inputmode="numeric" value="${A.esc(p.det)}" placeholder="0"></label>
-        ${i && esEv ? `<label class="c ancho">Nombre clave (vacío = automático)<input class="num clave" data-h="clave" value="${A.esc(p.clave || '')}" placeholder="${A.esc(g && g.clave || '')}" list="hClaves"></label>
+        ${esEv ? `<label class="c ancho">Nombre clave (vacío = automático)<input class="num clave" data-h="clave" value="${A.esc(p.clave || '')}" placeholder="${A.esc(g && g.clave || '')}" list="hClaves"></label>
           <datalist id="hClaves">${(m.par.claves==='propia' ? M.listaPropia(m.par.clavesPropias) : (M.CLAVES[m.par.claves] || M.CLAVES.otan).l).map(c=>`<option value="${c}">`).join('')}</datalist>` : ''}
         <label class="c ancho">Observaciones<input data-h="obs" value="${A.esc(p.obs)}" placeholder="puente, portezuelo, cruce…"></label>
       </div>

@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.17', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.18', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -263,7 +263,7 @@
         <p class="nota">Por radio: <b class="mono">«${esc((p.verbo || 'PASANDO').toUpperCase())} ${esc(R.puntos[1] && R.puntos[1].clave || 'ALFA')}»</b>. Cada punto recibe el siguiente nombre de la lista; si la ruta vuelve
           a pasar por el mismo lugar, se repite. Escribe un nombre en la tabla para cambiarlo a mano (vacío = el de la lista).</p>
         <div class="tabla-env"><table class="t"><thead><tr><th class="tx">Evento N.º</th><th class="tx">Punto</th><th class="tx">Nombre clave</th><th class="tx">Evento (radio)</th></tr></thead><tbody>
-          ${m.puntos.map((x, i)=>i && R.puntos[i].ev ? `<tr><td class="tx">${R.eventos.indexOf(i) + 1}</td><td class="tx"><b>${esc(x.nombre)}</b></td><td class="tx"><input class="num clave" data-pc="${i}" value="${esc(x.clave || '')}" placeholder="${esc(R.puntos[i].clave || '')}" list="listaClaves" style="max-width:180px;padding:5px 8px"></td>
+          ${m.puntos.map((x, i)=>R.puntos[i].ev ? `<tr><td class="tx">${R.eventos.indexOf(i) + 1}</td><td class="tx"><b>${esc(x.nombre)}</b></td><td class="tx"><input class="num clave" data-pc="${i}" value="${esc(x.clave || '')}" placeholder="${esc(R.puntos[i].clave || '')}" list="listaClaves" style="max-width:180px;padding:5px 8px"></td>
             <td class="tx" id="ev${i}">${evento(R.puntos[i].clave)}</td></tr>` : '').join('')}
         </tbody></table></div>
         <div class="btns"><button class="btn mini" id="bClavesAuto">↺ Todos automáticos (borrar los escritos a mano)</button></div>
@@ -319,7 +319,7 @@
           <label class="c">Longitud ${x.este ? 'E' : 'W'}<input class="num" data-p="lon" inputmode="decimal" value="${esc(x.lon)}" placeholder="70 34 28"></label>
           <label class="c cota">Cota (m)${x.cotaAuto ? ' ≈' : ''}<input class="num" data-p="cota" inputmode="numeric" value="${esc(x.cota)}"></label></div>`}
         ${actual().par.metodo==='general' && i ? `<div class="extra" style="grid-template-columns:1fr"><label class="c">Vía desde el punto anterior<select data-p="via">${'<option value="">Igual que la marcha (' + esc(M.VIAS[actual().par.via]) + ')</option>' + Object.entries(M.VIAS).map(([k, n])=>`<option value="${k}"${x.via===k ? ' selected' : ''}>${n}</option>`).join('')}</select></label></div>` : ''}
-        ${i && Rc.puntos[i].ev ? `<div class="extra" style="grid-template-columns:1fr"><label class="c">Nombre clave (vacío = automático)<input class="num clave" data-p="clave" value="${esc(x.clave||'')}" placeholder="${esc(Rc.puntos[i].clave || '')}" list="listaClaves"></label></div>` : ''}
+        ${Rc.puntos[i].ev ? `<div class="extra" style="grid-template-columns:1fr"><label class="c">Nombre clave (vacío = automático)<input class="num clave" data-p="clave" value="${esc(x.clave||'')}" placeholder="${esc(Rc.puntos[i].clave || '')}" list="listaClaves"></label></div>` : ''}
         <div class="extra"><label class="c">Observaciones (punto característico)<input data-p="obs" value="${esc(x.obs)}" placeholder="puente, portezuelo, cruce…"></label>
           <label class="c">Detención (min)<input class="num" data-p="det" inputmode="numeric" value="${esc(x.det)}" placeholder="0"></label></div>
         <div class="estado" id="est${i}"></div>
@@ -450,17 +450,17 @@
       ${R.res.lejos ? `<div class="alerta">Hay puntos a más de 4° del meridiano central de la zona ${R.zona}: revisa la zona UTM de trabajo.</div>` : ''}
       <h2>Cuadro de marcha y navegación</h2>
       <div class="tabla-env solo-ancho"><table class="t cmn">
-        <thead><tr><th class="tx">Punto</th><th>Hora<br>llegada</th><th>Hora<br>salida</th><th>Altitud<br>(m)</th>
+        <thead><tr><th class="tx">Punto</th><th class="tx">Evento<br>(radio)</th><th>Hora<br>llegada</th><th>Hora<br>salida</th><th>Altitud<br>(m)</th>
           <th class="sig">Rumbo al siguiente<br>(° / ‰)</th><th class="sig">Distancia<br>(m)</th><th class="sig">Desnivel<br>(m)</th><th class="sig">Pendiente</th><th class="sig">Tiempo</th>
-          <th>Dist. acum.<br>(km)</th><th>Tiempo<br>acum.</th><th class="tx">Observaciones</th><th class="tx">Evento<br>(radio)</th></tr></thead>
-        <tbody>${filas.map(({p, ll, sig, sal, acum, tac})=>`<tr class="${p.ev ? '' : 'sub'}"><td class="tx">${nombre(p)}</td>
+          <th>Dist. acum.<br>(km)</th><th>Tiempo<br>acum.</th><th class="tx">Observaciones</th></tr></thead>
+        <tbody>${filas.map(({p, ll, sig, sal, acum, tac})=>`<tr class="${p.ev ? '' : 'sub'}"><td class="tx">${nombre(p)}</td><td class="tx">${p.ev ? evento(p.clave) : ''}</td>
           <td>${ll ? '<b>' + M.verHora(ll.llegada) + '</b>' + icoLuz(ll.llegada) : '—'}</td><td>${sig ? M.verHora(sal) : '—'}</td><td>${f(p.cota)}</td>
           ${sig ? `<td class="sig"><b>${f(sig.azM, 0)}°</b> / ${sig.mils}<span class="s">cuad. ${f(sig.azC, 1)} · geo. ${f(sig.azG, 1)}</span></td><td class="sig">${f(sig.dist)}</td>
             <td class="sig ${sig.dv>0 ? 'sube' : sig.dv<0 ? 'baja' : ''}">${sig.dv>0 ? '+' : ''}${f(sig.dv)}</td><td class="sig ${pteC(sig.pte)}">${f(sig.pte*100, 1)} %</td><td class="sig">${como[sig.como]||''} ${M.verDur(sig.t)}</td>`
             : '<td class="sig">—</td><td class="sig"></td><td class="sig"></td><td class="sig"></td><td class="sig"></td>'}
-          <td>${f(acum/1000, 2)}</td><td>${ll ? M.verDur(tac) : '—'}</td><td class="obs tx">${obs(p, ll)}</td><td class="tx">${ll && p.ev ? evento(p.clave) : ''}</td></tr>`).join('')}
-          <tr class="tot"><td class="tx">Total</td><td></td><td>${M.verHora(R.res.termino)}<span class="s">término</span></td><td></td><td class="sig"></td><td class="sig">${f(R.res.dist)}</td>
-            <td class="sig">+${f(R.res.sube)} / −${f(R.res.baja)}</td><td class="sig"></td><td class="sig">${M.verDur(R.res.marcha)}</td><td>${f(R.res.dist/1000, 2)}</td><td></td><td class="tx obs">término con altos, detenciones e imprevistos</td><td></td></tr>
+          <td>${f(acum/1000, 2)}</td><td>${ll ? M.verDur(tac) : '—'}</td><td class="obs tx">${obs(p, ll)}</td></tr>`).join('')}
+          <tr class="tot"><td class="tx">Total</td><td></td><td></td><td>${M.verHora(R.res.termino)}<span class="s">término</span></td><td></td><td class="sig"></td><td class="sig">${f(R.res.dist)}</td>
+            <td class="sig">+${f(R.res.sube)} / −${f(R.res.baja)}</td><td class="sig"></td><td class="sig">${M.verDur(R.res.marcha)}</td><td>${f(R.res.dist/1000, 2)}</td><td></td><td class="tx obs">término con altos, detenciones e imprevistos</td></tr>
         </tbody></table></div>
       <div class="tramos-cel">${filas.map(({p, ll, sig, acum, tac})=>p.ev ? `<div class="tc"><div class="cab"><b>${esc(p.nombre)}</b><span class="hora">${ll ? M.verHora(ll.llegada) : 'sale ' + M.verHora(R.res.partida)}</span></div>
           ${sig ? `<div class="datos"><div><span>Rumbo al sig.</span><b class="rumbo">${f(sig.azM, 0)}°</b> <small>${sig.mils} ‰</small></div><div><span>Distancia</span>${f(sig.dist)} m</div><div><span>Tiempo</span>${M.verDur(sig.t)}</div>
@@ -517,7 +517,7 @@
       // rótulos solo en los eventos (los puntos de ruta son quiebres sin nombre); el desnivel es desde el evento anterior
       const evs = serie.filter(p=>p.ev);
       evs.forEach((p, i)=>{ const x = X(p.d), lim = i===0 ? 'start' : i===evs.length - 1 ? 'end' : 'middle', dv = i ? p.c - evs[i - 1].c : 0;
-        const jj = compacto ? 3 : j, txt = [M.verHora(p.h), f(p.d/1000, 1), i ? (dv>0 ? '+' : '') + f(dv) : '0', compacto && i && p.t.claveB ? p.t.claveB : p.n][jj];
+        const jj = compacto ? 3 : j, txt = [M.verHora(p.h), f(p.d/1000, 1), i ? (dv>0 ? '+' : '') + f(dv) : '0', compacto ? (i ? p.t.claveB : (R.puntos[R.tramos[0].iA] || {}).clave) || p.n : p.n][jj];
         // no amontonar textos: solo si hay espacio desde el anterior
         if(i && X(p.d) - X(evs[i - 1].d)<(jj===3 && compacto ? 50 : 34) && (jj<3 || compacto)) return;
         s += jj===3 ? `<text x="${x}" y="${yb + 15}" text-anchor="${lim}" font-size="11" font-weight="700" fill="#ece8d8">${esc(txt)}</text>`

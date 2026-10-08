@@ -151,7 +151,6 @@ const MARCHA = (function(){
       const sitio = p.ok ? p.lat.toFixed(5) + ',' + p.lon.toFixed(5) : null;
       if(!p.ev) p.clave = '';
       else if(p.claveManual) p.clave = p.claveManual;
-      else if(i===0) p.clave = '';
       else if(sitio && lugar[sitio]) p.clave = lugar[sitio];
       else p.clave = libre();
       if(sitio && p.clave && !lugar[sitio]) lugar[sitio] = p.clave;

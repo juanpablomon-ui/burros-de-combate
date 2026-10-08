@@ -134,7 +134,7 @@ const Seguir = (function(){
   function mensaje(k, d){
     const m = A.actual(), E = m.ejec, P = plan(m), at = atraso(m, P), quien = '«' + (m.nombre || 'marcha') + '»' + (m.unidad ? ' (' + m.unidad + ')' : '');
     const donde = pos ? ' — posición ' + utmTxt(pos) : '';
-    const txt = ({INI:'INICIO DE MARCHA ' + quien + ' ' + hh(E.inicio),
+    const txt = ({INI:'INICIO DE MARCHA ' + (P.pts[0].clave ? P.pts[0].clave + ' (' + P.pts[0].nombre + ') — ' : '') + quien + ' ' + hh(E.inicio),
       PC:verbo() + ' ' + (d.clave || d.pc) + ' — ' + quien + ' ' + d.h + ' (' + difCorta(d.dif) + ' respecto del plan)' + (d.clave ? ' [' + d.pc + ']' : ''),
       ALTO:'ALTO NO PLANIFICADO ' + quien + ' — ' + d.mot,
       NOV:'NOVEDAD ' + quien + ' — ' + d.txt,
@@ -248,7 +248,7 @@ const Seguir = (function(){
   function ficha(){
     const c = $('#sFicha'); if(!c) return; const m = A.actual(), P = plan(m), E = m.ejec, ev = [];
     const posTxt = (la, lo)=>la===undefined || la===null ? '' : utmTxt({lat:la, lon:lo});
-    ev.push({t:E.inicio, real:true, ev:'Inicio de marcha', punto:P.pts[0].nombre, plan:E.inicio, dif:0, tipo:'ini'});
+    ev.push({t:E.inicio, real:true, ev:'Inicio de marcha' + (P.pts[0].clave ? ' — ' + P.pts[0].clave : ''), punto:P.pts[0].nombre, plan:E.inicio, dif:0, tipo:'ini'});
     P.pts.forEach((p, k)=>{ if(!k || !p.ev) return; const r = E.llegadas[k], pl = E.inicio + p.lleg*3600000;
       ev.push({t:r>0 ? r : pl, real:r>0, ev:verbo() + ' ' + rotulo(p), punto:p.nombre, plan:pl, dif:r>0 ? (r - pl)/60000 : null, salta:r===-1, tipo:'pc'}); });
     E.altos.forEach(a=>ev.push({t:a.ini, real:true, ev:'Alto — ' + a.motivo + (a.fin ? ' (' + dur(a.fin - a.ini) + ')' : ' (en curso)'), pos:posTxt(a.lat, a.lon), tipo:'alto'}));

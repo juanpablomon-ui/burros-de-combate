@@ -112,7 +112,7 @@ const PantallaLuz = (function(){
     const noche = tramos.length ? tramos.map(([a, b])=>hh(a) + ' a ' + hh(b)).join(' y ') : 'sin luna en el cielo';
     const total = tramos.reduce((x, [a, b])=>x + (b - a), 0), largoNoche = nFin - nIni;
     // eventos de la marcha con su condición de luz
-    const evs = esDia ? [{n:R.puntos[R.tramos[0] ? R.tramos[0].iA : 0].nombre, c:'', h:R.res.partida, t:null}].concat(R.tramos.filter(t=>t.evB).map(t=>({n:t.a, c:t.claveB, h:t.llegada, t})))
+    const evs = esDia ? [{n:R.puntos[R.tramos[0] ? R.tramos[0].iA : 0].nombre, c:R.puntos[R.tramos[0] ? R.tramos[0].iA : 0].clave || '', h:R.res.partida, t:null}].concat(R.tramos.filter(t=>t.evB).map(t=>({n:t.a, c:t.claveB, h:t.llegada, t})))
       .filter(e=>e.h!==null && e.h!==undefined).map(e=>Object.assign(e, {cond:LUZ.condicion(new Date(LUZ.inicioDia(f) + e.h*36e5), p0.lat, p0.lon)})) : [];
     const noct = esDia ? R.tramos.filter(t=>t.noche) : [];
     const ico = c=>c.tipo==='dia' ? '☀' : c.oscuro ? (c.conLuna ? '☾' : '●') : '◐';
