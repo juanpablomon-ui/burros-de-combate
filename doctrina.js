@@ -50,21 +50,30 @@ const MATERIAL = [
     ['casco', 'Casco', c=>c.n, c=>'1 por hombre'],
     ['chaleco', 'Chaleco antibalas con placas', c=>c.n, c=>'escribe 0 si no se usa'],
     ['portaf', 'Cinturón de carga', c=>c.n, c=>'donde va la 2.ª línea']]},
+  // equipo que sirve a toda la unidad para la misión o la marcha: se escribe el total y su peso se reparte entre todos
+  {g:'Equipo especial de la unidad', items:[
+    ['radio', 'Radio', c=>Math.max(1, c.unidades) + 1, c=>'1 por unidad de marcha + la del comandante'],
+    ['batRad', 'Baterías de repuesto para radio', c=>(Math.max(1, c.unidades) + 1)*Math.max(1, Math.ceil(c.horas/8)), c=>'1 por radio cada 8 h'],
+    ['mochTr', 'Mochila de trauma (enfermero)', c=>Math.max(1, c.unidades), c=>'1 por unidad de marcha'],
+    ['camilla', 'Camilla plegable', c=>c.n>=10 ? Math.ceil(c.n/40) : null, c=>'1 cada 40 hombres'],
+    ['ametr', 'Ametralladora', c=>0, c=>'escribe cuántas lleva la unidad'],
+    ['muniAm', 'Munición de ametralladora (cajas o cintas)', c=>0, c=>'escribe cuántas cajas o cintas'],
+    ['lanzac', 'Lanzacohetes o arma antitanque', c=>0, c=>'escribe cuántos'],
+    ['cuerda', 'Cuerda de seguridad', c=>c.montana || c.nieve ? Math.max(1, Math.ceil(c.n/10)) : null, c=>'1 cada 10 hombres para pasos difíciles'],
+    ['otroEq', 'Otro equipo de la unidad', c=>0, c=>'o agrega elementos propios con «＋ Agregar»']]},
   {g:'Agua y alimentación', items:[
-    ['agua', 'Agua por hombre', c=>String(Math.ceil((c.aguaH*c.horas + 1)*2)/2).replace('.', ',') + ' L', c=>'≈ ' + c.aguaH.toFixed(2).replace('.', ',') + ' L/h × ' + c.horas.toFixed(1).replace('.', ',') + ' h + 1 L de reserva' + (c.calorDato ? '' : ' (sin índice de calor: se usa calor bajo)')],
-    ['aguaT', 'Agua total de la unidad', c=>c.hay ? Math.ceil(c.n*(c.aguaH*c.horas + 1)) + ' L' : null, c=>'para ' + c.n + ' hombres'],
-    ['cantimp', 'Cantimploras / odres (1 L)', c=>c.n*Math.min(3, Math.ceil(c.aguaH*c.horas + 1)), c=>'hasta 3 L por hombre'],
-    ['reabast', 'Reabastecimiento de agua en ruta', c=>c.aguaH*c.horas + 1>3 ? Math.ceil(c.n*(c.aguaH*c.horas + 1 - 3)) + ' L' : null, c=>'lo que pasa de 3 L por hombre: planificar puntos de agua o vehículo'],
-    ['potab', 'Pastillas o filtro potabilizador', c=>c.horas>6 ? Math.ceil(c.n/10) + ' juego(s)' : null, c=>'marcha larga: reabastecer en ruta'],
+    ['agua', 'Agua por hombre (cantimplora o bolsa de hidratación)', c=>litros(c.agua.inicial) + ' L', c=>'≈ ' + litros(c.aguaH, 2) + ' L/h × ' + litros(c.agua.segs[0].fin - c.agua.segs[0].ini, 1) + ' h ' + (c.reabast ? 'hasta el primer punto de agua' : 'de marcha (sin reabastecimiento)') + ' + 1 L de reserva' + (c.calorDato ? '' : ' · sin datos de calor: se usa calor bajo') + (c.agua.diaria>11.4 ? ' · más de 11,4 L en el día: sobre el máximo recomendado' : '')],
+    ['aguaT', 'Agua total de la unidad', c=>c.hay ? Math.ceil(c.n*(c.aguaH*c.horas + 1)) + ' L' : null, c=>'consumo de ' + c.n + ' hombres en toda la marcha'],
+    ['reabast', 'Reabastecimiento de agua en ruta', c=>c.reabast ? c.agua.puntos + ' punto(s)' : null, c=>c.agua.puntos ? 'en cada punto de agua se repone hasta ' + litros(c.agua.max) + ' L por hombre' : 'marca los puntos de agua en Puntos'],
+    ['potab', 'Pastillas o filtro potabilizador', c=>c.horas>6 || c.reabast ? Math.ceil(c.n/10) + ' juego(s)' : null, c=>'agua de ríos o vertientes'],
     ['sales', 'Sales de rehidratación / electrolitos', c=>c.horas>4 || c.calorCat>=3 ? c.n*Math.ceil(c.horas/4) + ' sobres' : null, c=>'1 sobre cada 4 h de marcha'],
-    ['racion', 'Ración de combate', c=>c.horas>=6 ? c.n*Math.ceil(c.horas/8) : null, c=>'1 por hombre cada 8 h de marcha'],
+    ['racion24', 'Ración de combate de 24 h (tipo MRE)', c=>c.racion!=='12' && c.horas>=6 ? c.n*Math.ceil(c.horas/24) : null, c=>'1 por hombre cada 24 h (3 comidas, ≈ 1,3 kg)'],
+    ['racion12', 'Ración de combate de 12 h (tipo MRE)', c=>c.racion==='12' && c.horas>=6 ? c.n*Math.ceil(c.horas/12) : null, c=>'1 por hombre cada 12 h (2 comidas, ≈ 0,9 kg)'],
     ['colac', 'Colación de marcha (barras, frutos secos)', c=>c.n, c=>'para los altos']]},
   {g:'Sanidad', items:[
-    ['botInd', 'Botiquín individual (torniquete, venda)', c=>c.n, c=>'1 por hombre'],
-    ['botGrp', 'Botiquín de grupo', c=>Math.max(1, Math.ceil(c.n/10)), c=>'1 cada 10 hombres'],
+    ['ifak', 'IFAK: botiquín individual de combate', c=>c.n, c=>'torniquete, vendaje compresivo, gasa hemostática, sello de tórax, cánula y guantes'],
+    ['botPA', 'Botiquín de primeros auxilios pequeño', c=>c.n, c=>'heridas menores, ampollas y cuidado de pies, medicamentos básicos'],
     ['socorr', 'Enfermero o socorrista', c=>Math.max(1, Math.ceil(c.n/30)), c=>'1 cada 30 hombres; revisa a la tropa en cada alto'],
-    ['camilla', 'Camilla plegable', c=>c.n>=10 ? Math.ceil(c.n/40) : null, c=>'1 cada 40 hombres'],
-    ['pies', 'Cuidado de pies: talco, parches para ampollas', c=>Math.max(1, Math.ceil(c.n/10)) + ' kit(s)', c=>'1 kit cada 10 hombres'],
     ['calcet', 'Calcetines de recambio', c=>c.n*(c.horas>8 ? 2 : 1) + ' pares', c=>'cambio a mitad de la marcha'],
     ['manta', 'Manta térmica', c=>Math.max(1, Math.ceil(c.n/10)), c=>'1 cada 10 hombres'],
     ['solar', 'Protector solar y labial', c=>c.noche<0.9 ? Math.max(1, Math.ceil(c.n/5)) : null, c=>'marcha con luz de día'],
@@ -78,8 +87,6 @@ const MATERIAL = [
     ['reloj', 'Reloj sincronizado', c=>Math.max(1, Math.ceil(c.n/10)), c=>'jefes de grupo'],
     ['marcador', 'Marcador de paso / contador de pasos', c=>Math.max(1, c.unidades), c=>'a la cabeza de cada unidad']]},
   {g:'Comunicaciones', items:[
-    ['radio', 'Radio', c=>Math.max(1, c.unidades) + 1, c=>'1 por unidad de marcha + la del comandante'],
-    ['batRad', 'Baterías de repuesto para radio', c=>(Math.max(1, c.unidades) + 1)*Math.max(1, Math.ceil(c.horas/8)), c=>'1 por radio cada 8 h'],
     ['claves', 'Lista de nombres clave y frecuencias', c=>Math.max(1, c.unidades) + 1, c=>'«PASANDO ALFA…»'],
     ['silbato', 'Silbato / señales', c=>Math.max(1, Math.ceil(c.n/10)), c=>'jefes de grupo']]},
   {g:'Equipo individual', items:[
@@ -99,37 +106,59 @@ const MATERIAL = [
     ['polainas', 'Polainas', c=>c.nieve ? c.n + ' pares' : null, c=>'nieve'],
     ['raquetas', 'Raquetas', c=>c.terreno==='raquetas' ? c.n + ' pares' : null, c=>'terreno «sobre raquetas»'],
     ['esquies', 'Esquíes y pieles de foca', c=>c.terreno==='esquies' ? c.n + ' equipos' : null, c=>'terreno «sobre esquíes»'],
-    ['cuerda', 'Cuerda de seguridad', c=>c.montana || c.nieve ? Math.max(1, Math.ceil(c.n/10)) : null, c=>'1 cada 10 hombres para pasos difíciles'],
     ['pala', 'Pala de nieve y sonda', c=>c.nieve ? Math.max(1, Math.ceil(c.n/10)) : null, c=>'1 cada 10 hombres']]}
 ];
 // contexto de la marcha para calcular el material
 function contextoMaterial(m, R){
   const p = R.par, hay = (+p.efectivo||0)>0, cal = R.calor;
   const aguaH = cal && cal.lh ? cal.lh : 0.71;   // sin índice de calor: categoría 1, trabajo moderado (¾ qt/h)
-  return {n:hay ? Math.round(+p.efectivo) : 1, hay, horas:R.res.total || 0, km:R.res.dist/1000, noche:R.fracNoche || 0, aguaH, calorDato:!!(cal && cal.lh),
+  const c0 = {n:hay ? Math.round(+p.efectivo) : 1, hay, horas:R.res.total || 0, reabast:p.reabast==='si', racion:String(p.racion || '24'), km:R.res.dist/1000, noche:R.fracNoche || 0, aguaH, calorDato:!!(cal && cal.lh),
     calorCat:cal ? cal.cat : 0, montana:['montana', 'mide'].includes(p.metodo), nieve:p.terreno && p.terreno!=='sinNieve' && ['montana', 'mide'].includes(p.metodo), terreno:p.terreno,
     unidades:Math.max(1, Math.round(+p.unidades||1)), carga:p.metodo!=='general' ? p.carga : null};
+  c0.agua = aguaPlan(m, R, aguaH, c0.reabast); return c0;
 }
-if(typeof globalThis!=='undefined'){ globalThis.MATERIAL = MATERIAL; globalThis.contextoMaterial = contextoMaterial; }
+const litros = (x, d)=>String(Math.round(x*(d===2 ? 100 : d===1 ? 10 : 2))/(d===2 ? 100 : d===1 ? 10 : 2)).replace('.', ',');
+/* Agua que se carga: sin reabastecimiento, toda la de la marcha (L/h × horas + 1 L de reserva); con reabastecimiento, en cada punto de
+   agua (m.puntos[i].agua) se repone lo necesario hasta el siguiente + 1 L. Horas desde la partida proporcionales a la marcha acumulada. */
+function aguaPlan(m, R, lh, reabast){
+  const H = R.res.total || 0, mar = R.res.marcha || 0, cortes = [];
+  if(reabast && mar) R.tramos.forEach(t=>{ const q = (m.puntos || [])[t.iB]; if(q && q.agua && t!==R.tramos[R.tramos.length - 1]) cortes.push(H*t.tAcum/mar); });
+  const lim = [0, ...cortes, H], segs = [];
+  for(let k=0; k<lim.length - 1; k++) segs.push({ini:lim[k], fin:lim[k + 1], litros:lh*(lim[k + 1] - lim[k]) + 1});
+  return {lh, H, segs, inicial:segs[0].litros, max:Math.max(...segs.map(x=>x.litros)), puntos:cortes.length, diaria:(lh*H + 1)/Math.max(1, Math.ceil(H/24))};
+}
+// carga por hombre en cada tramo: la del partir menos el agua ya bebida (se repone en los puntos de agua)
+function cargasTramo(m, R, pm){
+  const ag = pm.items.find(x=>x.id==='agua'); if(!ag || !ag.lleva) return null;
+  const pl = contextoMaterial(m, R).agua, mar = R.res.marcha || 0, kgL = ag.kg, ini = ag.q;   // ag.q: litros al partir (o los escritos a mano)
+  const enHora = h=>{ let k = pl.segs.findIndex(x=>h<x.fin + 1e-9); if(k<0) k = pl.segs.length - 1; const sg = pl.segs[k], lleno = k===0 ? ini : sg.litros;
+    return Math.max(0, lleno - pl.lh*(h - sg.ini)); };
+  const base = pm.total - ini*kgL;
+  return {tramos:R.tramos.map(t=>{ const h = mar ? pl.H*(t.tAcum - t.t/2)/mar : 0; return Math.round((base + enHora(h)*kgL)*10)/10; }),
+    inicial:pm.total, final:Math.round((base + enHora(pl.H)*kgL)*10)/10};
+}
+if(typeof globalThis!=='undefined'){ globalThis.MATERIAL = MATERIAL; globalThis.contextoMaterial = contextoMaterial; globalThis.aguaPlan = aguaPlan; globalThis.cargasTramo = cargasTramo; }
 
 /* Peso de cada elemento del material (kg por unidad, SUGERIDOS y editables en m.material[id].kg) y cómo se carga:
    'h' = cantidad por hombre (agua: se cargan hasta 3 L, 1 kg por litro) · 'i' = individual (1 por hombre, cantidad total de la unidad)
    · 'c' = colectivo (se reparte entre todos) · 'x' = no se carga (personas, planes, agua de reabastecimiento, totales). */
-const PESOS = {fusil:[4, 'i'], cargad:[0.5, 'i'], granada:[0.4, 'i'], casco:[1.4, 'i'], chaleco:[8, 'i'], portaf:[1.2, 'i'], agua:[1, 'h'], aguaT:[0, 'x'], cantimp:[0.15, 'i'], reabast:[0, 'x'], potab:[0.1, 'c'], sales:[0.01, 'i'], racion:[0.7, 'i'], colac:[0.25, 'i'],
-  botInd:[0.3, 'i'], botGrp:[2.5, 'c'], socorr:[0, 'x'], camilla:[7, 'c'], pies:[0.3, 'c'], calcet:[0.1, 'i'], manta:[0.06, 'c'], solar:[0.1, 'c'], evac:[0, 'x'],
+const PESOS = {fusil:[4, 'i'], cargad:[0.5, 'i'], granada:[0.4, 'i'], casco:[1.4, 'i'], chaleco:[8, 'i'], portaf:[1.2, 'i'], agua:[1.1, 'h'], aguaT:[0, 'x'], reabast:[0, 'x'],
+  radio:[1.5, 'c'], batRad:[0.5, 'c'], mochTr:[6, 'c'], camilla:[7, 'c'], ametr:[10, 'c'], muniAm:[3, 'c'], lanzac:[7, 'c'], cuerda:[3.5, 'c'], otroEq:[1, 'c'],
+  racion24:[1.3, 'i'], racion12:[0.9, 'i'], ifak:[0.5, 'i'], botPA:[0.3, 'i'], potab:[0.1, 'c'], sales:[0.01, 'i'], colac:[0.25, 'i'],
+  socorr:[0, 'x'], calcet:[0.1, 'i'], manta:[0.06, 'c'], solar:[0.1, 'c'], evac:[0, 'x'],
   carta:[0.05, 'c'], brujula:[0.1, 'c'], gps:[0.25, 'c'], bateria:[0.25, 'c'], cuadro:[0.02, 'c'], reloj:[0, 'x'], marcador:[0.05, 'c'],
-  radio:[1.5, 'c'], batRad:[0.5, 'c'], claves:[0.01, 'c'], silbato:[0.02, 'c'],
+  claves:[0.01, 'c'], silbato:[0.02, 'c'],
   mochila:[2, 'i'], poncho:[0.6, 'i'], abrigo:[0.8, 'i'], gorro:[0.2, 'i'], lentes:[0.05, 'i'], sombrero:[0.1, 'i'],
   linterna:[0.2, 'i'], luzquim:[0.03, 'c'], pilas:[0.1, 'i'], vision:[0.6, 'c'],
-  bastones:[0.5, 'i'], polainas:[0.3, 'i'], raquetas:[2, 'i'], esquies:[4.5, 'i'], cuerda:[3.5, 'c'], pala:[1.5, 'c']};
+  bastones:[0.5, 'i'], polainas:[0.3, 'i'], raquetas:[2, 'i'], esquies:[4.5, 'i'], pala:[1.5, 'c']};
 /* Líneas de equipo: 1.ª en el cuerpo (supervivencia: agua, botiquín, navegación), 2.ª chaleco o arnés (combate: ración, radio, pilas),
    3.ª mochila (sustento: abrigo, poncho, material de grupo). Cada elemento trae una línea sugerida; se cambia en la tabla (m.material[id].linea). */
 const LINEAS = {1:'1.ª línea', 2:'2.ª línea', 3:'3.ª línea', 4:'4.ª línea'};
 const LINEAS_TXT = {1:'en el cuerpo: supervivencia', 2:'arma y cinturón de carga: combate', 3:'mochila: sostenimiento', 4:'vehículo o apoyo logístico: no la carga el hombre'};
 // límites de referencia (manual de marchas a pie de EE.UU.): carga de combate ≈ 22 kg (48 lb), carga de marcha de aproximación ≈ 33 kg (72 lb)
 const LIMITES_CARGA = {combate:22, marcha:33};
-const LINEA_DE = {casco:1, chaleco:1, fusil:2, cargad:2, granada:2, portaf:2, agua:1, cantimp:1, sales:1, botInd:1, carta:1, brujula:1, gps:1, cuadro:1, marcador:1, claves:1, silbato:1, lentes:1, sombrero:1, gorro:1, linterna:1, luzquim:1, polainas:1, bastones:1,
-  racion:2, colac:2, potab:2, radio:2, batRad:2, bateria:2, pilas:2, vision:2, manta:2};   // el resto: 3.ª línea
+const LINEA_DE = {casco:1, chaleco:1, fusil:2, cargad:2, granada:2, portaf:2, ifak:1, ametr:2, muniAm:2, lanzac:2, agua:2, sales:1, carta:1, brujula:1, gps:1, cuadro:1, marcador:1, claves:1, silbato:1, lentes:1, sombrero:1, gorro:1, linterna:1, luzquim:1, polainas:1, bastones:1,
+  colac:2, potab:2, radio:2, batRad:2, bateria:2, pilas:2, vision:2, manta:2};   // el resto: 3.ª línea
 const lineaDe = (m, id)=>{ const l = +((m.material || {})[id] || {}).linea; return l>=1 && l<=4 ? l : LINEA_DE[id] || 3; };
 const numCant = v=>{ const x = String(v===undefined || v===null ? '' : v).replace(',', '.').match(/\d+(\.\d+)?/); return x ? +x[0] : 0; };
 // carga por hombre = otro peso escrito (`par.cargaBase`) + lo que se lleva de la 1.ª, 2.ª y 3.ª línea (la 3.ª no, si se deja la mochila:
@@ -140,12 +169,13 @@ function pesoMaterial(m, R){
   MATERIAL.forEach(g=>g.items.forEach(([id, n, cant])=>{ const v = cant(c); if(v===null || v===undefined) return;
     // cantidad escrita por hombre (`cantH`, elementos individuales) o total de la unidad (`cant`)
     const st = Mt[id] || {}, q = st.cantH!==undefined && st.cantH!=='' ? numCant(st.cantH)*c.n : numCant(st.cant || v), [kg0, modo] = PESOS[id] || [0, 'x'], kg = st.kg!==undefined && st.kg!=='' ? numCant(st.kg) : kg0;
-    const porHombre = modo==='h' ? Math.min(q, 3)*kg : modo==='x' ? 0 : q*kg/c.n;
+    const porHombre = modo==='h' ? q*kg : modo==='x' ? 0 : q*kg/c.n;
     items.push({id, n, kg, modo, q, porHombre, linea:lineaDe(m, id)}); }));
   (m.materialExtra || []).forEach((x, i)=>{ const st = Mt['x' + i] || {}, q = numCant(st.cant || x.cant) || 1, kg = numCant(st.kg);
     items.push({id:'x' + i, n:x.n, kg, modo:'c', q, porHombre:q*kg/c.n, linea:lineaDe(m, 'x' + i)}); });
   const sinMochila = !!(m.par || {}).sinMochila, lineas = {1:0, 2:0, 3:0, 4:0}; items.forEach(x=>{ if(x.modo!=='x') lineas[x.linea] += x.porHombre; });
   const lleva = x=>x.linea<=2 || (x.linea===3 && !sinMochila);
+  items.forEach(x=>x.lleva = x.modo!=='x' && lleva(x));
   const indiv = items.filter(x=>(x.modo==='h' || x.modo==='i') && lleva(x)).reduce((a, x)=>a + x.porHombre, 0), colect = items.filter(x=>x.modo==='c' && lleva(x)).reduce((a, x)=>a + x.porHombre, 0);
   return {base, indiv, colect, lineas, sinMochila, combate:base + lineas[1] + lineas[2], marcha:base + lineas[1] + lineas[2] + lineas[3], total:Math.round((base + indiv + colect)*10)/10, n:c.n, hay:c.hay, items:items.sort((a, b)=>b.porHombre - a.porHombre)};
 }

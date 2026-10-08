@@ -271,7 +271,7 @@ const MARCHA = (function(){
       wbgt:'', temp:'', hum:'', trabajo:'auto', calorAltos:true,   // calor y agua: WBGT medido o temperatura y humedad; intensidad según la carga; el descanso por calor alarga la marcha
       fuenteVel:'',   // velocidades verticales: 'tabla' (tropa y carga) | 'mide' (300/500 m/h) | 'propia' (escritas); vacío = según los campos
       altosModo:'pct', altoCada:50, altoDur:10, altoPrimero:45, altoPrimeroDur:15,   // altos por % o por régimen programado
-      cargaMat:false, cargaBase:'',
+      cargaMat:false, cargaManual:false, cargaBase:'', reabast:'no', racion:'24',   // la carga sale del material salvo «cargaManual»; agua con o sin reabastecimiento; ración de 24 o 12 h
       // carrera de combate: patrón, tramos rápido/lento (m o min), velocidades (km/h), pendiente sobre la que se va al paso (%), meta opcional
       brPreset:'d100', brPatron:'distancia', brRapido:100, brLento:300, brMinRap:1, brMinLen:3, brVelRap:9, brVelLen:6, brPteLim:5, brMetaKm:'', brMetaMin:'',
       forzadaPct:20,   // marcha forzada: ritmo sobre el de la marcha general (%)   // carga por hombre calculada desde el material (+ peso base: armamento, munición, casco, chaleco)
@@ -324,21 +324,30 @@ const MARCHA = (function(){
   // y se vuelve a calcular con la carga resultante (dos vueltas bastan)
   function calcular(m){
     const p = Object.assign(porDefecto(), m.par || {});
-    if(!p.cargaMat || typeof pesoMaterial==='undefined') return calcular0(m);
-    let R = calcular0(m), pm = null;
-    for(let i=0; i<2; i++){ pm = pesoMaterial(m, R); if(!pm) break; R = calcular0(Object.assign({}, m, {par:Object.assign({}, m.par, {carga:pm.total})})); }
-    if(pm){ R.carga = pesoMaterial(m, R); if(R.carga.total>36) R.avisos.push('Carga por hombre de ' + String(Math.round(R.carga.total*10)/10).replace('.', ',') + ' kg: sobre la carga de combate habitual (27–36 kg). Revisa el material o repártelo.');
-      if(p.metodo!=='general' && R.carga.total>30) R.avisos.push('La tabla de velocidades de montaña llega hasta 30 kg: con más carga el tiempo real será mayor.'); }
+    if(p.cargaManual || typeof pesoMaterial==='undefined') return calcular0(m);
+    // sin efectivo no se puede repartir el equipo de la unidad: se usa la carga escrita
+    if(!(num(p.efectivo)>0)){ const R0 = calcular0(m); R0.avisos.push('Indica el efectivo (Puntos → Unidad y columna) para calcular la carga desde el material; mientras, se usa la carga escrita (' + fmt(num(p.carga)||0) + ' kg).'); R0.sinEfectivo = true; return R0; }
+    // la carga sale del material, y el material (agua, raciones) de la duración de la marcha, que a su vez depende de la carga:
+    // se repite hasta que se estabiliza. Cada tramo usa su propia carga (el agua se bebe en el camino y se repone en los puntos de agua).
+    let R = calcular0(m), pm = null, ct = null, antes = null;
+    for(let i=0; i<8; i++){ pm = pesoMaterial(m, R); if(!pm) break; ct = typeof cargasTramo!=='undefined' ? cargasTramo(m, R, pm) : null;
+      const R2 = calcular0(Object.assign({}, m, {par:Object.assign({}, m.par, {carga:pm.total, cargaMat:true, _cargaT:ct && ct.tramos})}));
+      const listo = antes!==null && Math.abs(pm.total - antes)<0.05 && Math.abs(R2.res.total - R.res.total)<1/600; R = R2; antes = pm.total; if(listo) break; }
+    if(pm){ R.carga = pesoMaterial(m, R); ct = typeof cargasTramo!=='undefined' ? cargasTramo(m, R, R.carga) : null;
+      R.carga.inicial = R.carga.total; R.carga.final = ct ? ct.final : R.carga.total;
+      if(R.carga.total>36) R.avisos.push('Carga por hombre de ' + String(Math.round(R.carga.total*10)/10).replace('.', ',') + ' kg: sobre la carga de combate habitual (27–36 kg). Revisa el material o repártelo.');
+      if(['montana', 'mide'].includes(p.metodo) && R.carga.total>30) R.avisos.push('La tabla de velocidades de montaña llega hasta 30 kg: con más carga el tiempo real será mayor.'); }
     return R;
   }
   function calcular0(m){
     const par = Object.assign(porDefecto(), m.par || {}), dat = m.datum || 'WGS84';
-    const vt = velVertical(par.tropa, par.terreno, par.carga, par.criterio) || velVertical('normal', 'sinNieve', par.carga, par.criterio);
     // de dónde salen las velocidades verticales: tabla de la tropa (según carga) · valores originales MIDE (300/500 m/h) · escritas a mano
-    const fv = par.fuenteVel || (num(par.velSub) || num(par.velBaj) ? 'propia' : 'tabla');
-    const vel = fv==='mide' ? {sub:300, baj:500, tabla:vt, fuente:'mide'}
-      : fv==='propia' ? {sub:num(par.velSub) || vt.sub, baj:num(par.velBaj) || vt.baj, tabla:vt, fuente:'propia'}
-      : {sub:vt.sub, baj:vt.baj, tabla:vt, fuente:'tabla'};
+    const velDe = q=>{ const vt = velVertical(q.tropa, q.terreno, q.carga, q.criterio) || velVertical('normal', 'sinNieve', q.carga, q.criterio);
+      const fv = q.fuenteVel || (num(q.velSub) || num(q.velBaj) ? 'propia' : 'tabla');
+      return fv==='mide' ? {sub:300, baj:500, tabla:vt, fuente:'mide'}
+        : fv==='propia' ? {sub:num(q.velSub) || vt.sub, baj:num(q.velBaj) || vt.baj, tabla:vt, fuente:'propia'}
+        : {sub:vt.sub, baj:vt.baj, tabla:vt, fuente:'tabla'}; };
+    const vel = velDe(par);
     const pts = (m.puntos || []).map((p, i)=>{
       const g = puntoWgs(p, dat), cota = num(p.cota);
       // ev: punto de control que se informa por radio (evento); si no, es solo un punto de ruta (quiebre del camino).
@@ -375,14 +384,16 @@ const MARCHA = (function(){
       const A = pts[i], B = pts[i + 1]; if(!A.ok || !B.ok) continue;
       const dE = B.utm.e - A.utm.e, dN = B.utm.n - A.utm.n, dg = Math.hypot(dE, dN), dh = dg/((A.utm.k + B.utm.k)/2), dv = B.cota - A.cota;
       const azC = dg ? (Math.atan2(dE, dN)/rad + 360)%360 : 0, azG = (azC + A.utm.conv + 360)%360, azM = (azG - dec.valor + 360)%360;
-      const via = m.puntos[B.i].via || par.via, vv = Object.assign({}, vel, {via}), hIni = h0===null ? null : h0 + acum + altosHasta(acum) + detL;
+      // carga de este tramo (con el material: la del partir menos el agua ya bebida)
+      const cT = par._cargaT && par._cargaT[tramos.length], parT = cT===undefined || cT===null ? par : Object.assign({}, par, {carga:cT});
+      const via = m.puntos[B.i].via || par.via, vv = Object.assign({}, parT===par ? vel : velDe(parT), {via}), hIni = h0===null ? null : h0 + acum + altosHasta(acum) + detL;
       // primero con velocidad de día; si la mitad del tramo cae de noche, se recalcula con la de noche
-      let tt = tiempoTramo(dh, dv, par, vv, false), mitad = hIni===null ? null : hIni + tt.t*fAl/2;
-      if(esNoche(mitad)){ tt = tiempoTramo(dh, dv, par, vv, true); mitad = hIni===null ? null : hIni + tt.t*fAl/2; tNoche += tt.t; }
+      let tt = tiempoTramo(dh, dv, parT, vv, false), mitad = hIni===null ? null : hIni + tt.t*fAl/2;
+      if(esNoche(mitad)){ tt = tiempoTramo(dh, dv, parT, vv, true); mitad = hIni===null ? null : hIni + tt.t*fAl/2; tNoche += tt.t; }
       const luz = luzEn(mitad);
       acum += tt.t; dist += dh; if(dv>0) sube += dv; else baja -= dv; detL += B.det;
       tramos.push({de:A.nombre, a:B.nombre, evA:A.ev, evB:B.ev, claveA:A.clave, claveB:B.clave, iA:A.i, iB:B.i, dist:dh, distAcum:dist, cotaIni:A.cota, cotaFin:B.cota, dv,
-        pte:dh ? dv/dh : 0, via, azC, azG, azM, mils:Math.round(azM*6400/360)%6400, t:tt.t, como:tt.como, noche:tt.noche, luz, tAcum:acum, obs:B.obs});
+        pte:dh ? dv/dh : 0, via, azC, azG, azM, mils:Math.round(azM*6400/360)%6400, t:tt.t, como:tt.como, noche:tt.noche, luz, tAcum:acum, obs:B.obs, carga:num(parT.carga)});
     }
     // detenciones planificadas en los puntos intermedios (comida, descanso, reorganización); no cuenta el último punto
     const det = pts.slice(0, -1).reduce((a, p)=>a + p.det, 0);

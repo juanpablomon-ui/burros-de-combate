@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.37', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.38', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -188,7 +188,7 @@
     const vt = R.vel.tabla, pct = x=>Math.round((x||0)*1000)/10;
     const tropas = {normal:'Tropa normal', andina:'Tropa andina'};
     const terrenos = Object.fromEntries(Object.entries(M.TERRENOS).map(([k, v])=>[k, v.n]));
-    const sinAl = p.metodo==='battle' || p.metodo==='forzada', vb = M.velBattle(p), carga = `<label class="c">Carga por hombre (kg)${p.cargaMat ? ' <small>del material</small>' : ''}<input class="num" data-par="carga" data-redibujar inputmode="decimal" value="${p.cargaMat && R.carga ? f(R.carga.total, 1) : esc(p.carga)}" ${p.cargaMat ? 'disabled' : ''}></label>`;
+    const sinAl = p.metodo==='battle' || p.metodo==='forzada', vb = M.velBattle(p), carga = `<label class="c">Carga por hombre (kg)${!p.cargaManual && R.carga ? ' <small>del material</small>' : ''}<input class="num" data-par="carga" data-redibujar inputmode="decimal" value="${!p.cargaManual && R.carga ? f(R.carga.total, 1) : esc(p.carga)}" ${!p.cargaManual && R.carga ? 'disabled' : ''}></label>`;
     const campo = (k, n, ph)=>`<label class="c">${n}<input class="num" data-par="${k}" data-redibujar inputmode="decimal" value="${esc(p[k])}"${ph ? ` placeholder="${ph}"` : ''}></label>`;
     const camposBattle = `<label class="c ancho">Patrón preparado<select data-par="brPreset" data-redibujar>${opc(Object.fromEntries(Object.entries(M.PRESETS_BR).map(([k, v])=>[k, v.n])), p.brPreset || 'propio')}</select></label>
           <label class="c ancho">Forma del patrón<select data-par="brPatron" data-redibujar>${opc(M.PATRONES, p.brPatron)}</select></label>
@@ -224,7 +224,7 @@
           ${p.metodo==='battle' ? camposBattle : p.metodo!=='general' && p.metodo!=='forzada' ? `
           <label class="c">Tropa<select data-par="tropa" data-redibujar>${opc(tropas, p.tropa)}</select></label>
           <label class="c">Terreno / modalidad<select data-par="terreno" data-redibujar>${opc(terrenos, p.terreno)}</select></label>
-          <label class="c">Carga por hombre (kg)${p.cargaMat ? ' <small>del material</small>' : ''}<input class="num" data-par="carga" data-redibujar inputmode="decimal" value="${p.cargaMat && R.carga ? f(R.carga.total, 1) : esc(p.carga)}" ${p.cargaMat ? 'disabled' : ''}></label>
+          <label class="c">Carga por hombre (kg)${!p.cargaManual && R.carga ? ' <small>del material</small>' : ''}<input class="num" data-par="carga" data-redibujar inputmode="decimal" value="${!p.cargaManual && R.carga ? f(R.carga.total, 1) : esc(p.carga)}" ${!p.cargaManual && R.carga ? 'disabled' : ''}></label>
           <label class="c ancho">Velocidades de subida y bajada<select data-par="fuenteVel" data-redibujar>${opc({tabla:'Tabla de la tropa (según tropa, terreno y carga)', mide:'Valores originales MIDE (300 m/h subida · 500 m/h bajada)', propia:'Las de mi unidad (escritas a mano)'}, R.vel.fuente)}</select></label>
           ${R.vel.fuente==='tabla' ? `<label class="c">Ritmo de la unidad<select data-par="criterio" data-redibujar>${opc({min:'Bajo', media:'Normal', max:'Exigente'}, p.criterio)}</select></label>` : ''}
           ${R.vel.fuente==='propia' ? `<label class="c">Subida (m/h)<input class="num" data-par="velSub" inputmode="numeric" value="${esc(p.velSub||'')}" placeholder="${f(vt.sub)}"></label>
@@ -234,7 +234,7 @@
           <label class="c">Vía principal<select data-par="via" data-redibujar>${opc(M.VIAS, M.VIAS[p.via] ? p.via : 'camino1')}</select></label>
           <label class="c">Velocidad de día (km/h)<input class="num" data-par="velGeneral" inputmode="decimal" value="${esc(p.velGeneral||'')}" placeholder="${f(M.velGeneral(p.via, false, p.unidadTipo), 1)}"></label>
           ${p.metodo==='forzada' ? `<label class="c">Ritmo más rápido (%)<input class="num" data-par="forzadaPct" inputmode="decimal" value="${esc(p.forzadaPct)}"></label>
-          <label class="c">Carga por hombre (kg)${p.cargaMat ? ' <small>del material</small>' : ''}<input class="num" data-par="carga" data-redibujar inputmode="decimal" value="${p.cargaMat && R.carga ? f(R.carga.total, 1) : esc(p.carga)}" ${p.cargaMat ? 'disabled' : ''}></label>` : ''}`}
+          <label class="c">Carga por hombre (kg)${!p.cargaManual && R.carga ? ' <small>del material</small>' : ''}<input class="num" data-par="carga" data-redibujar inputmode="decimal" value="${!p.cargaManual && R.carga ? f(R.carga.total, 1) : esc(p.carga)}" ${!p.cargaManual && R.carga ? 'disabled' : ''}></label>` : ''}`}
           ${p.metodo!=='general' && p.metodo!=='forzada' ? `<label class="c">Reducción de noche (%)<input class="num" data-par="redNoche" inputmode="numeric" value="${esc(p.redNoche)}"></label>` : ''}
           ${sinAl ? '' : `<label class="c">Altos<select data-par="altosModo" data-redibujar>${opc({pct:'% del tiempo de marcha', regimen:'Programados (cada cierto tiempo)'}, p.altosModo || 'pct')}</select></label>`}
           ${sinAl ? '' : p.altosModo==='regimen' ? `<label class="c">Primer alto a los (min)<input class="num" data-par="altoPrimero" inputmode="numeric" value="${esc(p.altoPrimero)}"></label>
@@ -244,7 +244,8 @@
           : `<label class="c">Altos (% del tiempo de marcha)<input class="num" data-par="altos" data-pct inputmode="decimal" value="${pct(p.altos)}"></label>`}
           <label class="c">Imprevistos (%)<input class="num" data-par="imprev" data-pct inputmode="decimal" value="${pct(p.imprev)}"></label>
         </div>
-        <p class="nota">${p.cargaMat ? `Carga calculada desde el <b>Material</b>: ${R.carga ? f(R.carga.total, 1) + ' kg por hombre' : '—'} (cambia la base o el material en Cuadro → Material).` : 'Escribe la carga por hombre, o calcúlala desde el material (Cuadro → Material).'}
+        <p class="nota">${!p.cargaManual && R.carga ? `La carga sale del <b>Material</b> (Cuadro → Material): <b>${f(R.carga.inicial, 1)} kg al partir</b> y ${f(R.carga.final, 1)} kg al llegar (el agua se bebe en el camino); cada tramo se calcula con su carga.` : R.sinEfectivo ? '<b style="color:var(--ocre)">Falta el efectivo</b> (Unidad y columna): sin él no se puede calcular la carga desde el material; se usa la carga escrita.' : 'Carga escrita a mano.'}
+          <label style="display:inline"><input type="checkbox" data-par="cargaManual" data-redibujar ${p.cargaManual ? 'checked' : ''} style="width:auto;vertical-align:middle"> Escribir la carga a mano</label>
           ${sinAl ? ' La carga define el esfuerzo para el calor.' : p.metodo!=='general' ? ' La tabla trae 10, 20 y 30 kg: con otra carga se interpola.' : ' En marcha general, con carga sobre unos 18 kg la velocidad baja.'}</p>
         ${sinAl ? notaSinAltos : ''}
         ${p.metodo!=='general' && !sinAl ? `<p class="nota">Tabla de velocidades de marcha vertical en montaña para ${esc(tropas[p.tropa].toLowerCase())}, ${esc(M.TERRENOS[p.terreno].n.toLowerCase())}, ${f(vt.carga, 1)} kg:
@@ -360,6 +361,7 @@
       return `${i ? `<div class="tramo-entre" id="tr${i}"></div>` : ''}
       <div class="tarjeta punto${Rc.puntos[i].ev ? '' : ' ruta'}" data-i="${i}"><span class="ord">${Rc.puntos[i].ev ? Rc.eventos.indexOf(i) + 1 || '·' : '·'}</span>
         <label class="h-ev"><input type="checkbox" data-ev ${Rc.puntos[i].ev ? 'checked' : ''} ${Rc.eventos[0]===i || Rc.eventos[Rc.eventos.length - 1]===i ? 'disabled' : ''}> <b>Evento</b> (se informa por radio)${Rc.puntos[i].ev ? '' : ' — sin marcar es solo un punto de ruta'}</label>
+        ${m.par.reabast==='si' && i>0 && i<m.puntos.length - 1 ? `<label class="h-ev"><input type="checkbox" data-agua ${x.agua ? 'checked' : ''}> <b>💧 Punto de agua</b> (se repone el agua)</label>` : ''}
         <div class="fila"><label class="c">Nombre del punto<input data-p="nombre" value="${esc(x.nombre)}" placeholder="${Rc.puntos[i].ev ? '' : 'punto de ruta'}"></label>
           <div class="seg"><button data-tipo="UTM" class="${utm ? 'on' : ''}">UTM</button><button data-tipo="GEO" class="${utm ? '' : 'on'}">Geográficas</button></div></div>
         ${utm ? `<div class="coords">
@@ -391,7 +393,7 @@
       e.textContent = p.ok ? M.verGms(p.lat, 'N', 'S') + '  ' + M.verGms(p.lon, 'E', 'W') + '  ·  ' + p.utm.zona + M.banda(p.lat) + ' ' + f(p.utm.e) + ' E ' + f(p.utm.n) + ' N (WGS84)'
         : !tiene ? 'Ingresa las coordenadas' : (isNaN(p.cota) ? 'Falta la cota' : 'Coordenada no válida'); });
     m.puntos.forEach((_, i)=>{ const e = $('#tr' + i); if(!e) return; const t = R.tramos.find(t=>t.iB===i);
-      e.innerHTML = t ? `<span>↓ <b>${f(t.dist)} m</b></span><span>${t.dv>=0 ? '+' : ''}${f(t.dv)} m (${f(t.pte*100, 1)} %)</span><span>rumbo <b>${f(t.azM, 1)}°</b> · ${t.mils} ‰</span><span>${M.verDur(t.t)}</span><span>llega ${M.verHora(t.llegada)}</span>` : ''; });
+      e.innerHTML = t ? `<span>↓ <b>${f(t.dist)} m</b></span><span>${t.dv>=0 ? '+' : ''}${f(t.dv)} m (${f(t.pte*100, 1)} %)</span><span>rumbo <b>${f(t.azM, 1)}°</b> · ${t.mils} ‰</span><span>${M.verDur(t.t)}</span><span>llega ${M.verHora(t.llegada)}</span>${R.carga ? `<span>carga ${f(t.carga, 1)} kg</span>` : ''}` : ''; });
     const d = $('#declTxt');
     if(d) d.innerHTML = R.puntos.some(p=>p.ok) ? `Declinación a la fecha: <b>${f(R.decl.valor, 2)}° ${R.decl.valor>=0 ? 'Este' : 'Oeste'}</b> (${esc(R.decl.fuente)}). Rumbo magnético = acimut geográfico − declinación.
       <details class="avanzado"><summary>⚙ Avanzado</summary><p class="nota">Convergencia en el PIM: ${f(R.res.conv, 2)}° (diferencia entre el norte de la cuadrícula y el geográfico; la app la aplica sola).</p></details>` : 'Se calcula al ingresar el primer punto.';
@@ -410,7 +412,7 @@
       if(['temp', 'hum', 'wbgt'].includes(t.dataset.par)) v = String(v).replace(',', '.');
       if(['altoPrimero', 'altoPrimeroDur', 'altoCada', 'altoDur', 'forzadaPct'].includes(t.dataset.par) || /^br(?!P)/.test(t.dataset.par)){ v = String(v).replace(',', '.'); if(/^br(?!P)/.test(t.dataset.par)) m.par.brPreset = 'propio'; }
       if(t.dataset.par==='brPatron') m.par.brPreset = 'propio';
-      if(t.dataset.par==='brPreset'){ const q = Object.assign({}, M.PRESETS_BR[v] || {}); delete q.n; Object.assign(m.par, q); if(q.carga) m.par.cargaGeneral = true; }
+      if(t.dataset.par==='brPreset'){ const q = Object.assign({}, M.PRESETS_BR[v] || {}); delete q.n; Object.assign(m.par, q); if(q.carga){ m.par.cargaGeneral = true; m.par.cargaManual = true; } }
       if(t.dataset.par==='verboSel'){ m.par.verbo = v==='otra' ? '' : v; guardar(); return; }
       if(t.dataset.par==='verbo') v = String(v).toUpperCase();
       m.par[t.dataset.par] = v; }
@@ -424,6 +426,7 @@
     if(S.v==='ruta' && e.target.dataset.ev!==undefined){ const m = actual(), i = +e.target.closest('.punto').dataset.i, p = m.puntos[i];
       p.ev = e.target.checked; if(p.ev && !p.nombre) p.nombre = 'PC' + M.calcular(m).eventos.filter(x=>x<i).length; if(!p.ev){ p.clave = ''; if(/^PC\d+$/.test(p.nombre)) p.nombre = ''; }
       guardar(); const y = window.scrollY; pintar(); window.scrollTo(0, y); return; }
+    if(S.v==='ruta' && e.target.dataset.agua!==undefined){ const m = actual(), i = +e.target.closest('.punto').dataset.i; m.puntos[i].agua = e.target.checked; guardar(); actualizarCalculos(); return; }
     if(S.v==='ruta' && e.target.dataset.redibujar!==undefined){
       // al redibujar se mantienen abiertas las mismas tarjetas (y la que contiene el campo cambiado)
       const titulo = d=>(d.querySelector('summary') || {}).firstChild ? d.querySelector('summary').firstChild.textContent.trim() : '';
@@ -463,7 +466,7 @@
       <div class="kpi ocre"><div class="k">Término estimado</div><div class="v">${M.verHora(r.termino)}</div></div>
     </div>
     <div class="desglose"><span>marcha <b>${M.verDur(r.marcha)}</b></span><span>+ altos <b>${M.verDur(r.altos)}</b></span>${r.det ? `<span>+ detenciones <b>${M.verDur(r.det)}</b></span>` : ''}<span>+ imprevistos <b>${M.verDur(r.imprev)}</b></span>
-      <span>punto más alto <b>${r.alto ? esc(r.alto.nombre) + ' ' + f(r.alto.cota) + ' m' : '—'}</b></span></div>
+      <span>punto más alto <b>${r.alto ? esc(r.alto.nombre) + ' ' + f(r.alto.cota) + ' m' : '—'}</b></span>${R.carga && R.carga.final!==undefined ? `<span>carga <b>${f(R.carga.inicial, 1)} kg</b> al partir → <b>${f(R.carga.final, 1)} kg</b> al llegar</span>` : ''}</div>
     ${['battle', 'forzada'].includes(R.par.metodo) ? `<div class="desglose"><span><b>${esc(M.tipoMarcha(R.par))}</b></span>${R.meta ? `<span>meta ${f(R.meta.km, 1)} km en ${f(R.meta.min)} min: <b style="color:var(--${R.meta.cumple ? 'verde' : 'rojo'})">${R.meta.cumple ? 'cumple (' + Math.round(-R.meta.dif) + ' min de margen)' : 'faltan ' + Math.round(R.meta.dif) + ' min'}</b></span>` : ''}</div>` : ''}`;
   }
   function apoyo(R){
@@ -676,7 +679,7 @@
           <span class="mf-x">=</span><span class="mf-t">${indiv ? f(x.porHombre, x.porHombre<10 ? 1 : 0) + ' kg <small>por hombre</small>' : f(total, total<10 ? 1 : 0) + ' kg' + (x && x.modo==='c' && n>1 ? ' <small>en total</small>' : '')}</span>
           <select data-ml="${it.id}" aria-label="Línea">${[1, 2, 3, 4].map(l=>`<option value="${l}"${lineaDe(m, it.id)===l ? ' selected' : ''}>${l===4 ? '4.ª (vehículo)' : l + '.ª línea'}</option>`).join('')}</select>`}
           ${it.propio!==undefined ? `<button class="btn mini peligro" data-mx="${it.propio}" aria-label="Quitar">✕</button>` : ''}</div>
-        ${x && x.modo==='h' && x.q>3 ? '<div class="mf-s">cada hombre carga hasta 3 L (' + f(x.porHombre, 1) + ' kg); el resto se reabastece en ruta</div>' : x && x.modo==='c' && n>1 ? `<div class="mf-s">de grupo: ${f(total, 1)} kg repartidos entre ${n} hombres = ${f(x.porHombre, 2)} kg por hombre</div>`
+        ${x && x.modo==='h' ? '<div class="mf-s">litros al partir (1 kg por litro + envase); se bebe en el camino' + (m.par.reabast==='si' ? ' y se repone en los puntos de agua' : '') + '</div>' : x && x.modo==='c' && n>1 ? `<div class="mf-s">de grupo: ${f(total, 1)} kg repartidos entre ${n} hombres = ${f(x.porHombre, 2)} kg por hombre</div>`
           : indiv && n>1 ? `<div class="mf-s">en la unidad: ${fq(x.q)} ${esc(u==='u' ? 'unid.' : u)} · ${f(total, 1)} kg (${n} hombres)</div>` : ''}</div>`; }).join('')}</div>`).join('');
   }
   // carga por hombre: peso base + material individual + parte del colectivo; con la opción de usarla en el cálculo de tiempos
@@ -686,7 +689,7 @@
     const L = LIMITES_CARGA, ref = (v, lim)=>`<div class="s" style="color:var(--${v>lim ? 'rojo' : 'verde'})">${v>lim ? 'sobre' : 'bajo'} la referencia de ${lim} kg</div>`;
     return `<div class="tarjeta carga"><h3>Carga por hombre</h3>
       <div class="kpis">
-        <div class="kpi ocre"><div class="k">Total por hombre</div><div class="v">${f(pm.total, 1)} <small>kg</small></div><div class="s">${pm.sinMochila ? 'sin mochila (se deja la 3.ª línea)' : 'con mochila'}</div></div>
+        <div class="kpi ocre"><div class="k">Total por hombre al partir</div><div class="v">${f(pm.total, 1)} <small>kg</small></div><div class="s">${pm.sinMochila ? 'sin mochila (se deja la 3.ª línea)' : 'con mochila'}${pm.final!==undefined && Math.abs(pm.final - pm.total)>0.05 ? ' · al llegar ' + f(pm.final, 1) + ' kg' : ''}</div></div>
         ${[1, 2, 3].map(l=>`<div class="kpi"${l===3 && pm.sinMochila ? ' style="opacity:.5"' : ''}><div class="k">${LINEAS[l]}</div><div class="v">${f(pm.lineas[l], 1)} <small>kg</small></div><div class="s">${esc(LINEAS_TXT[l])}${l===3 && pm.sinMochila ? ' · <b>se deja</b>' : ''}</div></div>`).join('')}</div>
       <div class="kpis">
         <div class="kpi"><div class="k">Carga de combate (1.ª + 2.ª)</div><div class="v">${f(pm.combate, 1)} <small>kg</small></div>${ref(pm.combate, L.combate)}</div>
@@ -695,9 +698,11 @@
         ${pm.lineas[4] ? `4.ª línea (vehículo o apoyo): ${f(pm.lineas[4], 1)} kg por hombre, <b>no se suma</b>.` : '4.ª línea: lo que va en vehículos o con el apoyo logístico; no la carga el hombre (elige «4.ª» en un elemento para dejarlo ahí).'}</p>
       <div class="campos">
         <label class="c ancho"><span><input type="checkbox" id="mtMochila" ${m.par.sinMochila ? 'checked' : ''} style="width:auto;vertical-align:middle"> <b>Se deja la mochila</b> (la marcha se hace solo con la 1.ª y 2.ª línea; p. ej. carrera de combate o asalto)</span></label>
-        <label class="c ancho"><span><input type="checkbox" id="mtUsar" ${m.par.cargaMat ? 'checked' : ''} style="width:auto;vertical-align:middle"> <b>Usar esta carga en el cálculo de tiempos</b> (y en el calor)</span></label>
+        <label class="c">Reabastecimiento de agua en ruta<select id="mtReab"><option value="no"${m.par.reabast!=='si' ? ' selected' : ''}>No: se carga toda el agua</option><option value="si"${m.par.reabast==='si' ? ' selected' : ''}>Sí, en puntos de agua</option></select></label>
+        <label class="c">Ración de combate<select id="mtRac"><option value="24"${m.par.racion!=='12' ? ' selected' : ''}>De 24 horas</option><option value="12"${m.par.racion==='12' ? ' selected' : ''}>De 12 horas</option></select></label>
         <label class="c">Otro peso por hombre (kg)<input class="num" id="mtBase" inputmode="decimal" value="${esc(m.par.cargaBase || '')}" placeholder="no listado"></label></div>
-      <p class="nota">El fusil, la munición, el casco y los chalecos ahora están en la lista (Armamento y protección). Usa «Otro peso» solo para lo que no esté en la lista${+String(m.par.cargaBase || '').replace(',', '.')>0 ? ` — <b style="color:var(--ocre)">si ahí habías escrito el fusil, casco y chaleco, bórralo para no contarlos dos veces</b>` : ''}.
+      <p class="nota">Esta carga se usa en toda la marcha: tiempos de cada tramo, calor y descansos. ${m.par.cargaManual ? '<b style="color:var(--ocre)">Ahora la carga está escrita a mano (Puntos → Cálculo de tiempos).</b>' : ''}
+        El fusil, la munición, el casco y los chalecos están en la lista (Armamento y protección); el equipo que sirve a toda la unidad, en «Equipo especial de la unidad». Usa «Otro peso» solo para lo que no esté en la lista${+String(m.par.cargaBase || '').replace(',', '.')>0 ? ` — <b style="color:var(--ocre)">si ahí habías escrito el fusil, casco y chaleco, bórralo para no contarlos dos veces</b>` : ''}.
         Material de grupo repartido: ${f(pm.colect, 1)} kg por hombre, entre ${pm.hay ? pm.n + ' hombres' : '1 hombre: indica el efectivo en Puntos → Unidad y columna'}. Más pesado por hombre: ${top || '—'}.
         Los pesos son <b>sugeridos</b>: cámbialos en «kg» de cada elemento. El agua de reabastecimiento en ruta no se suma.</p></div>`;
   }
@@ -725,7 +730,8 @@
     vista.querySelectorAll('[data-mk]').forEach(x=>x.oninput = ()=>{ const o = Mt()[x.dataset.mk] || (Mt()[x.dataset.mk] = {}); o.kg = x.value; guardar(); recarga(); });
     const b = $('#mtBase'); if(b) b.oninput = ()=>{ m.par.cargaBase = b.value; guardar(); recarga(); };
     const mo = $('#mtMochila'); if(mo) mo.onchange = ()=>{ m.par.sinMochila = mo.checked; guardar(); const y = window.scrollY; pintar(); window.scrollTo(0, y); };
-    const u = $('#mtUsar'); if(u) u.onchange = ()=>{ m.par.cargaMat = u.checked; guardar(); pintar(); aviso(u.checked ? '✔ La carga del material se usa en el cálculo de tiempos' : 'La carga vuelve a ser la escrita a mano'); };
+    const re = $('#mtReab'); if(re) re.onchange = ()=>{ m.par.reabast = re.value; guardar(); const y = window.scrollY; pintar(); window.scrollTo(0, y); if(re.value==='si') aviso('Marca los puntos de agua en la pestaña Puntos'); };
+    const ra = $('#mtRac'); if(ra) ra.onchange = ()=>{ m.par.racion = ra.value; guardar(); const y = window.scrollY; pintar(); window.scrollTo(0, y); };
     vista.querySelectorAll('[data-mx]').forEach(x=>x.onclick = ()=>{ m.materialExtra.splice(+x.dataset.mx, 1); delete Mt()['x' + x.dataset.mx]; guardar(); pintar(); });
     $('#mtAgregar').onclick = ()=>{ const n = $('#mtNuevo').value.trim(); if(!n) return; (m.materialExtra || (m.materialExtra = [])).push({n, cant:$('#mtNuevoC').value.trim()});
       const k = $('#mtNuevoK').value.trim(); if(k){ const Mx = Mt(); Mx['x' + (m.materialExtra.length - 1)] = {kg:k}; } guardar(); pintar(); };
