@@ -42,6 +42,42 @@ const Seguir = (function(){
     return E.llegadas[ult]>0 ? (E.llegadas[ult] - E.inicio)/60000 - a.lleg*60 : null;   // sin GPS: lo de la última llegada
   }
 
+  /* ---------- cronómetro de intervalos (carrera de combate) ----------
+     Por distancia: según los metros recorridos por la ruta (posición GPS proyectada). Por tiempo: según los minutos de marcha
+     (sin contar los altos). Por terreno: según el tramo en que se va (trote o paso). Al cambiar de fase suena y vibra. */
+  let audio = null, ultFase = null;
+  function sonido(rapido){
+    try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); if(audio.state==='suspended') audio.resume();
+      (rapido ? [0, 0.22] : [0]).forEach(d=>{ const o = audio.createOscillator(), g = audio.createGain(), t0 = audio.currentTime + d;
+        o.frequency.value = rapido ? 1320 : 660; g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.4, t0 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.18);
+        o.connect(g).connect(audio.destination); o.start(t0); o.stop(t0 + 0.2); }); } catch(e){}
+    if(navigator.vibrate) navigator.vibrate(rapido ? [300, 100, 300] : [600]);
+  }
+  // metros recorridos por la ruta desde el PIM (posición proyectada sobre el tramo en curso)
+  function recorrido(m, P){ const k = siguiente(m, P); if(k===null) return P.R.res.dist;
+    let d = 0; for(let j=1; j<k; j++) d += P.pts[j].tramo.dist;
+    return pos ? d + M.sobreTramo(pos, P.pts[k - 1], P.pts[k]).t*P.pts[k].tramo.dist : d; }
+  // minutos de marcha sin los altos
+  function enMarcha(E){ const t = ahora(); return (t - E.inicio - E.altos.reduce((a, x)=>a + ((x.fin || t) - x.ini), 0))/60000; }
+  function intervalo(m, P){
+    const par = P.R.par, E = m.ejec; if(par.metodo!=='battle' || !E) return null;
+    const d = recorrido(m, P), min = enMarcha(E), cic = M.cicloBattle(par), ritmo = d>50 && min>=1 ? min/(d/1000) : null;
+    let fase, falta, ciclo = null;
+    if(par.brPatron==='terreno'){ const k = siguiente(m, P); if(k===null) return null;
+      fase = P.pts[k].tramo.como==='paso' ? 'lento' : 'rapido'; let f = 0;
+      for(let j=k; j<P.pts.length && (P.pts[j].tramo.como==='paso')===(fase==='lento'); j++) f += P.pts[j].tramo.dist;
+      falta = A.f(Math.max(0, f - (d - (P.pts[k].tramo.distAcum - P.pts[k].tramo.dist)))) + ' m más'; }
+    else { const L = cic.rap + cic.len; if(!(L>0)) return null; const x = cic.u==='m' ? d : min, r = x%L; ciclo = Math.floor(x/L) + 1;
+      fase = r<cic.rap ? 'rapido' : 'lento'; const q = fase==='rapido' ? cic.rap - r : L - r;
+      falta = cic.u==='m' ? A.f(q) + ' m más' : Math.floor(q) + ':' + String(Math.floor((q%1)*60)).padStart(2, '0') + ' min más'; }
+    const pausa = E.estado==='alto';
+    if(!pausa && ultFase && ultFase!==fase) sonido(fase==='rapido'); ultFase = pausa ? ultFase : fase;
+    const nombre = par.brPatron==='terreno' ? (fase==='rapido' ? 'TROTE' : 'PASO') : (fase==='rapido' ? 'RÁPIDO' : 'LENTO');
+    const mt = P.R.meta, rObj = mt ? mt.ritmoMeta : P.R.res.dist ? P.R.res.marcha*60/(P.R.res.dist/1000) : null, mmss = x=>Math.floor(x) + ':' + String(Math.round((x%1)*60)).padStart(2, '0');
+    return `<div class="s-intervalo ${pausa ? 'pausa' : fase}"><b>${pausa ? '⏸ ' : '▶ '}${nombre}</b><span>${falta}</span>${ciclo ? `<span>ciclo ${ciclo}</span>` : ''}
+      <small>${pausa ? 'intervalos en pausa durante el alto · ' : ''}${ritmo ? 'ritmo ' + mmss(ritmo) + ' min/km' : 'ritmo —'}${rObj ? ' · ' + (mt ? 'meta' : 'plan') + ' ' + mmss(rObj) + ' min/km' : ''} · ${A.f(d)} m recorridos</small></div>`;
+  }
+
   /* ---------- GPS, brújula y pantalla encendida ---------- */
   function iniciarGps(){
     if(watch!==null || !navigator.geolocation) return;
@@ -80,6 +116,7 @@ const Seguir = (function(){
   /* ---------- acciones ---------- */
   function iniciar(){
     const m = A.actual(); if(!plan(m)) return A.aviso('Primero completa la ruta');
+    if(A.calcular(m).par.metodo==='battle'){ ultFase = null; try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); } catch(e){} }   // el sonido se habilita con el toque
     m.ejec = {estado:'marcha', inicio:ahora(), fin:null, llegadas:{0:ahora()}, altos:[], nov:[], track:[], msgs:[]};
     A.guardar(); iniciarGps(); pantalla(true); brujula();
     mensaje('INI', {});
@@ -224,7 +261,7 @@ const Seguir = (function(){
     if(p) eta = 'llega plan ' + hh(E.inicio + p.lleg*3600000) + (at!==null ? ' · estimada ' + hh(E.inicio + p.lleg*3600000 + at*60000) : '');
     const ultAlto = E.estado==='alto' ? E.altos[E.altos.length - 1] : null, cls = at===null ? '' : at>5 ? 'mal' : at< -5 ? 'bien' : '';
     const gps = pos ? 'GPS ±' + Math.round(pos.acc||0) + ' m · ' + utmTxt(pos) : (navigator.geolocation ? 'Esperando señal GPS…' : 'Este equipo no tiene GPS: marca las llegadas a mano');
-    const enAlto = ultAlto ? `<div class="info">⏸ En alto (${A.esc(ultAlto.motivo)}) desde ${hh(ultAlto.ini)} — ${dur(t - ultAlto.ini)}</div>` : '';
+    const enAlto = (ultAlto ? `<div class="info">⏸ En alto (${A.esc(ultAlto.motivo)}) desde ${hh(ultAlto.ini)} — ${dur(t - ultAlto.ini)}</div>` : '') + (intervalo(m, P) || '');
     if(modo==='carta'){
       c.innerHTML = `<div class="hud1"><span>PRÓXIMO <b class="clave-tx">${p ? A.esc(rotulo(p)) : '—'}</b>${p ? ' <small>' + A.esc(p.clave ? p.nombre + (p.obs ? ' · ' + p.obs : '') : p.obs || '') + '</small>' : ''}</span><span class="${cls}">${at===null ? '' : dif(at)}</span></div>
         <div class="hud2"><b>${dist}</b><b class="ocre">${rumbo}</b><small>${mils}</small><div class="s-flecha mini" id="sFlecha">↑</div></div>

@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.29', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.30', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -188,6 +188,20 @@
     const vt = R.vel.tabla, pct = x=>Math.round((x||0)*1000)/10;
     const tropas = {normal:'Tropa normal', andina:'Tropa andina'};
     const terrenos = Object.fromEntries(Object.entries(M.TERRENOS).map(([k, v])=>[k, v.n]));
+    const sinAl = p.metodo==='battle' || p.metodo==='forzada', vb = M.velBattle(p), carga = `<label class="c">Carga por hombre (kg)${p.cargaMat ? ' <small>del material</small>' : ''}<input class="num" data-par="carga" data-redibujar inputmode="decimal" value="${p.cargaMat && R.carga ? f(R.carga.total, 1) : esc(p.carga)}" ${p.cargaMat ? 'disabled' : ''}></label>`;
+    const campo = (k, n, ph)=>`<label class="c">${n}<input class="num" data-par="${k}" data-redibujar inputmode="decimal" value="${esc(p[k])}"${ph ? ` placeholder="${ph}"` : ''}></label>`;
+    const camposBattle = `<label class="c ancho">Patrón preparado<select data-par="brPreset" data-redibujar>${opc(Object.fromEntries(Object.entries(M.PRESETS_BR).map(([k, v])=>[k, v.n])), p.brPreset || 'propio')}</select></label>
+          <label class="c ancho">Forma del patrón<select data-par="brPatron" data-redibujar>${opc(M.PATRONES, p.brPatron)}</select></label>
+          ${p.brPatron==='distancia' ? campo('brRapido', 'Rápido (m)') + campo('brLento', 'Lento (m)') : p.brPatron==='tiempo' ? campo('brMinRap', 'Rápido (min)') + campo('brMinLen', 'Lento (min)') : campo('brPteLim', 'Al paso en subidas sobre (%)')}
+          ${campo('brVelRap', p.brPatron==='terreno' ? 'Trote (km/h)' : 'Velocidad rápida (km/h)')}${campo('brVelLen', p.brPatron==='terreno' ? 'Paso (km/h)' : 'Velocidad lenta (km/h)')}
+          ${carga}${campo('brMetaKm', 'Meta: distancia (km)', 'opcional')}${campo('brMetaMin', 'Meta: tiempo (min)', 'opcional')}`;
+    const mt = R.meta, ritmo = x=>Math.floor(x) + ':' + String(Math.round((x - Math.floor(x))*60)).padStart(2, '0');
+    const notaSinAltos = p.metodo==='battle' ? `<p class="nota">${p.brPatron==='terreno' ? `Trote a <b>${f(+p.brVelRap||9, 1)} km/h</b> en lo plano y en bajada; al paso (<b>${f(+p.brVelLen||6, 1)} km/h</b>) en subidas sobre ${esc(p.brPteLim)} %; en subidas sobre 15 %, el tiempo de montaña si es mayor.`
+        : `Patrón con velocidad media <b>${f(vb, 2)} km/h</b> (${p.brPatron==='tiempo' ? esc(p.brMinRap) + ' min rápido a ' + f(+p.brVelRap||9, 1) + ' km/h × ' + esc(p.brMinLen) + ' min lento a ' + f(+p.brVelLen||6, 1) + ' km/h' : esc(p.brRapido) + ' m rápido a ' + f(+p.brVelRap||9, 1) + ' km/h × ' + esc(p.brLento) + ' m lento a ' + f(+p.brVelLen||6, 1) + ' km/h'}).
+          En subidas de 7 % o más no se corre: van al paso (sobre 15 %, el tiempo de montaña si es mayor).`} Carrera de combate <b>sin altos</b>; si el calor lo exige, se agregan descansos.
+        ${mt ? `<br>Meta: ${f(mt.km, 1)} km en ${f(mt.min)} min = ritmo ${ritmo(mt.ritmoMeta)} min/km. Plan: ritmo <b>${ritmo(mt.ritmo)} min/km</b> → ${mt.cumple ? '<b style="color:var(--verde,#7bbf6a)">cumple</b> (' + Math.round(-mt.dif) + ' min de margen)' : '<b style="color:var(--rojo)">no cumple: faltan ' + Math.round(mt.dif) + ' min</b>'}.` : ''}
+        ${p.brPatron==='terreno' ? `Formato británico: 14,5 km en 90 min (10 min por milla), en grupo, con unos 14 kg más el fusil; trote en lo plano y en bajada, paso en subida.` : ''}</p>`
+      : `<p class="nota">Marcha forzada: velocidad de la marcha general <b>${esc(p.forzadaPct)} % más rápida</b> y <b>sin altos</b> (se bebe caminando). Si el calor lo exige, se agregan descansos. Al llegar, la unidad necesita descanso y recuperación.</p>`;
     vista.innerHTML = `<div class="btns" style="margin:0 0 12px"><button class="btn" id="bAlMapa">🗺 Ver y editar la ruta en el mapa</button></div>
       <details class="tarjeta" ${m.puntos.some(x=>x.cota!=='') ? '' : 'open'}><summary>Datos de la marcha<span class="res">${esc(m.fecha ? m.fecha.split('-').reverse().join('-') : '')} ${esc(m.hora)}</span></summary>
         <div class="campos">
@@ -204,10 +218,10 @@
           <p class="nota">Se calcula sola con el PIM. Cámbiala solo si la ruta cruza el límite entre las zonas 18 y 19 (meridiano 72° W).</p></details>
       </details>
 
-      <details class="tarjeta"><summary>Cálculo de tiempos<span class="res">${esc(({montana:'Montaña', mide:'MIDE', general:'Marcha general'})[p.metodo])} · altos ${p.altosModo==='regimen' ? esc(p.altoDur) + ' min cada ' + esc(p.altoCada) : pct(p.altos) + ' %'} · imprev. ${pct(p.imprev)} %</span></summary>
+      <details class="tarjeta"><summary>Cálculo de tiempos<span class="res">${esc(({montana:'Montaña', mide:'MIDE', general:'Marcha general', forzada:'Marcha forzada', battle:'Carrera de combate'})[p.metodo])} · ${sinAl ? 'sin altos' : 'altos '}${sinAl ? '' : p.altosModo==='regimen' ? esc(p.altoDur) + ' min cada ' + esc(p.altoCada) : pct(p.altos) + ' %'} · imprev. ${pct(p.imprev)} %</span></summary>
         <div class="campos">
           <label class="c ancho">Método<select data-par="metodo" data-redibujar>${opc(M.METODOS, p.metodo)}</select></label>
-          ${p.metodo!=='general' ? `
+          ${p.metodo==='battle' ? camposBattle : p.metodo!=='general' && p.metodo!=='forzada' ? `
           <label class="c">Tropa<select data-par="tropa" data-redibujar>${opc(tropas, p.tropa)}</select></label>
           <label class="c">Terreno / modalidad<select data-par="terreno" data-redibujar>${opc(terrenos, p.terreno)}</select></label>
           <label class="c">Carga por hombre (kg)${p.cargaMat ? ' <small>del material</small>' : ''}<input class="num" data-par="carga" data-redibujar inputmode="decimal" value="${p.cargaMat && R.carga ? f(R.carga.total, 1) : esc(p.carga)}" ${p.cargaMat ? 'disabled' : ''}></label>
@@ -218,10 +232,12 @@
           <label class="c">Llano (km/h)<input class="num" data-par="velLlano" inputmode="decimal" value="${esc(p.velLlano)}"></label>`
           : `<label class="c">Tipo de unidad<select data-par="unidadTipo" data-redibujar>${opc(M.UNIDADES, p.unidadTipo)}</select></label>
           <label class="c">Vía principal<select data-par="via" data-redibujar>${opc(M.VIAS, M.VIAS[p.via] ? p.via : 'camino1')}</select></label>
-          <label class="c">Velocidad de día (km/h)<input class="num" data-par="velGeneral" inputmode="decimal" value="${esc(p.velGeneral||'')}" placeholder="${f(M.velGeneral(p.via, false, p.unidadTipo), 1)}"></label>`}
-          ${p.metodo!=='general' ? `<label class="c">Reducción de noche (%)<input class="num" data-par="redNoche" inputmode="numeric" value="${esc(p.redNoche)}"></label>` : ''}
-          <label class="c">Altos<select data-par="altosModo" data-redibujar>${opc({pct:'% del tiempo de marcha', regimen:'Programados (cada cierto tiempo)'}, p.altosModo || 'pct')}</select></label>
-          ${p.altosModo==='regimen' ? `<label class="c">Primer alto a los (min)<input class="num" data-par="altoPrimero" inputmode="numeric" value="${esc(p.altoPrimero)}"></label>
+          <label class="c">Velocidad de día (km/h)<input class="num" data-par="velGeneral" inputmode="decimal" value="${esc(p.velGeneral||'')}" placeholder="${f(M.velGeneral(p.via, false, p.unidadTipo), 1)}"></label>
+          ${p.metodo==='forzada' ? `<label class="c">Ritmo más rápido (%)<input class="num" data-par="forzadaPct" inputmode="decimal" value="${esc(p.forzadaPct)}"></label>
+          <label class="c">Carga por hombre (kg)${p.cargaMat ? ' <small>del material</small>' : ''}<input class="num" data-par="carga" data-redibujar inputmode="decimal" value="${p.cargaMat && R.carga ? f(R.carga.total, 1) : esc(p.carga)}" ${p.cargaMat ? 'disabled' : ''}></label>` : ''}`}
+          ${p.metodo!=='general' && p.metodo!=='forzada' ? `<label class="c">Reducción de noche (%)<input class="num" data-par="redNoche" inputmode="numeric" value="${esc(p.redNoche)}"></label>` : ''}
+          ${sinAl ? '' : `<label class="c">Altos<select data-par="altosModo" data-redibujar>${opc({pct:'% del tiempo de marcha', regimen:'Programados (cada cierto tiempo)'}, p.altosModo || 'pct')}</select></label>`}
+          ${sinAl ? '' : p.altosModo==='regimen' ? `<label class="c">Primer alto a los (min)<input class="num" data-par="altoPrimero" inputmode="numeric" value="${esc(p.altoPrimero)}"></label>
           <label class="c">Primer alto de (min)<input class="num" data-par="altoPrimeroDur" inputmode="numeric" value="${esc(p.altoPrimeroDur)}"></label>
           <label class="c">Luego un alto cada (min)<input class="num" data-par="altoCada" inputmode="numeric" value="${esc(p.altoCada)}"></label>
           <label class="c">de (min)<input class="num" data-par="altoDur" inputmode="numeric" value="${esc(p.altoDur)}"></label>`
@@ -229,19 +245,20 @@
           <label class="c">Imprevistos (%)<input class="num" data-par="imprev" data-pct inputmode="decimal" value="${pct(p.imprev)}"></label>
         </div>
         <p class="nota">${p.cargaMat ? `Carga calculada desde el <b>Material</b>: ${R.carga ? f(R.carga.total, 1) + ' kg por hombre' : '—'} (cambia la base o el material en Cuadro → Material).` : 'Escribe la carga por hombre, o calcúlala desde el material (Cuadro → Material).'}
-          ${p.metodo!=='general' ? ' La tabla trae 10, 20 y 30 kg: con otra carga se interpola.' : ' En marcha general, con carga sobre unos 18 kg la velocidad baja.'}</p>
-        ${p.metodo!=='general' ? `<p class="nota">Tabla de velocidades de marcha vertical en montaña para ${esc(tropas[p.tropa].toLowerCase())}, ${esc(M.TERRENOS[p.terreno].n.toLowerCase())}, ${f(vt.carga, 1)} kg:
+          ${sinAl ? ' La carga define el esfuerzo para el calor.' : p.metodo!=='general' ? ' La tabla trae 10, 20 y 30 kg: con otra carga se interpola.' : ' En marcha general, con carga sobre unos 18 kg la velocidad baja.'}</p>
+        ${sinAl ? notaSinAltos : ''}
+        ${p.metodo!=='general' && !sinAl ? `<p class="nota">Tabla de velocidades de marcha vertical en montaña para ${esc(tropas[p.tropa].toLowerCase())}, ${esc(M.TERRENOS[p.terreno].n.toLowerCase())}, ${f(vt.carga, 1)} kg:
           subida <b>${esc(vt.rango)} m/h</b>, bajada <b>${f(vt.baj)} m/h</b>.${p.terreno==='esquies' && p.tropa==='normal' ? ' <b>Esquíes: la tabla solo trae valores para tropa andina.</b>' : ''}
           ${R.vel.fuente==='tabla' ? 'Ritmo: bajo = valor menor del rango, normal = el medio, exigente = el mayor. ' : ''}Si conoces el rendimiento real de tu unidad, elige «Las de mi unidad».</p>` : ''}
-        ${p.metodo==='general' ? `<div class="tabla-env" style="margin:10px 0"><table class="t"><thead><tr><th class="tx">Velocidades ${esc(M.UNIDADES[p.unidadTipo].toLowerCase())} (km/h)</th>${Object.values(M.VIAS).map(v=>`<th>${esc(v)}</th>`).join('')}</tr></thead>
+        ${p.metodo==='general' || p.metodo==='forzada' ? `<div class="tabla-env" style="margin:10px 0"><table class="t"><thead><tr><th class="tx">Velocidades ${esc(M.UNIDADES[p.unidadTipo].toLowerCase())} (km/h)</th>${Object.values(M.VIAS).map(v=>`<th>${esc(v)}</th>`).join('')}</tr></thead>
           <tbody>${['dia', 'noche'].map(dn=>`<tr><td class="tx">${dn==='dia' ? 'Día' : 'Noche'}</td>${Object.keys(M.VIAS).map(v=>`<td>${f(M.VEL_GENERAL[p.unidadTipo][v][dn], 1)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
           <p class="nota">En cada punto puedes cambiar la vía del tramo. Jornada de marcha ${esc(M.UNIDADES[p.unidadTipo].toLowerCase())}: <b>${M.JORNADA[p.unidadTipo]} km</b>.
           Si escribes una velocidad de día, la de noche baja en la misma proporción que la tabla. Si la velocidad de tu unidad ya incluye los altos, deja los altos en 0 %.</p>` : ''}
         <p class="nota">${p.luz==='dia' ? 'Toda la marcha se calcula con velocidades de día.' : p.luz==='noche' ? 'Toda la marcha se calcula con velocidades de noche.'
           : 'Día o noche se decide solo, tramo por tramo: si la mitad del tramo cae <b>después del crepúsculo náutico</b> (sol más de 12° bajo el horizonte), se usa la velocidad de noche. Detalle en la pestaña <b>Luz</b>.'}
-          ${p.metodo!=='general' ? ' De noche, en montaña y MIDE la velocidad baja en el porcentaje indicado.' : ''}</p>
+          ${p.metodo!=='general' && p.metodo!=='forzada' ? ' De noche, en montaña, MIDE y carrera de combate la velocidad baja en el porcentaje indicado.' : ''}</p>
         <p class="nota">${p.metodo==='montana' ? 'Tramos con pendiente sobre la crítica (5 %) se calculan por el desnivel (DM = 60 × DV / VM); el resto por la distancia (DM = 60 × DH / VM). ' : ''}
-          ${p.altosModo==='regimen' ? `Altos programados: primer alto de ${esc(p.altoPrimeroDur)} min a los ${esc(p.altoPrimero)} min de marcha; luego ${esc(p.altoDur)} min cada ${esc(p.altoCada)} min (régimen habitual: 15 min a los 45 y luego 10 cada 50). Se ubican en las horas de llegada.`
+          ${sinAl ? '' : p.altosModo==='regimen' ? `Altos programados: primer alto de ${esc(p.altoPrimeroDur)} min a los ${esc(p.altoPrimero)} min de marcha; luego ${esc(p.altoDur)} min cada ${esc(p.altoCada)} min (régimen habitual: 15 min a los 45 y luego 10 cada 50). Se ubican en las horas de llegada.`
             : 'Por defecto 10 % de altos; súbelos según el entrenamiento, la carga y la dificultad.'}
           Imprevistos (10 % por defecto, sobre marcha + altos): reserva para lo inesperado, incluido el agotamiento momentáneo; durante la marcha, los altos no planificados se registran en Seguir con su motivo.
           ${R.vel.fuente==='mide' ? '<br>Valores originales MIDE: 300 m/h de subida y 500 m/h de bajada, sin importar tropa ni carga.' : ''}</p>
@@ -352,7 +369,7 @@
           <label class="c">Latitud ${x.norte ? 'N' : 'S'}<input class="num" data-p="lat" inputmode="decimal" value="${esc(x.lat)}" placeholder="33 21 36"></label>
           <label class="c">Longitud ${x.este ? 'E' : 'W'}<input class="num" data-p="lon" inputmode="decimal" value="${esc(x.lon)}" placeholder="70 34 28"></label>
           <label class="c cota">Cota (m)${x.cotaAuto ? ' ≈' : ''}<input class="num" data-p="cota" inputmode="numeric" value="${esc(x.cota)}"></label></div>`}
-        ${actual().par.metodo==='general' && i ? `<div class="extra" style="grid-template-columns:1fr"><label class="c">Vía desde el punto anterior<select data-p="via">${'<option value="">Igual que la marcha (' + esc(M.VIAS[actual().par.via]) + ')</option>' + Object.entries(M.VIAS).map(([k, n])=>`<option value="${k}"${x.via===k ? ' selected' : ''}>${n}</option>`).join('')}</select></label></div>` : ''}
+        ${['general', 'forzada'].includes(actual().par.metodo) && i ? `<div class="extra" style="grid-template-columns:1fr"><label class="c">Vía desde el punto anterior<select data-p="via">${'<option value="">Igual que la marcha (' + esc(M.VIAS[actual().par.via]) + ')</option>' + Object.entries(M.VIAS).map(([k, n])=>`<option value="${k}"${x.via===k ? ' selected' : ''}>${n}</option>`).join('')}</select></label></div>` : ''}
         ${Rc.puntos[i].ev ? `<div class="extra" style="grid-template-columns:1fr"><label class="c">Nombre clave (vacío = automático)<input class="num clave" data-p="clave" value="${esc(x.clave||'')}" placeholder="${esc(Rc.puntos[i].clave || '')}" list="listaClaves"></label></div>` : ''}
         <div class="extra"><label class="c">Observaciones (punto característico)<input data-p="obs" value="${esc(x.obs)}" placeholder="puente, portezuelo, cruce…"></label>
           <label class="c">Detención (min)<input class="num" data-p="det" inputmode="numeric" value="${esc(x.det)}" placeholder="0"></label></div>
@@ -389,7 +406,9 @@
       else if(t.dataset.par==='carga'){ v = String(v).replace(',', '.'); m.par.cargaGeneral = true; }
       if(t.dataset.par==='luz') delete m.par.noche;
       if(['temp', 'hum', 'wbgt'].includes(t.dataset.par)) v = String(v).replace(',', '.');
-      if(['altoPrimero', 'altoPrimeroDur', 'altoCada', 'altoDur'].includes(t.dataset.par)) v = String(v).replace(',', '.');
+      if(['altoPrimero', 'altoPrimeroDur', 'altoCada', 'altoDur', 'forzadaPct'].includes(t.dataset.par) || /^br(?!P)/.test(t.dataset.par)){ v = String(v).replace(',', '.'); if(/^br(?!P)/.test(t.dataset.par)) m.par.brPreset = 'propio'; }
+      if(t.dataset.par==='brPatron') m.par.brPreset = 'propio';
+      if(t.dataset.par==='brPreset'){ const q = Object.assign({}, M.PRESETS_BR[v] || {}); delete q.n; Object.assign(m.par, q); if(q.carga) m.par.cargaGeneral = true; }
       if(t.dataset.par==='verboSel'){ m.par.verbo = v==='otra' ? '' : v; guardar(); return; }
       if(t.dataset.par==='verbo') v = String(v).toUpperCase();
       m.par[t.dataset.par] = v; }
@@ -431,7 +450,7 @@
   /* =====================================================================  CUADRO  */
   function encabezado(m, R){
     return `<div class="solo-imp"><b>CUADRO DE MARCHA Y NAVEGACIÓN — ${esc(m.nombre)}</b><br>Unidad: ${esc(m.unidad)} · Fecha: ${esc(m.fecha.split('-').reverse().join('-'))} · Partida: ${esc(m.hora)}
-      · Datum ${esc(m.datum)} · Zona ${R.zona} · Declinación ${f(R.decl.valor, 2)}° · Método: ${esc(M.METODOS[R.par.metodo])}</div>`;
+      · Datum ${esc(m.datum)} · Zona ${R.zona} · Declinación ${f(R.decl.valor, 2)}° · Método: ${esc(['battle', 'forzada'].includes(R.par.metodo) ? M.tipoMarcha(R.par) : M.METODOS[R.par.metodo])}</div>`;
   }
   function kpis(R){
     const r = R.res;
@@ -442,7 +461,8 @@
       <div class="kpi ocre"><div class="k">Término estimado</div><div class="v">${M.verHora(r.termino)}</div></div>
     </div>
     <div class="desglose"><span>marcha <b>${M.verDur(r.marcha)}</b></span><span>+ altos <b>${M.verDur(r.altos)}</b></span>${r.det ? `<span>+ detenciones <b>${M.verDur(r.det)}</b></span>` : ''}<span>+ imprevistos <b>${M.verDur(r.imprev)}</b></span>
-      <span>punto más alto <b>${r.alto ? esc(r.alto.nombre) + ' ' + f(r.alto.cota) + ' m' : '—'}</b></span></div>`;
+      <span>punto más alto <b>${r.alto ? esc(r.alto.nombre) + ' ' + f(r.alto.cota) + ' m' : '—'}</b></span></div>
+    ${['battle', 'forzada'].includes(R.par.metodo) ? `<div class="desglose"><span><b>${esc(M.tipoMarcha(R.par))}</b></span>${R.meta ? `<span>meta ${f(R.meta.km, 1)} km en ${f(R.meta.min)} min: <b style="color:var(--${R.meta.cumple ? 'verde' : 'rojo'})">${R.meta.cumple ? 'cumple (' + Math.round(-R.meta.dif) + ' min de margen)' : 'faltan ' + Math.round(R.meta.dif) + ' min'}</b></span>` : ''}</div>` : ''}`;
   }
   function apoyo(R){
     const c = R.columna, a = R.calor; let h = '';

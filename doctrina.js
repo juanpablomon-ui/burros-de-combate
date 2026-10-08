@@ -100,7 +100,7 @@ function contextoMaterial(m, R){
   const p = R.par, hay = (+p.efectivo||0)>0, cal = R.calor;
   const aguaH = cal && cal.lh ? cal.lh : 0.71;   // sin índice de calor: categoría 1, trabajo moderado (¾ qt/h)
   return {n:hay ? Math.round(+p.efectivo) : 1, hay, horas:R.res.total || 0, km:R.res.dist/1000, noche:R.fracNoche || 0, aguaH, calorDato:!!(cal && cal.lh),
-    calorCat:cal ? cal.cat : 0, montana:p.metodo!=='general', nieve:p.terreno && p.terreno!=='sinNieve' && p.metodo!=='general', terreno:p.terreno,
+    calorCat:cal ? cal.cat : 0, montana:['montana', 'mide'].includes(p.metodo), nieve:p.terreno && p.terreno!=='sinNieve' && ['montana', 'mide'].includes(p.metodo), terreno:p.terreno,
     unidades:Math.max(1, Math.round(+p.unidades||1)), carga:p.metodo!=='general' ? p.carga : null};
 }
 if(typeof globalThis!=='undefined'){ globalThis.MATERIAL = MATERIAL; globalThis.contextoMaterial = contextoMaterial; }

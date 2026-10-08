@@ -68,6 +68,7 @@ const MARCHA = (function(){
   // p: {tipo:'UTM', zona, e, n} | {tipo:'GEO', lat, lon} (grados decimales; S y W en positivo como en las cartas, o con signo)
   //    | {tipo:'GEO', latG, latM, latS, lonG, lonM, lonS}
   const num = v=>v===null || v===undefined || v==='' ? NaN : Number(String(v).replace(',', '.'));
+  const fmt = x=>String(Math.round(x*100)/100).replace('.', ',');
   function gms(g, m, s){ g = num(g); if(isNaN(g)) return NaN; return Math.abs(g) + (num(m)||0)/60 + (num(s)||0)/3600; }
   // «33 21 36», «33°21'36.5"S», «33.36», «33 21.6» → grados decimales (sin signo)
   function leerAng(v){
@@ -204,7 +205,9 @@ const MARCHA = (function(){
     return {v:Math.round((0.567*t + 0.393*e + 3.94)*10)/10, fuente:'estimado', t, h};
   }
   // intensidad del trabajo según la carga por hombre (ejemplos del manual de calor: ~14 kg moderado, ~20 kg pesado)
-  const trabajoDe = (par, carga)=>par.trabajo && par.trabajo!=='auto' ? par.trabajo : (num(carga)||0)>=30 ? 'mp' : (num(carga)||0)>=18 ? 'pesado' : 'moderado';
+  // carrera de combate = muy pesado; marcha forzada, al menos pesado
+  const trabajoDe = (par, carga)=>{ if(par.trabajo && par.trabajo!=='auto') return par.trabajo; if(par.metodo==='battle') return 'mp';
+    const t = (num(carga)||0)>=30 ? 'mp' : (num(carga)||0)>=18 ? 'pesado' : 'moderado'; return par.metodo==='forzada' && t==='moderado' ? 'pesado' : t; };
   function calor(par, horas, carga){
     const W = wbgt(par); if(!W) return null; const w = W.v, trab = trabajoDe(par, carga === undefined ? par.carga : carga);
     const c = [...CALOR].reverse().find(x=>w>=x.desde), k = ({f:'f', moderado:'m', pesado:'p', mp:'mp'})[trab] || 'm';
@@ -218,8 +221,42 @@ const MARCHA = (function(){
   const METODOS = {
     montana: 'Montaña (pendiente sobre 5 % por desnivel, si no por distancia)',
     mide: 'MIDE / DIN 33466 (mayor de horizontal y vertical + mitad del menor)',
-    general: 'Marcha general (velocidad según unidad, vía y día o noche)'
+    general: 'Marcha general (velocidad según unidad, vía y día o noche)',
+    forzada: 'Marcha forzada (sin altos, ritmo alto)',
+    battle: 'Carrera de combate (tramos rápidos y lentos)'
   };
+  /* ---------- carrera de combate: se alternan tramos rápidos (trote) y lentos (paso) ----------
+     Tres formas del patrón: por distancia (p. ej. 100 m rápido × 300 m lento), por tiempo (1 min × 3 min) y por terreno
+     (formato británico: trote en lo plano y en bajada, paso en las subidas). En subidas sobre 15 % manda el tiempo de montaña si es mayor. */
+  const PATRONES = {distancia:'Por distancia (metros rápidos × metros lentos)', tiempo:'Por tiempo (minutos rápidos × minutos lentos)', terreno:'Por terreno (trote en plano y bajada, paso en subida)'};
+  const PRESETS_BR = {
+    d100:{n:'100 m × 300 m', brPatron:'distancia', brRapido:100, brLento:300, brVelRap:9, brVelLen:6, brMetaKm:'', brMetaMin:''},
+    d200:{n:'200 m × 200 m', brPatron:'distancia', brRapido:200, brLento:200, brVelRap:9, brVelLen:6, brMetaKm:'', brMetaMin:''},
+    d400:{n:'400 m × 400 m', brPatron:'distancia', brRapido:400, brLento:400, brVelRap:9, brVelLen:6, brMetaKm:'', brMetaMin:''},
+    t13:{n:'1 min × 3 min', brPatron:'tiempo', brMinRap:1, brMinLen:3, brVelRap:9, brVelLen:6, brMetaKm:'', brMetaMin:''},
+    t22:{n:'2 min × 2 min', brPatron:'tiempo', brMinRap:2, brMinLen:2, brVelRap:9, brVelLen:6, brMetaKm:'', brMetaMin:''},
+    britanico:{n:'Británico (comandos): 14,5 km en 90 min', brPatron:'terreno', brVelRap:11, brVelLen:6.5, brPteLim:5, brMetaKm:14.5, brMetaMin:90, carga:14},
+    propio:{n:'Propio (escribo los valores)'}};
+  // descripción corta del tipo de marcha para el cuadro y el documento
+  function tipoMarcha(par){ const q = Object.assign(porDefecto(), par || {});
+    if(q.metodo==='forzada') return 'Marcha forzada: +' + fmt(num(q.forzadaPct)||0) + ' % de ritmo, sin altos';
+    if(q.metodo!=='battle') return {montana:'Montaña', mide:'MIDE', general:'Marcha general'}[q.metodo] || '';
+    const pr = PRESETS_BR[q.brPreset];
+    if(q.brPatron==='terreno') return 'Carrera de combate' + (q.brPreset==='britanico' ? ' (formato británico)' : '') + ': trote ' + fmt(num(q.brVelRap)||9) + ' km/h en plano y bajada, paso ' + fmt(num(q.brVelLen)||6) + ' km/h en subida';
+    const c = cicloBattle(q); return 'Carrera de combate: ' + fmt(c.rap) + ' ' + c.u + ' rápido × ' + fmt(c.len) + ' ' + c.u + ' lento (media ' + fmt(velBattle(q)) + ' km/h)'; }
+  // velocidad media del patrón (km/h); en el patrón por terreno, la del trote (la de cada tramo depende de su pendiente)
+  function velBattle(par){
+    const q = Object.assign({brPatron:'distancia', brRapido:100, brLento:300, brMinRap:1, brMinLen:3, brVelRap:9, brVelLen:6}, par || {});
+    const vR = num(q.brVelRap) || 9, vL = num(q.brVelLen) || 6;
+    if(q.brPatron==='terreno') return vR;
+    if(q.brPatron==='tiempo'){ const a = Math.max(0, num(q.brMinRap)||0), b = Math.max(0, num(q.brMinLen)||0); return a + b ? (a*vR + b*vL)/(a + b) : vL; }
+    const a = Math.max(0, num(q.brRapido)||0), b = Math.max(0, num(q.brLento)||0); return a + b ? (a + b)/(a/vR + b/vL) : vL;
+  }
+  // largo de un ciclo rápido + lento (m o min) y repeticiones en la distancia o tiempo dados
+  function cicloBattle(par){ const q = Object.assign(porDefecto(), par || {});
+    if(q.brPatron==='tiempo') return {rap:num(q.brMinRap)||0, len:num(q.brMinLen)||0, u:'min'};
+    if(q.brPatron==='terreno') return null;
+    return {rap:num(q.brRapido)||0, len:num(q.brLento)||0, u:'m'}; }
   function porDefecto(){
     return {metodo:'montana', tropa:'normal', terreno:'sinNieve', carga:20, criterio:'min',
       velSub:null, velBaj:null,   // null = de la tabla
@@ -234,7 +271,10 @@ const MARCHA = (function(){
       wbgt:'', temp:'', hum:'', trabajo:'auto', calorAltos:true,   // calor y agua: WBGT medido o temperatura y humedad; intensidad según la carga; el descanso por calor alarga la marcha
       fuenteVel:'',   // velocidades verticales: 'tabla' (tropa y carga) | 'mide' (300/500 m/h) | 'propia' (escritas); vacío = según los campos
       altosModo:'pct', altoCada:50, altoDur:10, altoPrimero:45, altoPrimeroDur:15,   // altos por % o por régimen programado
-      cargaMat:false, cargaBase:'',   // carga por hombre calculada desde el material (+ peso base: armamento, munición, casco, chaleco)
+      cargaMat:false, cargaBase:'',
+      // carrera de combate: patrón, tramos rápido/lento (m o min), velocidades (km/h), pendiente sobre la que se va al paso (%), meta opcional
+      brPreset:'d100', brPatron:'distancia', brRapido:100, brLento:300, brMinRap:1, brMinLen:3, brVelRap:9, brVelLen:6, brPteLim:5, brMetaKm:'', brMetaMin:'',
+      forzadaPct:20,   // marcha forzada: ritmo sobre el de la marcha general (%)   // carga por hombre calculada desde el material (+ peso base: armamento, munición, casco, chaleco)
       declAuto:true, decl:0, declFecha:'', declVar:0};
   }
 
@@ -251,13 +291,21 @@ const MARCHA = (function(){
   /* ---------- tiempo de un tramo (horas) ---------- */
   function tiempoTramo(dh, dv, par, vel, noche){
     const r = tiempoTramo0(dh, dv, par, vel, noche);
-    if(noche && par.metodo!=='general'){ const red = Math.min(80, Math.max(0, num(par.redNoche)||0))/100; r.t = r.t/(1 - red); }
+    if(noche && par.metodo!=='general' && par.metodo!=='forzada'){ const red = Math.min(80, Math.max(0, num(par.redNoche)||0))/100; r.t = r.t/(1 - red); }
     return Object.assign(r, {noche:!!noche});
   }
   function tiempoTramo0(dh, dv, par, vel, noche){
     const th = dh/1000/(num(par.velLlano)||4), sub = Math.max(dv, 0), baj = Math.max(-dv, 0);
     const tv = sub/vel.sub + baj/vel.baj;
     if(par.metodo==='mide') return {t:Math.max(th, tv) + Math.min(th, tv)/2, como:'MIDE'};
+    if(par.metodo==='forzada'){ const r = tiempoTramo0(dh, dv, Object.assign({}, par, {metodo:'general'}), vel, noche), k = 1 + Math.max(0, num(par.forzadaPct)||0)/100;
+      return {t:r.t/k, como:'forzada', v:r.v*k}; }
+    if(par.metodo==='battle'){ const pte = dh>0 ? dv/dh : (dv>0 ? Infinity : 0), mont = tiempoTramo0(dh, dv, Object.assign({}, par, {metodo:'montana'}), vel, noche).t;
+      const vR = num(par.brVelRap) || 9, vL = num(par.brVelLen) || 6;
+      if(par.brPatron==='terreno'){ const lim = (isNaN(num(par.brPteLim)) ? 5 : num(par.brPteLim))/100;
+        return pte>lim ? {t:pte>0.15 ? Math.max(dh/1000/vL, mont) : dh/1000/vL, como:'paso'} : {t:dh/1000/vR, como:'trote'}; }
+      // en subidas de 7 % o más no se corre: al paso; sobre 15 %, el tiempo de montaña si es mayor
+      return pte>=0.07 ? {t:pte>0.15 ? Math.max(dh/1000/vL, mont) : dh/1000/vL, como:'paso'} : {t:dh/1000/velBattle(par), como:'carrera'}; }
     if(par.metodo==='general'){ const via = vel.via || par.via, u = par.unidadTipo, base = velGeneral(via, noche, u);
       // velocidad escrita a mano = la de día; de noche se reduce en la misma proporción que la tabla
       const v = num(par.velGeneral) ? num(par.velGeneral)*(noche ? velGeneral(via, true, u)/velGeneral(via, false, u) : 1) : base;
@@ -314,12 +362,13 @@ const MARCHA = (function(){
     const esNoche = h=>par.luz==='noche' ? true : par.luz==='dia' ? false : !!((luzEn(h) || {}).oscuro);
     // altos: % del tiempo de marcha, o régimen programado (primer alto de P min a los Q min de marcha; luego D min cada C min)
     const reg = par.altosModo==='regimen', cada = (num(par.altoCada) || 50)/60, durA = (num(par.altoDur) || 10)/60, prim = (num(par.altoPrimero) || 45)/60, durP = (num(par.altoPrimeroDur) || 15)/60;
-    const altosNorm = tm=>{ if(!reg) return tm*(num(par.altos)||0); if(tm<=prim + 1e-9) return 0;   // altos ya hechos al llevar «tm» horas de marcha
+    const sinAltos = par.metodo==='battle' || par.metodo==='forzada';   // carrera de combate y marcha forzada: sin altos (salvo los que exige el calor)
+    const altosNorm = tm=>{ if(sinAltos) return 0; if(!reg) return tm*(num(par.altos)||0); if(tm<=prim + 1e-9) return 0;   // altos ya hechos al llevar «tm» horas de marcha
       return durP + Math.floor((tm - prim - 1e-9)/cada)*durA; };
     // con calor, la tabla exige minutos de descanso por hora de trabajo: si son más que los altos, mandan los del calor
     const cal0 = par.calorAltos===false ? null : calor(par, 0), fCal = cal0 && cal0.trabajo<60 ? (60 - cal0.trabajo)/cal0.trabajo : 0;
     const altosHasta = tm=>Math.max(altosNorm(tm), tm*fCal);
-    const fAl = Math.max(reg ? 1 + durA/cada : 1 + (num(par.altos)||0), 1 + fCal);
+    const fAl = sinAltos ? 1 + fCal : Math.max(reg ? 1 + durA/cada : 1 + (num(par.altos)||0), 1 + fCal);
     let detL = pts[0] ? pts[0].det : 0, tNoche = 0;
     const tramos = []; let acum = 0, dist = 0, sube = 0, baja = 0;
     for(let i=0; i<pts.length - 1; i++){
@@ -364,8 +413,21 @@ const MARCHA = (function(){
     if(par.metodo==='general' && tramos.some(t=>Math.abs(t.pte)>=0.07)) avisos.push('Hay tramos con pendiente de 7 % o más: afectan la velocidad. Considera el método de montaña o MIDE.');
     const jor = JORNADA[par.unidadTipo] || JORNADA.pie;
     if(dist>jor*1000) avisos.push('Más de ' + jor + ' km: sobre la jornada de marcha ' + (par.unidadTipo==='montada' ? 'montada' : 'a pie') + ' (' + jor + ' km). Divide en jornadas o planifica descanso y recuperación.');
-    const regimen = reg ? {cada:cada*60, dur:durA*60, primero:prim*60, primeroDur:durP*60, n:altos>0 ? 1 + Math.round((altos - durP)/durA) : 0} : null;
-    return {regimen, par, vel, zona, decl:dec, puntos:pts, tramos, tramosEv, eventos, columna:col, fracNoche, conLuz, calor:(c=>c ? Object.assign(c, {altosCalor}) : null)(calor(par, total)), avisos,
+    let meta = null;
+    if(par.metodo==='battle'){ const v = velBattle(par), cic = cicloBattle(par), pas = tramos.filter(t=>t.como==='paso');
+      const rep = cic && cic.rap + cic.len ? (cic.u==='m' ? dist/(cic.rap + cic.len) : acum*60/(cic.rap + cic.len)) : null;
+      avisos.push('Carrera de combate: ' + (par.brPatron==='terreno' ? 'trote a ' + fmt(num(par.brVelRap)||9) + ' km/h en lo plano y en bajada, paso a ' + fmt(num(par.brVelLen)||6) + ' km/h en subidas sobre ' + fmt(isNaN(num(par.brPteLim)) ? 5 : num(par.brPteLim)) + ' %'
+        : fmt(cic.rap) + ' ' + cic.u + ' rápido × ' + fmt(cic.len) + ' ' + cic.u + ' lento, velocidad media ' + fmt(Math.round(v*100)/100) + ' km/h' + (rep ? ', unas ' + Math.round(rep) + ' repeticiones' : ''))
+        + '; sin altos. Exige tropa entrenada y aclimatada: vigila a los rezagados y el agua.');
+      if(pas.length && par.brPatron!=='terreno') avisos.push('Hay subidas de 7 % o más: en ellas no se corre; se calculan al paso (y sobre 15 %, con el tiempo de montaña si es mayor).');
+      const mk = num(par.brMetaKm), mm = num(par.brMetaMin);
+      if(mk>0 && mm>0 && dist>0){ const ritmoMeta = mm/mk, plan = (acum + altos)*60, ritmo = plan/(dist/1000), objetivo = dist/1000*ritmoMeta;
+        meta = {km:mk, min:mm, ritmoMeta, ritmo, objetivo, plan, cumple:plan<=objetivo + 1e-6, dif:plan - objetivo}; } }
+    if(par.metodo==='forzada'){ avisos.push('Marcha forzada: ritmo ' + fmt(Math.max(0, num(par.forzadaPct)||0)) + ' % más rápido que la marcha general y sin altos. Se bebe caminando; planifica descanso y recuperación al llegar, y una reserva para los que no den el ritmo.');
+      if(tramos.some(t=>Math.abs(t.pte)>=0.07)) avisos.push('Hay tramos con pendiente de 7 % o más: en ellos no se mantiene el ritmo de marcha forzada.'); }
+    if(sinAltos && fCal>0) avisos.push('Con este calor (WBGT ' + fmt(cal0.wbgt) + ' °C, categoría ' + cal0.n + ') el calor exige descanso: ' + Math.round(60 - cal0.trabajo) + ' min por cada ' + cal0.trabajo + ' min de esfuerzo. Se agregaron altos por seguridad.');
+    const regimen = reg && !sinAltos ? {cada:cada*60, dur:durA*60, primero:prim*60, primeroDur:durP*60, n:altos>0 ? 1 + Math.round((altos - durP)/durA) : 0} : null;
+    return {meta, regimen, par, vel, zona, decl:dec, puntos:pts, tramos, tramosEv, eventos, columna:col, fracNoche, conLuz, calor:(c=>c ? Object.assign(c, {altosCalor}) : null)(calor(par, total)), avisos,
       res:{dist, sube, baja, marcha:acum, altos, det, imprev, total, partida:h0, termino:ter, terminoCola:ter===null || !col ? null : ter + col.paso, alto,
         conv:ref ? ref.utm.conv : null, lejos:val.some(p=>Math.abs(p.lon - (zona*6 - 183))>4)}};
   }
@@ -394,7 +456,7 @@ const MARCHA = (function(){
   const MGRS_LAT = 'CDEFGHJKLMNPQRSTUVWX';
   const banda = lat=>MGRS_LAT[Math.max(0, Math.min(19, Math.floor((lat + 80)/8)))];
 
-  return {wbgt, trabajoDe, CLAVES, listaPropia, rumboEntre, sobreTramo, deWgs84, camposDesde, VIAS, UNIDADES, VEL_GENERAL, JORNADA, velGeneral, columna, CALOR, TRABAJOS, calor, DATUMS, TERRENOS, TABLA_VERTICAL, METODOS, llAUtm, utmALl, aWgs84, puntoWgs, velVertical, porDefecto, declinacion,
+  return {tipoMarcha, velBattle, cicloBattle, PATRONES, PRESETS_BR, wbgt, trabajoDe, CLAVES, listaPropia, rumboEntre, sobreTramo, deWgs84, camposDesde, VIAS, UNIDADES, VEL_GENERAL, JORNADA, velGeneral, columna, CALOR, TRABAJOS, calor, DATUMS, TERRENOS, TABLA_VERTICAL, METODOS, llAUtm, utmALl, aWgs84, puntoWgs, velVertical, porDefecto, declinacion,
     leerAng, tiempoTramo, calcular, horaAHoras, verDur, verHora, verGms, banda};
 })();
 if(typeof globalThis!=='undefined') globalThis.MARCHA = MARCHA;

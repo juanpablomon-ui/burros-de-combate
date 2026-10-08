@@ -125,10 +125,11 @@ const Documento = (function(){
       ${tarj('ter', 'Término estimado', M.verHora(r.termino), 'con altos e imprevistos', true)}
       ${tarj('tot', 'Tiempo total', M.verDur(r.total), 'marcha ' + M.verDur(r.marcha), true)}
       ${tarj('des', 'Ascenso / descenso', '+' + f(r.sube) + ' / −' + f(r.baja) + ' m', r.alto ? 'punto más alto ' + esc(r.alto.nombre) + ' ' + f(r.alto.cota) + ' m' : '')}
-      ${tarj('met', 'Método', esc(({montana:'Montaña', mide:'MIDE', general:'Marcha general'})[R.par.metodo] || ''), R.tramos.some(t=>t.noche) ? 'con tramos de noche' : 'de día')}
+      ${tarj('met', ['battle', 'forzada'].includes(R.par.metodo) ? 'Tipo de marcha' : 'Método', esc(({montana:'Montaña', mide:'MIDE', general:'Marcha general', forzada:'Marcha forzada', battle:'Carrera de combate'})[R.par.metodo] || ''),
+        (['battle', 'forzada'].includes(R.par.metodo) ? esc(M.tipoMarcha(R.par).replace(/^[^:]*: /, '')) + (R.meta ? ' · meta ' + (R.meta.cumple ? 'cumple' : 'faltan ' + Math.round(R.meta.dif) + ' min') : '') + ' · ' : '') + (R.tramos.some(t=>t.noche) ? 'con tramos de noche' : 'de día'))}
       ${tarj('ev', 'Eventos', R.eventos.length, R.eventos.map(i=>R.puntos[i].clave).filter(Boolean).slice(0, 4).join(' · ') + (R.eventos.length>4 ? '…' : ''))}
       ${tarj('carga', 'Carga por hombre', f(R.carga ? R.carga.total : +R.par.carga || 0, 1) + ' kg', R.carga ? 'base ' + f(R.carga.base, 1) + ' + material ' + f(R.carga.indiv + R.carga.colect, 1) : 'escrita a mano')}
-      ${tarj('alt', 'Altos / imprevistos', (R.regimen ? R.regimen.dur + ' min c/' + R.regimen.cada : Math.round(R.par.altos*100) + ' %') + ' / ' + Math.round(R.par.imprev*100) + ' %', M.verDur(r.altos) + ' / ' + M.verDur(r.imprev))}</div>`;
+      ${tarj('alt', 'Altos / imprevistos', (['battle', 'forzada'].includes(R.par.metodo) ? (r.altos>0 ? 'por calor' : 'sin altos') : R.regimen ? R.regimen.dur + ' min c/' + R.regimen.cada : Math.round(R.par.altos*100) + ' %') + ' / ' + Math.round(R.par.imprev*100) + ' %', M.verDur(r.altos) + ' / ' + M.verDur(r.imprev))}</div>`;
     const fig = (html, id)=>d.figuras==='oscuras' ? `<div class="doc-osc"${id ? ` id="${id}"` : ''}>${html}</div>` : `<div class="doc-fig"${id ? ` id="${id}"` : ''}>${aClaro(html)}</div>`;
     const sec = (titulo, html, nueva)=>`<section class="doc-sec${nueva ? ' salto' : ''}"><h2 class="doc-h2">${titulo}</h2>${html}</section>`;
     const S = d.sec; let n = 0, partes = [];
