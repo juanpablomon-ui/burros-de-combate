@@ -49,7 +49,7 @@ const MATERIAL = [
     ['granada', 'Granadas de mano', c=>0, c=>'si la misión lo exige: escribe la cantidad total'],
     ['casco', 'Casco', c=>c.n, c=>'1 por hombre'],
     ['chaleco', 'Chaleco antibalas con placas', c=>c.n, c=>'escribe 0 si no se usa'],
-    ['portaf', 'Chaleco o arnés portafuegos', c=>c.n, c=>'donde va la 2.ª línea']]},
+    ['portaf', 'Cinturón de carga', c=>c.n, c=>'donde va la 2.ª línea']]},
   {g:'Agua y alimentación', items:[
     ['agua', 'Agua por hombre', c=>String(Math.ceil((c.aguaH*c.horas + 1)*2)/2).replace('.', ',') + ' L', c=>'≈ ' + c.aguaH.toFixed(2).replace('.', ',') + ' L/h × ' + c.horas.toFixed(1).replace('.', ',') + ' h + 1 L de reserva' + (c.calorDato ? '' : ' (sin índice de calor: se usa calor bajo)')],
     ['aguaT', 'Agua total de la unidad', c=>c.hay ? Math.ceil(c.n*(c.aguaH*c.horas + 1)) + ' L' : null, c=>'para ' + c.n + ' hombres'],
@@ -125,7 +125,7 @@ const PESOS = {fusil:[4, 'i'], cargad:[0.5, 'i'], granada:[0.4, 'i'], casco:[1.4
 /* Líneas de equipo: 1.ª en el cuerpo (supervivencia: agua, botiquín, navegación), 2.ª chaleco o arnés (combate: ración, radio, pilas),
    3.ª mochila (sustento: abrigo, poncho, material de grupo). Cada elemento trae una línea sugerida; se cambia en la tabla (m.material[id].linea). */
 const LINEAS = {1:'1.ª línea', 2:'2.ª línea', 3:'3.ª línea', 4:'4.ª línea'};
-const LINEAS_TXT = {1:'en el cuerpo: supervivencia', 2:'arma y portafuegos: combate', 3:'mochila: sostenimiento', 4:'vehículo o apoyo logístico: no la carga el hombre'};
+const LINEAS_TXT = {1:'en el cuerpo: supervivencia', 2:'arma y cinturón de carga: combate', 3:'mochila: sostenimiento', 4:'vehículo o apoyo logístico: no la carga el hombre'};
 // límites de referencia (manual de marchas a pie de EE.UU.): carga de combate ≈ 22 kg (48 lb), carga de marcha de aproximación ≈ 33 kg (72 lb)
 const LIMITES_CARGA = {combate:22, marcha:33};
 const LINEA_DE = {casco:1, chaleco:1, fusil:2, cargad:2, granada:2, portaf:2, agua:1, cantimp:1, sales:1, botInd:1, carta:1, brujula:1, gps:1, cuadro:1, marcador:1, claves:1, silbato:1, lentes:1, sombrero:1, gorro:1, linterna:1, luzquim:1, polainas:1, bastones:1,
