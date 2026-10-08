@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.30', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.31', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -291,17 +291,19 @@
 
       <details class="tarjeta"><summary>Calor y agua<span class="res">${R.calor && R.calor.cat ? 'categoría ' + esc(R.calor.n) : 'opcional'}</span></summary>
         <div class="campos">
-          <label class="c">Temperatura prevista (°C)<input class="num" data-par="temp" data-redibujar inputmode="decimal" value="${esc(p.temp)}" placeholder="del pronóstico"></label>
-          <label class="c">Humedad relativa (%)<input class="num" data-par="hum" data-redibujar inputmode="numeric" value="${esc(p.hum)}" placeholder="del pronóstico"></label>
-          <label class="c">o WBGT medido (°C)<input class="num" data-par="wbgt" data-redibujar inputmode="decimal" value="${esc(p.wbgt)}" placeholder="si tienes medidor"></label>
-          <label class="c ancho">Intensidad del trabajo<select data-par="trabajo" data-redibujar>${opc(Object.assign({auto:'Automática según la carga (' + f(R.carga ? R.carga.total : +p.carga || 0, 1) + ' kg → ' + (M.TRABAJOS[M.trabajoDe({}, R.carga ? R.carga.total : p.carga)] || '').split(' (')[0].toLowerCase() + ')'}, M.TRABAJOS), p.trabajo || 'auto')}</select></label>
-          <label class="c ancho"><span><input type="checkbox" data-par="calorAltos" data-redibujar ${p.calorAltos!==false ? 'checked' : ''} style="width:auto;vertical-align:middle"> El descanso por calor se suma a los altos (alarga la marcha)</span></label>
+          <label class="c">Temperatura (°C)<input class="num" data-par="temp" data-redibujar inputmode="decimal" value="${esc(p.temp)}" placeholder="del pronóstico"></label>
+          <label class="c">Humedad (%)<input class="num" data-par="hum" data-redibujar inputmode="numeric" value="${esc(p.hum)}" placeholder="del pronóstico"></label>
         </div>
-        ${R.calor ? `<div class="info">WBGT ${R.calor.fuenteWbgt==='medido' ? 'medido' : 'estimado'}: <b>${f(R.calor.wbgt, 1)} °C</b> → ${R.calor.cat ? 'categoría <b>' + esc(R.calor.n) + '</b>' : 'bajo la categoría 1 (sin restricción)'}
-          · trabajo ${esc((M.TRABAJOS[R.calor.trab] || '').split(' (')[0].toLowerCase())}${R.calor.trabajo<60 ? ' · <b>' + R.calor.trabajo + ' min de trabajo y ' + R.calor.descanso + ' de descanso por hora</b>' : ''} · agua ${f(R.calor.lh, 2)} L/h.
-          ${R.calor.altosCalor ? '<br><b>La marcha se alargó: los altos se ajustaron al descanso que exige el calor.</b>' : ''}</div>` : ''}
-        <p class="nota">Si no tienes medidor de WBGT, escribe la temperatura y la humedad del pronóstico: el WBGT se estima para sol moderado (con sol fuerte y sin viento puede ser mayor).
-          La tabla de calor da los minutos de trabajo y descanso por hora y el agua por hora. Máximo 1,4 L por hora y 11,4 L por día.</p>
+        ${R.calor ? `<div class="info">${R.calor.cat ? `Calor <b>categoría ${esc(R.calor.n)}</b>` : 'Calor <b>sin restricción</b>'} (índice ${f(R.calor.wbgt, 1)} °C${R.calor.fuenteWbgt==='medido' ? ', medido' : ''}).
+          ${R.calor.trabajo<60 ? `<br>Cada hora: <b>${R.calor.trabajo} min de marcha y ${R.calor.descanso} min de descanso</b>.` : '<br>Sin descansos extra por calor.'}
+          <br>Agua: <b>${f(R.calor.lh, 1)} L por hora</b> por hombre.
+          ${R.calor.altosCalor ? '<br><b>La marcha se alargó para dar ese descanso.</b>' : ''}</div>`
+          : '<p class="nota">Escribe la temperatura y la humedad del pronóstico para saber los descansos y el agua que exige el calor.</p>'}
+        <details class="avanzado"><summary>⚙ Avanzado</summary><div class="campos">
+          <label class="c">Índice de calor medido (WBGT, °C)<input class="num" data-par="wbgt" data-redibujar inputmode="decimal" value="${esc(p.wbgt)}" placeholder="si tienes medidor"></label>
+          <label class="c ancho">Esfuerzo<select data-par="trabajo" data-redibujar>${opc(Object.assign({auto:'Según la carga (ahora: ' + (M.TRABAJOS[M.trabajoDe(p, R.carga ? R.carga.total : p.carga)] || '').split(' (')[0].toLowerCase() + ')'}, M.TRABAJOS), p.trabajo || 'auto')}</select></label>
+          <label class="c ancho"><span><input type="checkbox" data-par="calorAltos" data-redibujar ${p.calorAltos!==false ? 'checked' : ''} style="width:auto;vertical-align:middle"> Agregar a la marcha el descanso que exige el calor</span></label></div>
+          <p class="nota">El índice se estima con temperatura y humedad para sol moderado; con sol fuerte y sin viento puede ser mayor. El esfuerzo sale solo de la carga por hombre: cámbialo solo si quieres.</p></details>
       </details>
 
       <details class="tarjeta" id="dClaves"><summary>Nombres clave y eventos para la radio<span class="res">${esc(((p.verbo || 'PASANDO') + ' ' + (R.puntos[1] && R.puntos[1].clave || '…')).toUpperCase())}</span></summary>

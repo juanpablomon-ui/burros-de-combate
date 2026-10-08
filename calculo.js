@@ -195,7 +195,7 @@ const MARCHA = (function(){
     {cat:3, n:'3 — amarilla', desde:29.4, f:[60, .75], m:[60, .75], p:[30, 1],  mp:[10, 1]},
     {cat:4, n:'4 — roja',     desde:31.1, f:[60, .75], m:[50, .75], p:[20, 1],  mp:[10, 1]},
     {cat:5, n:'5 — negra',    desde:32.2, f:[60, 1],   m:[20, 1],   p:[15, 1],  mp:[10, 1]}];
-  const TRABAJOS = {f:'Fácil (≈250 W)', moderado:'Moderado (≈425 W, p. ej. patrullar con ~14 kg)', pesado:'Pesado (≈600 W, p. ej. patrullar con ~20 kg)', mp:'Muy pesado (≈800 W)'};
+  const TRABAJOS = {f:'Liviano (sin carga)', moderado:'Moderado (unos 14 kg)', pesado:'Pesado (unos 20 kg)', mp:'Muy pesado (30 kg o más, o trotando)'};
   // WBGT: el medido, o estimado con temperatura (°C) y humedad relativa (%) con la aproximación de la Oficina de Meteorología
   // de Australia para condiciones de sol moderado: WBGT ≈ 0,567·T + 0,393·e + 3,94 (e = presión de vapor en hPa)
   function wbgt(par){
