@@ -10,7 +10,7 @@ const Uso = (function(){
   const PALABRAS = [
     ['ORDEN GRÁFICA DE MARCHA', 'PLAN DE RUTA'], ['Orden gráfica', 'Plan de ruta'], ['orden gráfica', 'plan de ruta'],
     ['Documento / orden gráfica', 'Documento / plan de ruta'], ['anexar a la OPORD', 'adjuntar al plan de ruta'], ['la OPORD', 'el plan de ruta'], ['OPORD', 'plan de ruta'],
-    ['Equipo especial común de la patrulla', 'Equipo común del grupo'], ['Equipo de cada puesto (OME)', 'Equipo de cada rol'], ['Puestos (OME)', 'Roles del grupo'], ['Equipo especial común', 'Equipo común del grupo'], ['Equipo especial de la patrulla', 'Equipo común del grupo'], ['Fusilero o patrullero', 'Integrante'], ['Radioperador', 'Encargado de radio'], ['Sirviente de ametralladora', 'Portador'], ['el más cargado', 'el más cargado'], ['Mochila de trauma (enfermero u operador de trauma)', 'Botiquín grande del grupo (primeros auxilios avanzados)'],
+    ['Equipo especial común de la patrulla', 'Equipo común del grupo'], ['Equipo de cada puesto (OME)', 'Equipo de cada rol'], ['Puestos (OME)', 'Roles del grupo'], ['Equipo especial común', 'Equipo común del grupo'], ['Equipo especial de la patrulla', 'Equipo común del grupo'], ['Fusilero o patrullero', 'Integrante'], ['Comandante o jefe de patrulla', 'Guía o líder del grupo'], ['Radioperador', 'Encargado de radio'], ['Sirviente de ametralladora', 'Portador'], ['el más cargado', 'el más cargado'], ['Mochila de trauma (enfermero u operador de trauma)', 'Botiquín grande del grupo (primeros auxilios avanzados)'],
     ['IFAK: botiquín individual de combate', 'Botiquín individual de emergencia'], ['Ración de combate', 'Comida del día (ración)'], ['ración de combate', 'comida del día'],
     ['la carga de combate habitual (27–36 kg)', 'una carga razonable (revisa el porcentaje de tu peso)'],
     ['Matriz de eventos', 'Registro de la ruta'], ['matriz de eventos', 'registro de la ruta'],
@@ -30,7 +30,7 @@ const Uso = (function(){
     ['Altos', 'Descansos'], ['altos', 'descansos'], ['un alto', 'un descanso'], ['del alto', 'del descanso'], ['el alto', 'el descanso'],
     ['INICIO DE MARCHA', 'INICIO'], ['FIN DE MARCHA', 'LLEGADA'],
     ['Eventos', 'Puntos de control'], ['eventos', 'puntos de control'], ['Evento', 'Punto de control'], ['evento', 'punto de control'],
-    ['3.ª línea A', 'Mochila de día'], ['3.ª línea B', 'Mochila grande'], ['3.ª A', 'Mochila de día'], ['3.ª B', 'Mochila grande'], ['1.ª línea', 'En el cuerpo'], ['2.ª línea', 'Cinturón y bolsillos'], ['3.ª línea', 'Mochila'], ['4.ª línea', 'Se queda en el vehículo'], ['4.ª (vehículo)', 'Vehículo'],
+    ['Cuchillo o bayoneta', 'Cuchillo o cortaplumas'], ['3.ª línea A', 'Mochila de día'], ['3.ª línea B', 'Mochila grande'], ['3.ª A', 'Mochila de día'], ['3.ª B', 'Mochila grande'], ['1.ª línea', 'En el cuerpo'], ['2.ª línea', 'Cinturón y bolsillos'], ['3.ª línea', 'Mochila'], ['4.ª línea', 'Se queda en el vehículo'], ['4.ª (vehículo)', 'Vehículo'],
     ['Rezagado', 'Persona atrasada'], ['rezagados', 'atrasados'],
     ['C2', 'contacto']];
   const RE = PALABRAS.map(([a, b])=>[new RegExp('(^|[^\\wÁÉÍÓÚÑáéíóúñ])' + a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![\\wÁÉÍÓÚÑáéíóúñ])', 'g'), b]);

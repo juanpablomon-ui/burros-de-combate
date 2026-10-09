@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.54', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.55', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -720,7 +720,7 @@
       const noCarga = it=>it.propio===undefined && (PESOS[it.id] || [0, 'c'])[1]==='x', L = {1:[], 2:[], 5:[], 3:[], 4:[], x:[], esp:[]};
       const esEsp = it=>conPuesto.has(it.id) || ESPECIAL.has(it.id);
       filas.forEach(({g, its})=>its.forEach(it=>L[esEsp(it) ? 'esp' : noCarga(it) ? 'x' : lineaDe(m, it.id)].push(Object.assign({}, it, {tipo:g}))));
-      const porLinea = ORDEN_LINEAS.map(l=>({g:LINEAS[l] + ' — ' + LINEAS_TXT[l], linea:l, its:L[l]})).filter(x=>x.its.length || x.linea<4 || !papel);
+      const porLinea = ORDEN_LINEAS.map(l=>({g:Uso.civil() ? LINEAS[l] : LINEAS[l] + ' — ' + LINEAS_TXT[l], linea:l, its:L[l]})).filter(x=>x.its.length || x.linea<4 || !papel);
       porLinea.forEach(x=>x.parte = 'lineas');
       if(L.esp.length) porLinea.push({g:'Equipo especial común de la patrulla — lo lleva un puesto o rota entre todos', its:L.esp, parte:'resto'});
       if(L.x.length) porLinea.push({g:'Datos y planificación (no se cargan)', its:L.x, parte:'resto'});
@@ -743,7 +743,10 @@
   // en pantalla: una ficha por elemento, del ancho del teléfono: cantidad con su unidad × kg por unidad = kg (total y por hombre)
   function fichasMaterial(m, R, filas){
     const Mt = m.material || {}, pm = R.carga || pesoMaterial(m, R), porId = {}; (pm ? pm.items : []).forEach(x=>porId[x.id] = x);
-    return filas.map(({g, its, linea})=>`<h3 class="mat-g">${esc(g)}${linea && pm ? ` <span class="mat-kg">${f(pm.lineas[linea], 1)} kg por hombre${linea===4 ? ' (no se suma)' : (linea===3 || linea===5) && pm.sinMochila ? ' (se deja)' : linea===3 && pm.mochilaModo==='solo' ? ' (no se lleva)' : ''}</span>` : ''}</h3><div class="mat-lista">${its.length ? '' : '<p class="nota">Sin elementos en esta línea.</p>'}${its.map(it=>{
+    return filas.map(({g, its, linea})=>`<h3 class="mat-g">${esc(g)}${linea && pm ? ` <span class="mat-kg">${f(pm.lineas[linea], 1)} kg por hombre${linea===4 ? ' (no se suma)' : (linea===3 || linea===5) && pm.sinMochila ? ' (se deja)' : linea===3 && pm.mochilaModo==='solo' ? ' (no se lleva)' : ''}</span>` : ''}</h3>
+      ${linea && linea!==4 && pm ? `<div class="mat-pl"><label>Peso de la línea sin detallar los elementos <span class="mf-c"><input class="num" data-pl="${linea}" value="${esc((m.par.pesoLinea || {})[linea] || '')}" placeholder="${f(pm.lineasCalc[linea], 1)}" inputmode="decimal" aria-label="kg por hombre"><em>kg por hombre</em></span></label>
+        <small>${(m.par.pesoLinea || {})[linea] ? '<b>reemplaza</b> la suma de los elementos (' + f(pm.lineasCalc[linea], 1) + ' kg)' + (linea===2 ? '; incluye el agua' : '') : 'vacío = la suma de los elementos de abajo'}</small></div>` : ''}
+      <div class="mat-lista">${its.length ? '' : '<p class="nota">Sin elementos en esta línea.</p>'}${its.map(it=>{
       const st = Mt[it.id] || {}, pz = PESOS[it.id] || [0, 'c'], noCarga = pz[1]==='x', kg0 = it.propio!==undefined ? '' : pz[0];
       const u = unidadDe(st.cant || it.auto), u1 = UNI1[u] || u.replace(/s$/, ''), x = porId[it.id], n = pm ? pm.n : 1;
       const total = x ? x.q*x.kg : 0, num0 = String(it.auto).replace(/[^\d.,+].*$/, '').trim() || it.auto;
@@ -847,19 +850,19 @@
       <div class="info">Calculado para <b>${H.c.hay ? H.c.n + ' hombres' : '1 hombre (indica el efectivo en Datos → Unidad y columna)'}</b>, ${M.verDur(H.c.horas)} de marcha y ${f(H.c.km, 1)} km${H.c.noche ? ', con ' + Math.round(H.c.noche*100) + ' % de noche' : ''}.
         El agua sale de la tabla de calor (${H.c.calorDato ? 'con el índice WBGT indicado' : 'sin índice WBGT: se usa calor bajo'}); las demás cantidades son <b>sugerencias</b>: escribe la tuya si la orden dice otra cosa.
         Aparecen solo los elementos que corresponden (noche, montaña, nieve, calor).</div>
+      <h3 class="mat-parte">Carga de cada hombre</h3>
+      ${cargaHtml(m, R)}
       <h3 class="mat-parte">1. Equipo que llevan todos (por línea)</h3>
       <div class="tarjeta">${H.lineas}</div>
       <h3 class="mat-parte">2. Equipo de cada puesto (OME)</h3>
       ${puestosHtml(m, R)}
       ${H.resto ? `<h3 class="mat-parte">3. Equipo especial común</h3><div class="tarjeta">${H.resto}</div>` : ''}
-      <h3 class="mat-parte">${H.resto ? '4' : '3'}. Carga de cada hombre</h3>
-      ${cargaHtml(m, R)}
       <div class="tarjeta"><div class="campos"><label class="c ancho">Agregar otro elemento<input id="mtNuevo" placeholder="Ej: pala de campaña"></label><label class="c">Cantidad<input id="mtNuevoC" placeholder="Ej: 4"></label><label class="c">kg c/u<input id="mtNuevoK" placeholder="Ej: 1,2" inputmode="decimal"></label></div>
         <div class="btns"><button class="btn" id="mtAgregar">＋ Agregar</button><button class="btn" id="mtLimpia">Desmarcar todo</button><button class="btn pri" id="mtDoc">📄 Documento con el material</button></div></div>`;
     const cuenta = ()=>$('#mtCuenta').innerHTML = `<b>${hechos()} de ${tot}</b> listos.`; cuenta();
     const Mt = ()=>m.material || (m.material = {});
     vista.querySelectorAll('[data-mt]').forEach(x=>x.onchange = ()=>{ const o = Mt()[x.dataset.mt] || (Mt()[x.dataset.mt] = {}); o.ok = x.checked; x.closest('tr,.mf').classList.toggle('hecho', x.checked); guardar(); cuenta(); });
-    let tC = null; const recarga = ()=>{ clearTimeout(tC); tC = setTimeout(()=>{ const y = window.scrollY, a = document.activeElement && document.activeElement.dataset; const foco = a && (a.on ? '[data-on="' + a.on + '"]' : a.okc ? '[data-okc="' + a.okc + '"]' : a.okk ? '[data-okk="' + a.okk + '"]' : a.pn ? '[data-pn="' + a.pn + '"]' : a.pnom ? '[data-pnom="' + a.pnom + '"]' : a.mch ? '[data-mch="' + a.mch + '"]' : a.mc ? '[data-mc="' + a.mc + '"]' : a.mk ? '[data-mk="' + a.mk + '"]' : document.activeElement.id ? '#' + document.activeElement.id : null);
+    let tC = null; const recarga = ()=>{ clearTimeout(tC); tC = setTimeout(()=>{ const y = window.scrollY, a = document.activeElement && document.activeElement.dataset; const foco = a && (a.pl ? '[data-pl="' + a.pl + '"]' : a.on ? '[data-on="' + a.on + '"]' : a.okc ? '[data-okc="' + a.okc + '"]' : a.okk ? '[data-okk="' + a.okk + '"]' : a.pn ? '[data-pn="' + a.pn + '"]' : a.pnom ? '[data-pnom="' + a.pnom + '"]' : a.mch ? '[data-mch="' + a.mch + '"]' : a.mc ? '[data-mc="' + a.mc + '"]' : a.mk ? '[data-mk="' + a.mk + '"]' : document.activeElement.id ? '#' + document.activeElement.id : null);
       const ab = [...vista.querySelectorAll('details[open] > summary')].map(x=>x.firstChild.textContent);
       pintar(); vista.querySelectorAll('details > summary').forEach(x=>{ if(ab.includes(x.firstChild.textContent)) x.parentNode.open = true; });
       window.scrollTo(0, y); if(foco){ const e = vista.querySelector(foco); if(e){ e.focus(); const v = e.value; e.value = ''; e.value = v; } } }, 700); };
@@ -902,6 +905,7 @@
       guardar(); const y = window.scrollY; pintar(); window.scrollTo(0, y); });
     vista.querySelectorAll('[data-pn]').forEach(x=>x.oninput = ()=>{ port(x.dataset.pn).n = x.value; guardar(); recarga(); });
     vista.querySelectorAll('[data-pnom]').forEach(x=>x.oninput = ()=>{ port(x.dataset.pnom).nombre = x.value; guardar(); recarga(); });
+    vista.querySelectorAll('[data-pl]').forEach(x=>x.oninput = ()=>{ const o = m.par.pesoLinea || (m.par.pesoLinea = {}); o[x.dataset.pl] = x.value; guardar(); recarga(); });
     vista.querySelectorAll('[data-orden]').forEach(b=>b.onclick = ()=>{ m.matOrden = b.dataset.orden; guardar(); pintar(); });
     // agregar un elemento directo en una línea
     vista.querySelectorAll('[data-aa]').forEach(b=>b.onclick = ()=>{ const l = b.dataset.aa, n = vista.querySelector('[data-an="' + l + '"]').value.trim(); if(!n) return aviso('Escribe el nombre del elemento');

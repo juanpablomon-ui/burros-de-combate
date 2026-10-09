@@ -50,7 +50,8 @@ const MATERIAL = [
     ['granada', 'Granadas de mano', c=>c.civil ? null : 0, c=>'si la misión lo exige: escribe cuántas por hombre'],
     ['casco', 'Casco', c=>c.civil ? null : c.n, c=>'1 por hombre'],
     ['chaleco', 'Chaleco antibalas con placas', c=>c.civil ? null : c.n, c=>'escribe 0 si no se usa'],
-    ['portaf', 'Cinturón de carga', c=>c.civil ? null : c.n, c=>'donde va la 2.ª línea']]},
+    ['portaf', 'Cinturón de carga', c=>c.civil ? null : c.n, c=>'1.ª línea: con el IFAK y el cuchillo o bayoneta'],
+    ['radioH', 'Radio portátil de mano con batería', c=>c.civil ? null : c.n, c=>'puede ser una por hombre (escribe 0 si no se usan)']]},
   // equipo que sirve a toda la unidad para la misión o la marcha: se escribe el total y su peso se reparte entre todos
   {g:'Equipo especial de la patrulla', items:[
     ['radio', 'Radio', c=>Math.max(1, c.unidades) + 1, c=>'1 por unidad de marcha + la del comandante'],
@@ -66,13 +67,13 @@ const MATERIAL = [
     ['sales', 'Sales de rehidratación / electrolitos', c=>c.horas>4 || c.calorCat>=3 ? c.n*Math.ceil(c.horas/4) + ' sobres' : null, c=>'1 sobre cada 4 h de marcha'],
     ['racion24', 'Ración de combate de 24 h (tipo MRE)', c=>c.racion!=='12' && c.horas>=6 ? c.n*Math.ceil(c.horas/24) : null, c=>'1 por hombre cada 24 h (3 comidas, ≈ 1,3 kg)'],
     ['racion12', 'Ración de combate de 12 h (tipo MRE)', c=>c.racion==='12' && c.horas>=6 ? c.n*Math.ceil(c.horas/12) : null, c=>'1 por hombre cada 12 h (2 comidas, ≈ 0,9 kg)'],
-    ['colac', 'Colación de marcha (barras, frutos secos)', c=>c.n, c=>'para los altos']]},
+]},
   {g:'Sanidad', items:[
     ['ifak', 'IFAK: botiquín individual de combate', c=>c.n, c=>'torniquete, vendaje compresivo, gasa hemostática, sello de tórax, cánula y guantes'],
     ['botPA', 'Botiquín de primeros auxilios pequeño', c=>c.n, c=>'heridas menores, ampollas y cuidado de pies, medicamentos básicos'],
     ['socorr', 'Enfermero u operador de trauma (personas)', c=>Math.max(1, Math.ceil(c.n/30)), c=>'1 cada 30 hombres como mínimo; su equipo va en Puestos (OME)'],
     ['calcet', 'Calcetines de recambio', c=>c.n*(c.horas>8 ? 2 : 1) + ' pares', c=>'cambio a mitad de la marcha'],
-    ['manta', 'Manta térmica', c=>Math.max(1, Math.ceil(c.n/10)), c=>'1 cada 10 hombres'],
+    ['manta', 'Manta térmica', c=>c.n, c=>'1 por hombre, va en el IFAK'],
     ['solar', 'Protector solar y labial', c=>c.noche<0.9 ? Math.max(1, Math.ceil(c.n/5)) : null, c=>'marcha con luz de día'],
     ['evac', 'Plan de evacuación (punto, vehículo, frecuencia)', c=>'1', c=>'para lesionados o rezagados']]},
   {g:'Navegación y control', items:[
@@ -87,24 +88,31 @@ const MATERIAL = [
     ['claves', 'Lista de nombres clave y frecuencias', c=>Math.max(1, c.unidades) + 1, c=>'«PASANDO ALFA…»'],
     ['silbato', 'Silbato / señales', c=>Math.max(1, Math.ceil(c.n/10)), c=>'jefes de grupo']]},
   {g:'Equipo individual', items:[
+    ['cuchillo', 'Cuchillo o bayoneta', c=>c.n, c=>'en el cinturón de carga'],
     ['mochAs', 'Mochila de asalto o de misión', c=>c.mochilaModo==='dentro' ? null : c.n, c=>'munición, agua y elementos para la tarea'],
     ['mochila', 'Mochila de sostenimiento', c=>c.mochilaModo==='solo' ? null : c.n, c=>'para varios días' + (c.mochilaModo==='dentro' ? '; la de asalto va dentro' : '')],
     ['poncho', 'Poncho o chaqueta impermeable', c=>c.n, c=>''],
-    ['abrigo', 'Ropa de abrigo (primera capa, polar)', c=>c.noche>0 || c.montana || c.nieve ? c.n : null, c=>'frío de noche o en altura'],
+    ['abrigo', 'Segunda capa de abrigo (polar)', c=>c.n, c=>'la primera capa va puesta; esta, en la mochila de asalto'],
+    ['abrigo3', 'Tercera capa de abrigo (chaqueta de abrigo o pluma)', c=>c.noche>0 || c.montana || c.nieve || c.pernocta ? c.n : null, c=>'en la mochila de sostenimiento'],
     ['gorro', 'Gorro y guantes', c=>c.nieve || c.montana ? c.n : null, c=>'montaña o nieve'],
     ['lentes', 'Lentes de sol', c=>c.nieve || c.montana ? c.n : null, c=>'reflejo de la nieve o del sol en altura'],
     ['saco', 'Saco de dormir', c=>c.pernocta ? c.n : null, c=>'marcha con pernocta'],
     ['aislante', 'Aislante (colchoneta)', c=>c.pernocta ? c.n : null, c=>'marcha con pernocta'],
-    ['carpa', 'Carpa o vivac', c=>c.pernocta ? Math.ceil(c.n/2) : null, c=>'1 cada 2 (repartida)'],
+    ['carpa', 'Carpa o vivisac', c=>c.pernocta ? Math.ceil(c.n/2) : null, c=>'1 cada 2 (repartida)'],
     ['cocina', 'Cocinilla y gas', c=>c.pernocta ? Math.max(1, Math.ceil(c.n/4)) : null, c=>'1 cada 4 (repartida)'],
     ['olla', 'Olla y utensilios', c=>c.pernocta ? Math.max(1, Math.ceil(c.n/4)) : null, c=>'1 juego cada 4 (repartido)'],
     ['aseo', 'Útiles de aseo', c=>c.pernocta ? c.n : null, c=>'marcha con pernocta'],
     ['sombrero', 'Sombrero o jockey', c=>c.calorCat>=2 || (c.noche<0.5 && !c.nieve) ? c.n : null, c=>'sol y calor']]},
+  // elementos de zapa (pedido del usuario): van en la mochila de sostenimiento
+  {g:'Elementos de zapa', items:[
+    ['palaZ', 'Pala de campaña', c=>c.civil ? null : c.n, c=>'1 por hombre (escribe 0 si no se lleva)'],
+    ['picota', 'Picota o pico', c=>c.civil ? null : Math.max(1, Math.ceil(c.n/5)), c=>'1 cada 5 hombres'],
+    ['zapaOtro', 'Otro elemento de zapa (hacha, sierra, chuzo…)', c=>c.civil ? null : 0, c=>'escribe cuántos y su peso']]},
   {g:'Marcha de noche', items:[
-    ['linterna', 'Linterna con filtro rojo', c=>c.noche>0 ? c.n : null, c=>'parte de la marcha es de noche'],
-    ['luzquim', 'Luces químicas / marcas reflectantes', c=>c.noche>0 ? Math.max(2, Math.ceil(c.n/5)) : null, c=>'cabeza, cola y jefes de grupo'],
+    ['linterna', 'Linterna con filtro rojo (o frontal)', c=>c.noche>0 || c.civil ? c.n : null, c=>c.noche>0 ? 'parte de la marcha es de noche' : 'siempre, por si la ruta se alarga'],
+    ['luzquim', 'Luces químicas', c=>c.civil ? null : c.n*2, c=>'2 por hombre'],
     ['pilas', 'Pilas de repuesto', c=>c.noche>0 ? c.n + ' juegos' : null, c=>'para linternas'],
-    ['vision', 'Visores nocturnos (si se dispone)', c=>c.noche>0.3 ? Math.max(1, c.unidades) : null, c=>'más de un tercio de la marcha de noche']]},
+    ['vision', 'Visor nocturno (si se dispone)', c=>c.civil ? null : c.noche>0 ? c.n : null, c=>'puede ser uno por hombre (escribe 0 si no hay)']]},
   {g:'Montaña y nieve', items:[
     ['bastones', 'Bastones de marcha', c=>c.montana ? c.n + ' pares' : null, c=>'pendientes fuertes'],
     ['polainas', 'Polainas', c=>c.nieve ? c.n + ' pares' : null, c=>'nieve'],
@@ -128,7 +136,7 @@ function aguaPlan(m, R, lh, reabast){
   const H = R.res.total || 0, mar = R.res.marcha || 0, cortes = [];
   if(reabast && mar) R.tramos.forEach(t=>{ const q = (m.puntos || [])[t.iB]; if(q && q.agua && t!==R.tramos[R.tramos.length - 1]) cortes.push(H*t.tAcum/mar); });
   const lim = [0, ...cortes, H], segs = [];
-  for(let k=0; k<lim.length - 1; k++) segs.push({ini:lim[k], fin:lim[k + 1], litros:lh*(lim[k + 1] - lim[k]) + 1});
+  for(let k=0; k<lim.length - 1; k++) segs.push({ini:lim[k], fin:lim[k + 1], litros:Math.max(2, lh*(lim[k + 1] - lim[k]) + 1)});   // nunca menos de 2 L
   return {lh, H, segs, inicial:segs[0].litros, max:Math.max(...segs.map(x=>x.litros)), puntos:cortes.length, diaria:(lh*H + 1)/Math.max(1, Math.ceil(H/24))};
 }
 // carga por hombre en cada tramo: la del partir menos el agua ya bebida (se repone en los puntos de agua)
@@ -157,24 +165,24 @@ if(typeof globalThis!=='undefined'){ globalThis.MATERIAL = MATERIAL; globalThis.
    · 'c' = colectivo (se reparte entre todos) · 'x' = no se carga (personas, planes, agua de reabastecimiento, totales). */
 const PESOS = {fusil:[4, 'i'], cargad:[0.5, 'i'], granada:[0.4, 'i'], casco:[1.4, 'i'], chaleco:[8, 'i'], portaf:[1.2, 'i'], agua:[1.1, 'h'], aguaT:[0, 'x'], reabast:[0, 'x'],
   radio:[1.5, 'c'], batRad:[0.5, 'c'], mochTr:[6, 'c'], camilla:[7, 'c'], ametr:[10, 'c'], muniAm:[3, 'c'], lanzac:[7, 'c'], cuerda:[3.5, 'c'], otroEq:[1, 'c'],
-  muniExtra:[0.5, 'i'], mochAs:[1, 'i'], saco:[1.5, 'i'], aislante:[0.4, 'i'], carpa:[2.5, 'c'], cocina:[0.8, 'c'], olla:[0.4, 'c'], aseo:[0.2, 'i'],
+  palaZ:[1, 'i'], picota:[2, 'c'], zapaOtro:[1.5, 'c'], muniExtra:[0.5, 'i'], cuchillo:[0.4, 'i'], radioH:[0.5, 'i'], abrigo3:[0.9, 'i'], mochAs:[1, 'i'], saco:[1.5, 'i'], aislante:[0.4, 'i'], carpa:[2.5, 'c'], cocina:[0.8, 'c'], olla:[0.4, 'c'], aseo:[0.2, 'i'],
   racion24:[1.3, 'i'], racion12:[0.9, 'i'], ifak:[0.5, 'i'], botPA:[0.3, 'i'], potab:[0.1, 'c'], sales:[0.01, 'i'], colac:[0.25, 'i'],
-  socorr:[0, 'x'], calcet:[0.1, 'i'], manta:[0.06, 'c'], solar:[0.1, 'c'], evac:[0, 'x'],
+  socorr:[0, 'x'], calcet:[0.1, 'i'], manta:[0.06, 'i'], solar:[0.1, 'c'], evac:[0, 'x'],
   carta:[0.05, 'c'], brujula:[0.1, 'c'], gps:[0.25, 'c'], bateria:[0.25, 'c'], cuadro:[0.02, 'c'], reloj:[0, 'x'], marcador:[0.05, 'c'],
   claves:[0.01, 'c'], silbato:[0.02, 'c'],
   mochila:[2, 'i'], poncho:[0.6, 'i'], abrigo:[0.8, 'i'], gorro:[0.2, 'i'], lentes:[0.05, 'i'], sombrero:[0.1, 'i'],
-  linterna:[0.2, 'i'], luzquim:[0.03, 'c'], pilas:[0.1, 'i'], vision:[0.6, 'c'],
+  linterna:[0.2, 'i'], luzquim:[0.03, 'i'], pilas:[0.1, 'i'], vision:[0.6, 'i'],
   bastones:[0.5, 'i'], polainas:[0.3, 'i'], raquetas:[2, 'i'], esquies:[4.5, 'i'], pala:[1.5, 'c']};
 /* Líneas de equipo (decisión del usuario, v0.51): 1.ª en el cuerpo (supervivencia), 2.ª chaleco, arnés y cinturón (combate, con casco y
    chaleco antibalas), 3.ª A mochila de asalto o de misión (la tarea: munición, agua, ración del día), 3.ª B mochila de sostenimiento (varios
    días) y 4.ª vehículo o apoyo (no se suma). Internamente 3.ª A = 5 y 3.ª B = 3 (las marchas guardadas con 3 siguen siendo la mochila). */
 const LINEAS = {1:'1.ª línea', 2:'2.ª línea', 5:'3.ª línea A', 3:'3.ª línea B', 4:'4.ª línea'};
-const LINEAS_TXT = {1:'en el cuerpo: supervivencia', 2:'chaleco, arnés y cinturón: combate', 5:'mochila de asalto o de misión: la tarea', 3:'mochila de sostenimiento: varios días', 4:'vehículo o apoyo logístico: no la carga el hombre'};
+const LINEAS_TXT = {1:'en el cuerpo y cinturón de carga: supervivencia', 2:'chaleco o arnés: combate', 5:'mochila de asalto o de misión: la tarea', 3:'mochila de sostenimiento: varios días', 4:'vehículo o apoyo logístico: no la carga el hombre'};
 const ORDEN_LINEAS = [1, 2, 5, 3, 4];
 // límites de referencia (manual de marchas a pie de EE.UU.): carga de combate ≈ 22 kg (48 lb), carga de marcha de aproximación ≈ 33 kg (72 lb)
 const LIMITES_CARGA = {combate:22, marcha:33};
-const LINEA_DE = {ifak:1, sales:1, carta:1, brujula:1, gps:1, cuadro:1, marcador:1, claves:1, silbato:1, lentes:1, sombrero:1, gorro:1, linterna:1, polainas:1, bastones:1,
-  casco:2, chaleco:2, fusil:2, cargad:2, granada:2, portaf:2, agua:2, colac:2, radio:2, luzquim:2, vision:2, manta:2,
+const LINEA_DE = {portaf:1, cuchillo:1, manta:1, radioH:2, abrigo3:3, ifak:1, sales:1, carta:1, brujula:1, gps:1, cuadro:1, marcador:1, claves:1, silbato:1, lentes:1, sombrero:1, gorro:1, linterna:1, polainas:1, bastones:1,
+  casco:2, chaleco:2, fusil:2, cargad:2, granada:2, agua:2, radio:2, luzquim:2, vision:2,
   muniExtra:5, mochAs:5, racion24:5, racion12:5, poncho:5, abrigo:5, pilas:5, batRad:5, bateria:5, potab:5, botPA:5};   // el resto: 3.ª B (sostenimiento)
 const lineaDe = (m, id)=>{ const l = +((m.material || {})[id] || {}).linea; return l>=1 && l<=5 ? l : LINEA_DE[id] || 3; };
 const numCant = v=>{ const x = String(v===undefined || v===null ? '' : v).replace(',', '.').match(/\d+(\.\d+)?/); return x ? +x[0] : 0; };
@@ -189,6 +197,7 @@ const numCant = v=>{ const x = String(v===undefined || v===null ? '' : v).replac
    Puestos propios en m.omeExtra [{n:nombre, kit:[{n, cant, kg, linea}]}]. civil: el puesto existe en uso civil. */
 const OMES = {
   fusilero:{n:'Fusilero o patrullero', kit:[], civil:true},
+  comandante:{n:'Comandante o jefe de patrulla', civil:true, kit:[['prism', 'Prismáticos', 1, 0.6, 1]], def:c=>c.n>=2 ? 1 : 0},
   granadero:{n:'Fusilero granadero', kit:[['lanzaG', 'Lanzagranadas de 40 mm (bajo el fusil)', 1, 1.5, 2], ['gran40', 'Granadas de 40 mm', 12, 0.23, 2]], quita:{cargad:2}},
   // la ametralladora y el francotirador trabajan en pareja (pedido del usuario): el segundo puesto tiene por defecto tantos hombres como el primero
   ametr:{n:'Sirviente de ametralladora', reemplaza:['fusil', 'cargad'], kit:[['ametrP', 'Ametralladora con bípode', 1, 10, 2], ['cintas', 'Cintas de munición en el chaleco (100 tiros)', 2, 3, 2]]},
@@ -198,10 +207,12 @@ const OMES = {
     ['camuf', 'Bípode, apoyo y kit de camuflaje', 1, 1.5, 5]]},
   observ:{n:'Observador del francotirador', pareja:'franco', kit:[['telesc', 'Telescopio de observación con trípode', 1, 1.8, 5], ['telem', 'Telémetro o prismáticos', 1, 0.6, 1]]},
   radio:{n:'Radioperador', civil:true, kit:[['antena', 'Antena y accesorios de radio', 1, 0.5, 5]]},
-  antitanque:{n:'Apuntador antitanque', kit:[['lanzAT', 'Lanzacohetes o arma antitanque', 1, 7, 2], ['cohete', 'Cohetes o munición antitanque', 2, 3, 5]]}};
+  antitanque:{n:'Fusilero apuntador antitanque', kit:[['lanzAT', 'Lanzacohetes o arma antitanque', 1, 7, 2], ['cohete', 'Cohetes o munición antitanque', 2, 3, 5]]}};
 const PUESTOS = Object.assign(Object.fromEntries(Object.entries(OMES).map(([k, o])=>[k, o.n])), {otro:'Otro puesto'});
 const ESPECIAL = new Set(['radio', 'batRad', 'camilla', 'cuerda', 'otroEq']);
-const PORT_DEF = {radio:{puesto:'radio', cuenta:true}, batRad:{puesto:'radio'}, camilla:{rota:true}, cuerda:{rota:true}, otroEq:{rota:true}};
+// la navegación la lleva el comandante (carta, brújula, GPS, cuadro y nombres clave)
+const PORT_DEF = {carta:{puesto:'comandante'}, brujula:{puesto:'comandante'}, gps:{puesto:'comandante'}, cuadro:{puesto:'comandante'}, claves:{puesto:'comandante'},
+  radio:{puesto:'radio', cuenta:true}, batRad:{puesto:'radio'}, camilla:{rota:true}, cuerda:{rota:true}, otroEq:{rota:true}};
 function portDe(m, id){
   const st = ((m.material || {})[id] || {}).port || {}, d = PORT_DEF[id] || {rota:true}, ps = st.puesto==='enfermero' ? 'trauma' : st.puesto;
   const rota = st.rota!==undefined ? !!st.rota : !!d.rota, puesto = PUESTOS[ps] ? ps : d.puesto || 'fusilero';
@@ -244,6 +255,9 @@ function pesoMaterial(m, R){
     g.items.forEach(x=>x.porPortador = x.q*x.kg/g.n); return g; });
   const lineas = {1:0, 2:0, 5:0, 3:0, 4:0}; items.forEach(x=>{ if(x.modo!=='x' && !x.puesto) lineas[x.linea] += x.porHombre; });
   let indiv = items.filter(x=>(x.modo==='h' || x.modo==='i') && x.lleva).reduce((a, x)=>a + x.porHombre, 0), colect = items.filter(x=>x.modo==='c' && x.lleva && !x.puesto).reduce((a, x)=>a + x.porHombre, 0);
+  // peso de una línea escrito a mano (sin ingresar sus elementos; par.pesoLinea[l], kg por hombre): reemplaza la suma de sus elementos
+  const PL = (m.par || {}).pesoLinea || {}, lineasCalc = Object.assign({}, lineas);
+  Object.keys(lineas).forEach(l=>{ const v = PL[l]; if(v===undefined || v===null || String(v).trim()==='') return; const d = numCant(v) - lineas[l]; lineas[l] = numCant(v); if(llevaL(+l)) indiv += d; });
   // puestos (OME): común − lo que reemplazan + su equipo + su parte del equipo especial + lo que les pasan otros puestos
   const porId = {}; items.forEach(x=>porId[x.id] = x);
   const lista = omesDe(m, c); lista.forEach(o=>{ const g = grupos[o.key]; o.n = Math.max(o.n, g ? g.n : 0); });
@@ -269,7 +283,7 @@ function pesoMaterial(m, R){
   const especial = puestos.filter(o=>!o.base && o.n>0), portadores = especial.reduce((a, g)=>a + g.n, 0);
   const fusilero = puestos.find(o=>o.base) || null;
   const mas = especial.concat(fusilero && fusilero.n>0 ? [fusilero] : []).reduce((a, g)=>!a || g.total>a.total ? g : a, null);
-  return {base, indiv, colect, lineas, sinMochila, mochilaModo:modoMo, puestos, combate:base + lineas[1] + lineas[2], marcha:base + lineas[1] + lineas[2] + lineas[5] + lineas[3],
+  return {base, indiv, colect, lineas, lineasCalc, pesoLinea:PL, sinMochila, mochilaModo:modoMo, puestos, combate:base + lineas[1] + lineas[2], marcha:base + lineas[1] + lineas[2] + lineas[5] + lineas[3],
     comun, especial, portadores, fusileros:Math.max(0, c.n - portadores), fusilero, mas:mas && mas.total>comun ? mas : null, total:mas && mas.total>comun ? mas.total : comun,   // el tiempo se calcula con el más cargado
     n:c.n, hay:c.hay, items:items.sort((a, b)=>b.porHombre - a.porHombre)};
 }
