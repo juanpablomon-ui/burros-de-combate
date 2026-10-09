@@ -30,7 +30,7 @@ const Uso = (function(){
     ['Altos', 'Descansos'], ['altos', 'descansos'], ['un alto', 'un descanso'], ['del alto', 'del descanso'], ['el alto', 'el descanso'],
     ['INICIO DE MARCHA', 'INICIO'], ['FIN DE MARCHA', 'LLEGADA'],
     ['Eventos', 'Puntos de control'], ['eventos', 'puntos de control'], ['Evento', 'Punto de control'], ['evento', 'punto de control'],
-    ['1.ª línea', 'En el cuerpo'], ['2.ª línea', 'Cinturón y bolsillos'], ['3.ª línea', 'Mochila'], ['4.ª línea', 'Se queda en el vehículo'], ['4.ª (vehículo)', 'Vehículo'],
+    ['3.ª línea A', 'Mochila de día'], ['3.ª línea B', 'Mochila grande'], ['3.ª A', 'Mochila de día'], ['3.ª B', 'Mochila grande'], ['1.ª línea', 'En el cuerpo'], ['2.ª línea', 'Cinturón y bolsillos'], ['3.ª línea', 'Mochila'], ['4.ª línea', 'Se queda en el vehículo'], ['4.ª (vehículo)', 'Vehículo'],
     ['Rezagado', 'Persona atrasada'], ['rezagados', 'atrasados'],
     ['C2', 'contacto']];
   const RE = PALABRAS.map(([a, b])=>[new RegExp('(^|[^\\wÁÉÍÓÚÑáéíóúñ])' + a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![\\wÁÉÍÓÚÑáéíóúñ])', 'g'), b]);

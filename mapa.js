@@ -367,10 +367,9 @@ const Mapa = (function(){
     items.push(g.ev ? {ico:'○', lbl:'Quitar evento', nota:fijo ? 'la partida y la llegada siempre son eventos' : 'queda como punto de ruta', no:fijo, fn:()=>ponerEvento(i, false)}
       : {ico:'◉', lbl:'Marcar como evento', nota:'punto de control que se informa por radio', fn:()=>ponerEvento(i, true)});
     if(m.par.reabast==='si' && !fijo) items.push({ico:'💧', lbl:p.agua ? 'Quitar punto de agua' : 'Marcar punto de agua', nota:'se repone el agua aquí', fn:()=>{ guardarDeshacer(); p.agua = !p.agua; A.guardar(); ruta(); A.aviso(p.agua ? '💧 Punto de agua' : 'Ya no es punto de agua'); }});
-    if(i>0 && !m.par.sinMochila) items.push(p.mochila==='deja' ? {ico:'🎒', lbl:'Ya no se deja la mochila aquí', fn:()=>{ guardarDeshacer(); p.mochila = ''; A.guardar(); ruta(); }}
-      : {ico:'🎒', lbl:'Dejar la mochila aquí', nota:'sigue solo con la 1.ª y 2.ª línea', fn:()=>{ guardarDeshacer(); p.mochila = 'deja'; A.guardar(); ruta(); A.aviso('🎒 Se deja la mochila en ' + (p.nombre || 'este punto')); }},
-      p.mochila==='recoge' ? {ico:'🎒', lbl:'Ya no se recoge la mochila aquí', fn:()=>{ guardarDeshacer(); p.mochila = ''; A.guardar(); ruta(); }}
-      : {ico:'🎒', lbl:'Recoger la mochila aquí', fn:()=>{ guardarDeshacer(); p.mochila = 'recoge'; A.guardar(); ruta(); A.aviso('🎒 Se recoge la mochila en ' + (p.nombre || 'este punto')); }});
+    if(i>0 && !m.par.sinMochila){ const mo = (v, lbl, nota, txt)=>({ico:'🎒', lbl:(p.mochila===v ? '✓ ' : '') + lbl, nota, fn:()=>{ guardarDeshacer(); p.mochila = p.mochila===v ? '' : v; A.guardar(); ruta(); if(p.mochila) A.aviso('🎒 ' + txt + ' en ' + (p.nombre || 'este punto')); }});
+      items.push(mo('deja', 'Dejar la mochila de sostenimiento aquí', 'sigue con la de asalto', 'Se deja la de sostenimiento'), mo('dejaTodo', 'Dejar las dos mochilas aquí', 'sigue solo con la 1.ª y 2.ª línea', 'Se dejan las mochilas'),
+        mo('recoge', 'Recoger las mochilas aquí', 'la de asalto vuelve a la de sostenimiento', 'Se recogen las mochilas')); }
     items.push({ico:'✎', lbl:'Editar punto', nota:'nombre, cota, detención, observaciones', fn:()=>abrirHoja(i)});
     items.push({ico:'⏸', lbl:'Detención aquí', nota:(+p.det ? p.det + ' min' : 'sin detención') + ' (comida, descanso, reorganización)', fn:()=>{ abrirHoja(i); setTimeout(()=>{ const x = document.querySelector('[data-h=det]'); if(x){ x.focus(); x.select(); } }, 50); }});
     if(i>0) items.push({ico:'＋', lbl:'Insertar punto antes', nota:'a mitad del tramo anterior', fn:()=>{ const a = R.puntos[i - 1]; if(a && a.ok) insertar(i, L.latLng((a.lat + g.lat)/2, (a.lon + g.lon)/2)); }});
