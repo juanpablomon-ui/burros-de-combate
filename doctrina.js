@@ -24,7 +24,7 @@ const LISTA = [
     ['d6', 'Beber en cada alto y durante la marcha.', 'ATP 2-173'],
     ['d7', 'En los altos: sacarse una bota a la vez, masaje, talco, calcetines secos, tratar ampollas.', 'ATP E-6'],
     ['d8', 'Rotar armas pesadas y cargas hacia los menos cansados.', 'ATP'],
-    ['d9', 'El enfermero o socorrista evalúa a la tropa en cada alto.', 'ATP 2-181'],
+    ['d9', 'El enfermero u operador de trauma evalúa a la tropa en cada alto.', 'ATP 2-181'],
     ['d10', 'Matriz de eventos al día: informar «PASANDO …» en cada punto, altos con su motivo, novedades y nuevos puntos de control.', ''],
     ['d11', 'Fotos amplias anotando coordenada, azimut, fecha y hora.', '']]},
   {fase:'Después de la marcha', items:[
@@ -54,7 +54,7 @@ const MATERIAL = [
   {g:'Equipo especial de la patrulla', items:[
     ['radio', 'Radio', c=>Math.max(1, c.unidades) + 1, c=>'1 por unidad de marcha + la del comandante'],
     ['batRad', 'Baterías de repuesto para radio', c=>(Math.max(1, c.unidades) + 1)*Math.max(1, Math.ceil(c.horas/8)), c=>'1 por radio cada 8 h'],
-    ['mochTr', 'Mochila de trauma (enfermero)', c=>Math.max(1, c.unidades), c=>'1 por unidad de marcha'],
+    ['mochTr', 'Mochila de trauma (enfermero u operador de trauma)', c=>Math.max(1, c.unidades), c=>'1 por unidad de marcha'],
     ['camilla', 'Camilla plegable', c=>c.n>=10 ? Math.ceil(c.n/40) : null, c=>'1 cada 40 hombres'],
     ['ametr', 'Ametralladora', c=>c.civil ? null : 0, c=>'escribe cuántas lleva la unidad'],
     ['muniAm', 'Munición de ametralladora (cajas o cintas)', c=>c.civil ? null : 0, c=>'escribe cuántas cajas o cintas'],
@@ -178,7 +178,7 @@ const numCant = v=>{ const x = String(v===undefined || v===null ? '' : v).replac
 /* Equipo especial de la patrulla (pedido del usuario, v0.49): no lo llevan todos. Cada elemento de la unidad dice quién lo lleva: un puesto y
    cuántos portadores (se lo reparten entre ellos), o «rotan entre todos» (se reparte entre el efectivo, como antes). El tiempo de la marcha se
    calcula con el MÁS CARGADO. m.material[id].port = {puesto, n, nombre, rota}. */
-const PUESTOS = {fusilero:'Fusilero o patrullero', radio:'Radioperador', ametr:'Sirviente de ametralladora', enfermero:'Enfermero o socorrista', otro:'Otro puesto'};
+const PUESTOS = {fusilero:'Fusilero o patrullero', radio:'Radioperador', ametr:'Sirviente de ametralladora', enfermero:'Enfermero u operador de trauma', otro:'Otro puesto'};
 const ESPECIAL = new Set(['radio', 'batRad', 'mochTr', 'camilla', 'ametr', 'muniAm', 'lanzac', 'cuerda', 'otroEq']);
 const PORT_DEF = {radio:{puesto:'radio', cuenta:true}, batRad:{puesto:'radio'}, mochTr:{puesto:'enfermero', cuenta:true}, camilla:{rota:true}, ametr:{puesto:'ametr', cuenta:true},
   muniAm:{puesto:'ametr'}, lanzac:{puesto:'otro', nombre:'Apuntador', cuenta:true}, cuerda:{rota:true}, otroEq:{rota:true}};
