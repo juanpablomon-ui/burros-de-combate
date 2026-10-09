@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.64', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.65', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -97,7 +97,7 @@
       <h2>Mis marchas</h2>
       ${lista || `<div class="tarjeta vacio">Aún no hay marchas.<br>Crea una nueva o abre el ejemplo para ver cómo funciona.</div>`}
       <div class="btns"><button class="btn pri" id="bNueva">＋ Nueva marcha</button><button class="btn" id="bEjemplo">Ver ejemplo</button>
-        <button class="btn" id="bImportar">⤓ Importar GPX / KML</button><button class="btn" id="bRecibir">📨 Recibir plan (código o QR)</button></div>
+        <button class="btn" id="bImportar">⤓ Importar archivo (JSON, GPX o KML)</button><button class="btn" id="bRecibir">📨 Recibir plan (código o QR)</button></div>
       <h2>Respaldo</h2>
       <div class="tarjeta nota">Las marchas quedan guardadas solo en este equipo. Guarda un respaldo para pasarlas a otro equipo o no perderlas.
         <div class="btns"><button class="btn" id="bResp">⬇ Guardar respaldo</button><button class="btn" id="bCargar">⬆ Cargar respaldo</button></div></div>
@@ -136,7 +136,14 @@
     i.onchange = ()=>{ const fl = i.files[0]; if(!fl) return; const r = new FileReader(); r.onload = ()=>cb(String(r.result), fl.name); r.readAsText(fl); }; i.click();
   }
   function importarArchivo(){
-    elegirArchivo('.gpx,.kml,application/gpx+xml,application/vnd.google-earth.kml+xml', (t, nombre)=>{
+    elegirArchivo('.json,.gpx,.kml,application/json,application/gpx+xml,application/vnd.google-earth.kml+xml', (t, nombre)=>{
+      // JSON de Burros (una marcha o varias, con todo: material, puestos, pesos): se agregan; si ya existe una con el mismo id, como copia
+      if(/^\s*\{/.test(t)){ try { const d = JSON.parse(t), ms = (d.marchas || (d.puntos ? [d] : [])).filter(x=>x && Array.isArray(x.puntos)); if(!ms.length) throw 0;
+          const ids = new Set(S.marchas.map(x=>x.id)); let ult = null;
+          ms.forEach(x=>{ const o = JSON.parse(JSON.stringify(x)); if(!o.id || ids.has(o.id)){ o.id = nid(); if(S.marchas.some(y=>y.nombre===o.nombre)) o.nombre += ' (importada)'; }
+            o.par = Object.assign(M.porDefecto(), o.par || {}); S.marchas.unshift(o); ids.add(o.id); ult = o; });
+          S.actual = ult.id; guardar(); ir('cuadro'); return aviso('✔ ' + ms.length + ' marcha' + (ms.length===1 ? '' : 's') + ' importada' + (ms.length===1 ? '' : 's') + ' (con material, puestos y pesos)');
+        } catch(e){ return aviso('⚠ El archivo JSON no es una marcha de Burros de Combate'); } }
       const pts = BDC.leerArchivo(t, 40);
       if(!pts.length) return aviso('⚠ No se encontraron puntos en el archivo');
       const sinCota = pts.filter(p=>p.cota==='').length;
