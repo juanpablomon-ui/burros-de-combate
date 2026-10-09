@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.53', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.54', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -718,13 +718,15 @@
     if((m.matOrden || 'linea')==='linea'){
       const pmo = R.carga || pesoMaterial(m, R), conPuesto = new Set(pmo ? pmo.items.filter(x=>x.puesto).map(x=>x.id) : []);
       const noCarga = it=>it.propio===undefined && (PESOS[it.id] || [0, 'c'])[1]==='x', L = {1:[], 2:[], 5:[], 3:[], 4:[], x:[], esp:[]};
-      filas.forEach(({g, its})=>its.forEach(it=>L[conPuesto.has(it.id) ? 'esp' : noCarga(it) ? 'x' : lineaDe(m, it.id)].push(Object.assign({}, it, {tipo:g}))));
+      const esEsp = it=>conPuesto.has(it.id) || ESPECIAL.has(it.id);
+      filas.forEach(({g, its})=>its.forEach(it=>L[esEsp(it) ? 'esp' : noCarga(it) ? 'x' : lineaDe(m, it.id)].push(Object.assign({}, it, {tipo:g}))));
       const porLinea = ORDEN_LINEAS.map(l=>({g:LINEAS[l] + ' — ' + LINEAS_TXT[l], linea:l, its:L[l]})).filter(x=>x.its.length || x.linea<4 || !papel);
-      if(L.esp.length) porLinea.push({g:'Equipo especial de la patrulla — lo llevan sus portadores', its:L.esp});
-      if(L.x.length) porLinea.push({g:'Datos y planificación (no se cargan)', its:L.x});
+      porLinea.forEach(x=>x.parte = 'lineas');
+      if(L.esp.length) porLinea.push({g:'Equipo especial común de la patrulla — lo lleva un puesto o rota entre todos', its:L.esp, parte:'resto'});
+      if(L.x.length) porLinea.push({g:'Datos y planificación (no se cargan)', its:L.x, parte:'resto'});
       filas.length = 0; porLinea.forEach(x=>filas.push(x));
     }
-    if(!papel) return {c, filas, html:fichasMaterial(m, R, filas)};
+    if(!papel) return {c, filas, html:fichasMaterial(m, R, filas), lineas:fichasMaterial(m, R, filas.filter(x=>x.parte!=='resto')), resto:fichasMaterial(m, R, filas.filter(x=>x.parte==='resto'))};
     return {c, filas, html:filas.map(({g, its})=>`<h3 class="${papel ? 'doc-h3' : 'mat-g'}">${esc(g)}</h3><table class="t mat"><tbody>
       ${its.map(it=>{ const st = Mt[it.id] || {}; return `<tr class="${st.ok ? 'hecho' : ''}"><td class="tx ck">${papel ? (st.ok ? '☑' : '☐') : `<input type="checkbox" data-mt="${it.id}" ${st.ok ? 'checked' : ''}>`}</td>
         <td class="tx"><b>${esc(it.n)}</b>${it.nota ? `<span class="s">${esc(it.nota)}</span>` : ''}</td>
@@ -845,9 +847,13 @@
       <div class="info">Calculado para <b>${H.c.hay ? H.c.n + ' hombres' : '1 hombre (indica el efectivo en Datos → Unidad y columna)'}</b>, ${M.verDur(H.c.horas)} de marcha y ${f(H.c.km, 1)} km${H.c.noche ? ', con ' + Math.round(H.c.noche*100) + ' % de noche' : ''}.
         El agua sale de la tabla de calor (${H.c.calorDato ? 'con el índice WBGT indicado' : 'sin índice WBGT: se usa calor bajo'}); las demás cantidades son <b>sugerencias</b>: escribe la tuya si la orden dice otra cosa.
         Aparecen solo los elementos que corresponden (noche, montaña, nieve, calor).</div>
-      ${cargaHtml(m, R)}
+      <h3 class="mat-parte">1. Equipo que llevan todos (por línea)</h3>
+      <div class="tarjeta">${H.lineas}</div>
+      <h3 class="mat-parte">2. Equipo de cada puesto (OME)</h3>
       ${puestosHtml(m, R)}
-      <div class="tarjeta">${H.html}</div>
+      ${H.resto ? `<h3 class="mat-parte">3. Equipo especial común</h3><div class="tarjeta">${H.resto}</div>` : ''}
+      <h3 class="mat-parte">${H.resto ? '4' : '3'}. Carga de cada hombre</h3>
+      ${cargaHtml(m, R)}
       <div class="tarjeta"><div class="campos"><label class="c ancho">Agregar otro elemento<input id="mtNuevo" placeholder="Ej: pala de campaña"></label><label class="c">Cantidad<input id="mtNuevoC" placeholder="Ej: 4"></label><label class="c">kg c/u<input id="mtNuevoK" placeholder="Ej: 1,2" inputmode="decimal"></label></div>
         <div class="btns"><button class="btn" id="mtAgregar">＋ Agregar</button><button class="btn" id="mtLimpia">Desmarcar todo</button><button class="btn pri" id="mtDoc">📄 Documento con el material</button></div></div>`;
     const cuenta = ()=>$('#mtCuenta').innerHTML = `<b>${hechos()} de ${tot}</b> listos.`; cuenta();

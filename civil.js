@@ -10,7 +10,7 @@ const Uso = (function(){
   const PALABRAS = [
     ['ORDEN GRÁFICA DE MARCHA', 'PLAN DE RUTA'], ['Orden gráfica', 'Plan de ruta'], ['orden gráfica', 'plan de ruta'],
     ['Documento / orden gráfica', 'Documento / plan de ruta'], ['anexar a la OPORD', 'adjuntar al plan de ruta'], ['la OPORD', 'el plan de ruta'], ['OPORD', 'plan de ruta'],
-    ['Equipo especial de la patrulla', 'Equipo común del grupo'], ['Fusilero o patrullero', 'Integrante'], ['Radioperador', 'Encargado de radio'], ['Sirviente de ametralladora', 'Portador'], ['el más cargado', 'el más cargado'], ['Mochila de trauma (enfermero u operador de trauma)', 'Botiquín grande del grupo (primeros auxilios avanzados)'],
+    ['Equipo especial común de la patrulla', 'Equipo común del grupo'], ['Equipo de cada puesto (OME)', 'Equipo de cada rol'], ['Puestos (OME)', 'Roles del grupo'], ['Equipo especial común', 'Equipo común del grupo'], ['Equipo especial de la patrulla', 'Equipo común del grupo'], ['Fusilero o patrullero', 'Integrante'], ['Radioperador', 'Encargado de radio'], ['Sirviente de ametralladora', 'Portador'], ['el más cargado', 'el más cargado'], ['Mochila de trauma (enfermero u operador de trauma)', 'Botiquín grande del grupo (primeros auxilios avanzados)'],
     ['IFAK: botiquín individual de combate', 'Botiquín individual de emergencia'], ['Ración de combate', 'Comida del día (ración)'], ['ración de combate', 'comida del día'],
     ['la carga de combate habitual (27–36 kg)', 'una carga razonable (revisa el porcentaje de tu peso)'],
     ['Matriz de eventos', 'Registro de la ruta'], ['matriz de eventos', 'registro de la ruta'],

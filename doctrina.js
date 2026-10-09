@@ -70,7 +70,7 @@ const MATERIAL = [
   {g:'Sanidad', items:[
     ['ifak', 'IFAK: botiquín individual de combate', c=>c.n, c=>'torniquete, vendaje compresivo, gasa hemostática, sello de tórax, cánula y guantes'],
     ['botPA', 'Botiquín de primeros auxilios pequeño', c=>c.n, c=>'heridas menores, ampollas y cuidado de pies, medicamentos básicos'],
-    ['socorr', 'Enfermero o socorrista', c=>Math.max(1, Math.ceil(c.n/30)), c=>'1 cada 30 hombres; revisa a la tropa en cada alto'],
+    ['socorr', 'Enfermero u operador de trauma (personas)', c=>Math.max(1, Math.ceil(c.n/30)), c=>'1 cada 30 hombres como mínimo; su equipo va en Puestos (OME)'],
     ['calcet', 'Calcetines de recambio', c=>c.n*(c.horas>8 ? 2 : 1) + ' pares', c=>'cambio a mitad de la marcha'],
     ['manta', 'Manta térmica', c=>Math.max(1, Math.ceil(c.n/10)), c=>'1 cada 10 hombres'],
     ['solar', 'Protector solar y labial', c=>c.noche<0.9 ? Math.max(1, Math.ceil(c.n/5)) : null, c=>'marcha con luz de día'],
