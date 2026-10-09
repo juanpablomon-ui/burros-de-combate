@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.46', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.47', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -279,7 +279,7 @@
           ${p.metodo==='montana' ? `<label class="c">Pendiente crítica (%)<input class="num" data-par="pteCr" data-pct inputmode="decimal" value="${pct(p.pteCr)}"></label>` : ''}
           <label class="c ancho"><span><input type="checkbox" data-par="ajusteAltura" data-redibujar ${p.ajusteAltura!==false ? 'checked' : ''} style="width:auto;vertical-align:middle"> Más lento en altura (sobre 1.500 m)</span></label></div>
           ${p.metodo==='montana' ? '<p class="nota">Sobre la pendiente crítica el tramo se calcula por el desnivel; bajo ella, por la distancia (5 % por defecto).</p>' : ''}
-          <p class="nota">Sobre unos 1.500 m la capacidad física baja cerca de un <b>7 % por cada 1.000 m</b> (estudios de fisiología en altura); la tropa andina, de fuerzas especiales o aclimatada pierde la mitad. Cada tramo se ajusta con su altura media.</p></details>
+          <p class="nota">Sobre unos 1.500 m la capacidad física baja cerca de un <b>7 % por cada 1.000 m</b> (estudios de fisiología en altura); la tropa andina, de operaciones especiales o aclimatada pierde la mitad. Cada tramo se ajusta con su altura media.</p></details>
         <h2>Declinación magnética</h2>
         <div class="campos">
           <label class="c ancho"><span><input type="checkbox" data-par="declAuto" data-redibujar ${p.declAuto ? 'checked' : ''} style="width:auto;vertical-align:middle"> Calcular automática (modelo WMM2025, según lugar y fecha)</span></label>
@@ -294,12 +294,17 @@
       <details class="tarjeta"><summary>Unidad y columna<span class="res">${R.columna ? f(R.columna.n) + ' hombres · ' + f(R.columna.largo) + ' m' : '<b style="color:var(--rojo)">falta el efectivo</b>'}</span></summary>
         <div class="campos">
           <label class="c">Efectivo (hombres)<input class="num" data-par="efectivo" data-redibujar inputmode="numeric" value="${esc(p.efectivo)}" placeholder="p. ej. 120"></label>
-          <label class="c">Formación<select data-par="filas" data-numero>${opc({2:'Columna de a dos', 1:'Fila india'}, String(p.filas))}</select></label>
-          <label class="c">Distancia entre hombres (m)<input class="num" data-par="distHombres" inputmode="decimal" value="${esc(p.distHombres||'')}" placeholder="${R.fracNoche>0.5 ? 2 : 5}"></label>
+          <label class="c ancho">Formación<select data-par="formacion" data-redibujar>${(()=>{ const fk = p.formacion || (+p.filas===1 ? 'fila' : 'col2'), o = (t)=>Object.entries(M.FORMACIONES).filter(([, x])=>!!x.tac===t).map(([k, x])=>`<option value="${k}"${k===fk ? ' selected' : ''}>${esc(x.n)}</option>`).join('');
+            return `<optgroup label="Administrativas">${o(false)}</optgroup>${Uso.civil() ? '' : `<optgroup label="Tácticas">${o(true)}</optgroup>`}`; })()}</select></label>
+          <label class="c">Distancia entre hombres<select data-par="distTipo" data-redibujar>${opc(Object.fromEntries(Object.entries(M.DISTANCIAS).filter(([k])=>!Uso.civil() || k!=='peligro').map(([k, x])=>[k, x.n + ' (' + x.d[0] + ' m día · ' + x.d[1] + ' m noche)'])), p.distTipo || 'tactica')}</select></label>
+          <label class="c">Distancia propia (m)<input class="num" data-par="distHombres" inputmode="decimal" value="${esc(p.distHombres||'')}" placeholder="${(M.DISTANCIAS[p.distTipo] || M.DISTANCIAS.tactica).d[R.fracNoche>0.5 ? 1 : 0]}"></label>
+          ${Uso.civil() ? '' : `<label class="c ancho">Técnica de movimiento (toda la marcha)<select data-par="tecnica" data-redibujar>${opc(Object.fromEntries(Object.entries(M.TECNICAS).map(([k, x])=>[k, x.n + ' — ' + x.txt + (x.f<1 ? ' (−' + Math.round((1 - x.f)*100) + ' %)' : '')])), p.tecnica || 'desplazamiento')}</select></label>`}
           <label class="c">Unidades de marcha<input class="num" data-par="unidades" data-redibujar inputmode="numeric" value="${esc(p.unidades)}" placeholder="1"></label>
           ${(+p.unidades||1)>1 ? `<label class="c">Distancia entre unidades (m)<input class="num" data-par="distUnidades" inputmode="numeric" value="${esc(p.distUnidades||'')}" placeholder="${R.fracNoche>0.5 ? 25 : 50}"></label>` : ''}
         </div>
         ${p.efectivo ? '' : '<div class="alerta">Falta el <b>efectivo</b>: sin él no se calcula la columna, y el material y la carga quedan calculados para 1 hombre.</div>'}
+        ${M.formacionDe(p).tac ? `<p class="nota"><b>Formación táctica:</b> el largo de la columna se estima con ${M.formacionDe(p).filas} hombres a lo ancho por fila (estimado).</p>` : ''}
+        ${Uso.civil() ? '' : '<p class="nota">La técnica de movimiento hace más lenta la marcha: con vigilancia −25 %, por saltos −60 % (porcentajes <b>estimados</b>; el manual no da cifras). En cada punto puedes cambiar la técnica del tramo que llega a él.</p>'}
         <p class="nota">Referencia: entre hombres 2–5 m de día y 1–3 m de noche; entre pelotones 50 m (noche 25 m) y entre compañías 100 m (noche 50 m).
           Con esto se calcula el largo de la columna y el <b>tiempo de paso</b> (lo que demora la columna completa en pasar por un punto), y la hora en que la cola llega al final.</p>
       </details>
@@ -433,6 +438,8 @@
         ${Rc.puntos[i].ev ? `<div class="extra" style="grid-template-columns:1fr"><label class="c">Nombre clave (vacío = automático)<input class="num clave" data-p="clave" value="${esc(x.clave||'')}" placeholder="${esc(Rc.puntos[i].clave || '')}" list="listaClaves"></label></div>` : ''}
         <div class="extra"><label class="c">Observaciones (punto característico)<input data-p="obs" value="${esc(x.obs)}" placeholder="puente, portezuelo, cruce…"></label>
           <label class="c">Detención (min)<input class="num" data-p="det" inputmode="numeric" value="${esc(x.det)}" placeholder="0"></label></div>
+        ${i && !Uso.civil() ? `<div class="extra"><label class="c">Técnica desde el punto anterior<select data-p="tecnica"><option value="">Igual que la marcha (${esc((M.TECNICAS[m.par.tecnica] || M.TECNICAS.desplazamiento).n.toLowerCase())})</option>${Object.entries(M.TECNICAS).map(([k, t])=>`<option value="${k}"${x.tecnica===k ? ' selected' : ''}>${t.n}</option>`).join('')}</select></label>
+          <label class="c">Formación en ese tramo<select data-p="formacion"><option value="">Igual que la marcha</option>${Object.entries(M.FORMACIONES).map(([k, t])=>`<option value="${k}"${x.formacion===k ? ' selected' : ''}>${t.n}</option>`).join('')}</select></label></div>` : ''}
         ${i && !m.par.sinMochila ? `<div class="extra" style="grid-template-columns:1fr"><label class="c">🎒 Mochila en este punto<select data-p="mochila"><option value="">— Sigue igual —</option><option value="deja"${x.mochila==='deja' ? ' selected' : ''}>Se deja aquí (sigue solo con 1.ª y 2.ª línea)</option><option value="recoge"${x.mochila==='recoge' ? ' selected' : ''}>Se recoge aquí</option></select></label></div>` : ''}
         <div class="estado" id="est${i}"></div>
         <div class="acc"><button class="btn mini" data-acc="carta" title="Marcar o corregir este punto tocando la carta">🗺 Ubicar en la carta</button><button class="btn mini" data-acc="sube" ${i ? '' : 'disabled'} aria-label="Subir">▲</button><button class="btn mini" data-acc="baja" ${i<m.puntos.length - 1 ? '' : 'disabled'} aria-label="Bajar">▼</button>
@@ -534,7 +541,7 @@
       <div class="kpi"><div class="k">Tiempo de paso</div><div class="v">${M.verDur(c.paso)}</div></div>
       <div class="kpi"><div class="k">Cabeza llega al final</div><div class="v">${M.verHora(R.res.termino)}</div></div>
       <div class="kpi ocre"><div class="k">Cola llega al final</div><div class="v">${M.verHora(R.res.terminoCola)}</div></div></div>
-      <p class="nota">${f(c.n)} hombres en ${c.filas===1 ? 'fila india' : 'columna de a dos'}, ${f(c.dh, 1)} m entre hombres (${f(c.factor, 2)} m por hombre)${c.u>1 ? ', ' + c.u + ' unidades de marcha a ' + f(c.du) + ' m' : ''}.
+      <p class="nota">${f(c.n)} hombres en ${esc(c.formacion.toLowerCase())}, ${f(c.dh, 1)} m entre hombres (${f(c.factor, 2)} m por hombre)${c.u>1 ? ', ' + c.u + ' unidades de marcha a ' + f(c.du) + ' m' : ''}.
         Tiempo de paso a la velocidad media de la marcha (${f(c.vKmh, 1)} km/h con altos). Las horas del cuadro son de la cabeza de la columna.</p>`;
     if(a) h += `<h2>Calor y agua</h2>` + (a.cat ? `<div class="kpis">
       <div class="kpi"><div class="k">Categoría de calor</div><div class="v" style="font-size:18px">${esc(a.n)}</div></div>
@@ -558,7 +565,7 @@
     const p0 = R.puntos.find(q=>q.ok), icoLuz = h=>{ if(!R.conLuz || h===null || h===undefined) return '';
       const c = LUZ.condicion(new Date(LUZ.inicioDia(m.fecha) + h*36e5), p0.lat, p0.lon);
       return `<span class="luzico" title="${LUZ.TIPOS[c.tipo]}${c.oscuro ? (c.conLuna ? ', con luna' : ', sin luna') : ''}">${c.tipo==='dia' ? '☀' : c.oscuro ? (c.conLuna ? '☾' : '●') : '◐'}</span>`; };
-    const obs = (p, ll)=>[p.obs ? esc(p.obs) : '', ll && ll.det ? 'detención ' + Math.round(ll.det*60) + ' min' : '',
+    const obs = (p, ll)=>[p.obs ? esc(p.obs) : '', ll && (ll.tecnica!=='desplazamiento' || ll.formacion) ? '<i>llega en ' + [ll.formacion ? M.FORMACIONES[ll.formacion].n.toLowerCase() : '', ll.tecnica!=='desplazamiento' ? M.TECNICAS[ll.tecnica].n.toLowerCase() : ''].filter(Boolean).join(', ') + '</i>' : '', ll && ll.det ? 'detención ' + Math.round(ll.det*60) + ' min' : '',
       p.mochila==='deja' ? '<b>🎒 se deja la mochila</b>' : p.mochila==='recoge' ? '<b>🎒 se recoge la mochila</b>' : ''].filter(Boolean).join(' · ');
     return `
       <div class="tabla-env solo-ancho"><table class="t cmn">
@@ -592,7 +599,7 @@
     const p0 = R.puntos.find(q=>q.ok), icoLuz = h=>{ if(!R.conLuz || h===null || h===undefined) return '';
       const c = LUZ.condicion(new Date(LUZ.inicioDia(m.fecha) + h*36e5), p0.lat, p0.lon);
       return `<span class="luzico" title="${LUZ.TIPOS[c.tipo]}${c.oscuro ? (c.conLuna ? ', con luna' : ', sin luna') : ''}">${c.tipo==='dia' ? '☀' : c.oscuro ? (c.conLuna ? '☾' : '●') : '◐'}</span>`; };
-    const obs = (p, ll)=>[p.obs ? esc(p.obs) : '', ll && ll.det ? 'detención ' + Math.round(ll.det*60) + ' min' : '',
+    const obs = (p, ll)=>[p.obs ? esc(p.obs) : '', ll && (ll.tecnica!=='desplazamiento' || ll.formacion) ? '<i>llega en ' + [ll.formacion ? M.FORMACIONES[ll.formacion].n.toLowerCase() : '', ll.tecnica!=='desplazamiento' ? M.TECNICAS[ll.tecnica].n.toLowerCase() : ''].filter(Boolean).join(', ') + '</i>' : '', ll && ll.det ? 'detención ' + Math.round(ll.det*60) + ' min' : '',
       p.mochila==='deja' ? '<b>🎒 se deja la mochila</b>' : p.mochila==='recoge' ? '<b>🎒 se recoge la mochila</b>' : ''].filter(Boolean).join(' · ');
     vista.innerHTML = `${encabezado(m, R)}
       <h2>Resumen</h2>${kpis(R)}

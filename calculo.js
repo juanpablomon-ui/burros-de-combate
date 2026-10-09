@@ -116,7 +116,7 @@ const MARCHA = (function(){
     normal:     {n:'Tropa normal', base:'normal', f:1},
     andina:     {n:'Tropa andina o de montaña', base:'andina', f:1, aclim:true},
     instruccion:{n:'Tropa en instrucción (conscriptos o reclutas)', base:'normal', f:0.85, est:true},
-    especial:   {n:'Fuerzas especiales o comandos', base:'andina', f:1.10, est:true, aclim:true},
+    especial:   {n:'Tropa de operaciones especiales o comandos', base:'andina', f:1.10, est:true, aclim:true},
     mulares:    {n:'Unidad con mulares (animales de carga)', base:'normal', f:0.90, est:true},
     principiante:{n:'Principiante (poca experiencia)', base:'normal', f:0.75, est:true, civil:true},
     habitual:   {n:'Excursionista habitual', base:'normal', f:1, civil:true},
@@ -197,13 +197,26 @@ const MARCHA = (function(){
      Cada soldado ocupa la distancia entre hombres + 0,4 m; en columna de a dos el largo se divide por 2
      (fila india 2 m = 2,4 m/hombre; de a dos 2 m = 1,2; de a dos 5 m = 2,7, como la tabla 1-1).
      Distancias por defecto: entre hombres 2–5 m de día / 1–3 m de noche; entre pelotones 50 m / 25 m; entre compañías 100 m / 50 m. */
+  /* ---------- formaciones y técnicas de movimiento (pedido del usuario, v0.47) ----------
+     Administrativas: fila y columnas de a 2, 3 y 4. Tácticas (manual público de pelotón y escuadra de EE.UU., ATP 3-21.8): columna, cuña,
+     línea, uve, cuña invertida y escalón. filas = hombres que ocupan el mismo lugar a lo largo de la columna (en las tácticas, ESTIMADO).
+     Distancias entre hombres por tipo [día, noche]. Técnicas: factor de rapidez ESTIMADO (el manual no da cifras). */
+  const FORMACIONES = {
+    fila:{n:'Fila (de a uno)', filas:1}, col2:{n:'Columna de a dos', filas:2}, col3:{n:'Columna de a tres', filas:3}, col4:{n:'Columna de a cuatro', filas:4},
+    columna:{n:'Columna táctica (escuadras una tras otra)', filas:2, tac:true}, cuna:{n:'Cuña', filas:3, tac:true}, linea:{n:'Línea', filas:6, tac:true},
+    uve:{n:'Uve (V)', filas:3, tac:true}, cunaInv:{n:'Cuña invertida', filas:3, tac:true}, escalonD:{n:'Escalón a la derecha', filas:3, tac:true}, escalonI:{n:'Escalón a la izquierda', filas:3, tac:true}};
+  const DISTANCIAS = {admin:{n:'Administrativa', d:[2, 1]}, tactica:{n:'Táctica', d:[5, 2]}, peligro:{n:'Zona de peligro', d:[10, 5]}};
+  const TECNICAS = {desplazamiento:{n:'Desplazamiento', f:1, txt:'contacto poco probable'}, vigilancia:{n:'Desplazamiento con vigilancia', f:0.75, txt:'contacto posible'},
+    saltos:{n:'Avance por saltos', f:0.40, txt:'contacto esperado'}};
+  const formacionDe = par=>FORMACIONES[par.formacion] || (num(par.filas)===1 ? FORMACIONES.fila : FORMACIONES.col2);
   function columna(par, vKmh, noche){
     noche = noche===undefined ? par.luz==='noche' : noche;
     const n = Math.max(0, Math.round(num(par.efectivo)||0)); if(!n) return null;
-    const filas = num(par.filas)===1 ? 1 : 2, dh = num(par.distHombres) || (noche ? 2 : 5), u = Math.max(1, Math.round(num(par.unidades)||1));
+    const fo = formacionDe(par), dt = DISTANCIAS[par.distTipo] || DISTANCIAS.tactica;
+    const filas = fo.filas, dh = num(par.distHombres) || dt.d[noche ? 1 : 0], u = Math.max(1, Math.round(num(par.unidades)||1));
     const du = num(par.distUnidades) || (noche ? 25 : 50), factor = (dh + 0.4)/filas;
     const largo = n*factor + (u - 1)*du, paso = largo/(vKmh*1000/60)/60;   // tiempo de paso en horas
-    return {n, filas, dh, u, du, factor, largo, paso, vKmh, noche};
+    return {n, filas, dh, u, du, factor, largo, paso, vKmh, noche, formacion:fo.n, tactica:!!fo.tac};
   }
 
   /* ---------- calor y agua (TB MED 507, 2022, tabla 3-2) ----------
@@ -296,7 +309,8 @@ const MARCHA = (function(){
       // carrera de combate: patrón, tramos rápido/lento (m o min), velocidades (km/h), pendiente sobre la que se va al paso (%), meta opcional
       brPreset:'d100', brPatron:'distancia', brRapido:100, brLento:300, brMinRap:1, brMinLen:3, brVelRap:9, brVelLen:6, brPteLim:5, brMetaKm:'', brMetaMin:'',
       forzadaPct:20,   // marcha forzada: ritmo sobre el de la marcha general (%)   // carga por hombre calculada desde el material (+ peso base: armamento, munición, casco, chaleco)
-      ajusteAltura:true,   // marcha más lenta sobre 1.500 m (factorAltura)
+      ajusteAltura:true,
+      formacion:'', distTipo:'tactica', tecnica:'desplazamiento',   // formación ('' = según filas), tipo de distancia entre hombres, técnica de movimiento   // marcha más lenta sobre 1.500 m (factorAltura)
       declAuto:true, decl:0, declFecha:'', declVar:0};
   }
 
@@ -315,7 +329,8 @@ const MARCHA = (function(){
     const r = tiempoTramo0(dh, dv, par, vel, noche);
     // rapidez del tipo de tropa (montaña y MIDE: los métodos con tabla de tropa) y de la altura (todos los métodos a pie)
     const fT = ['montana', 'mide'].includes(par.metodo) && (par.fuenteVel || 'tabla')!=='propia' ? tropaDe(par.tropa).f : 1, fA = par.unidadTipo==='montada' && par.metodo==='general' ? 1 : factorAltura(cotaMedia, par);
-    if(fT!==1 || fA!==1){ r.t = r.t/(fT*fA); r.fAlt = fA; r.fTropa = fT; }
+    const fM = par._fTec || 1;   // técnica de movimiento del tramo
+    if(fT!==1 || fA!==1 || fM!==1){ r.t = r.t/(fT*fA*fM); r.fAlt = fA; r.fTropa = fT; r.fTec = fM; }
     if(noche && par.metodo!=='general' && par.metodo!=='forzada'){ const red = Math.min(80, Math.max(0, num(par.redNoche)||0))/100; r.t = r.t/(1 - red); }
     return Object.assign(r, {noche:!!noche});
   }
@@ -410,16 +425,17 @@ const MARCHA = (function(){
       const dE = B.utm.e - A.utm.e, dN = B.utm.n - A.utm.n, dg = Math.hypot(dE, dN), dh = dg/((A.utm.k + B.utm.k)/2), dv = B.cota - A.cota;
       const azC = dg ? (Math.atan2(dE, dN)/rad + 360)%360 : 0, azG = (azC + A.utm.conv + 360)%360, azM = (azG - dec.valor + 360)%360;
       // carga de este tramo (con el material: la del partir menos el agua ya bebida)
-      const cT = par._cargaT && par._cargaT[tramos.length], parT = cT===undefined || cT===null ? par : Object.assign({}, par, {carga:cT});
+      const cT = par._cargaT && par._cargaT[tramos.length]; let parT = cT===undefined || cT===null ? par : Object.assign({}, par, {carga:cT});
       const via = m.puntos[B.i].via || par.via, vv = Object.assign({}, parT===par ? vel : velDe(parT), {via}), hIni = h0===null ? null : h0 + acum + altosHasta(acum) + detL;
       // primero con velocidad de día; si la mitad del tramo cae de noche, se recalcula con la de noche
-      const cMed = (A.cota + B.cota)/2;
+      const cMed = (A.cota + B.cota)/2, tec = TECNICAS[m.puntos[B.i].tecnica || par.tecnica] ? (m.puntos[B.i].tecnica || par.tecnica) : 'desplazamiento';
+      if(tec!=='desplazamiento') parT = Object.assign({}, parT, {_fTec:TECNICAS[tec].f});
       let tt = tiempoTramo(dh, dv, parT, vv, false, cMed), mitad = hIni===null ? null : hIni + tt.t*fAl/2;
       if(esNoche(mitad)){ tt = tiempoTramo(dh, dv, parT, vv, true, cMed); mitad = hIni===null ? null : hIni + tt.t*fAl/2; tNoche += tt.t; }
       const luz = luzEn(mitad);
       acum += tt.t; dist += dh; if(dv>0) sube += dv; else baja -= dv; detL += B.det;
       tramos.push({de:A.nombre, a:B.nombre, evA:A.ev, evB:B.ev, claveA:A.clave, claveB:B.clave, iA:A.i, iB:B.i, dist:dh, distAcum:dist, cotaIni:A.cota, cotaFin:B.cota, dv,
-        pte:dh ? dv/dh : 0, via, azC, azG, azM, mils:Math.round(azM*6400/360)%6400, t:tt.t, como:tt.como, noche:tt.noche, luz, tAcum:acum, obs:B.obs, carga:num(parT.carga), fAlt:tt.fAlt || 1});
+        pte:dh ? dv/dh : 0, via, azC, azG, azM, mils:Math.round(azM*6400/360)%6400, t:tt.t, como:tt.como, noche:tt.noche, luz, tAcum:acum, obs:B.obs, carga:num(parT.carga), fAlt:tt.fAlt || 1, tecnica:tec, formacion:m.puntos[B.i].formacion || ''});
     }
     // detenciones planificadas en los puntos intermedios (comida, descanso, reorganización); no cuenta el último punto
     const det = pts.slice(0, -1).reduce((a, p)=>a + p.det, 0);
@@ -450,6 +466,8 @@ const MARCHA = (function(){
     if(par.metodo==='general' && tramos.some(t=>Math.abs(t.pte)>=0.07)) avisos.push('Hay tramos con pendiente de 7 % o más: afectan la velocidad. Considera el método de montaña o MIDE.');
     { const mA = Math.min(...tramos.map(t=>t.fAlt || 1)); if(mA<0.995) avisos.push('Altura: sobre 1.500 m la marcha se calcula más lenta (hasta ' + Math.round((1 - mA)*100) + ' % en el tramo más alto' + (tropaDe(par.tropa).aclim ? ', tropa aclimatada' : '; la tropa andina o aclimatada pierde la mitad') + '). Se puede desactivar en ⚙ Avanzado.'); }
     if(['montana', 'mide'].includes(par.metodo) && tropaDe(par.tropa).est) avisos.push('«' + tropaDe(par.tropa).n + '»: rapidez ' + (tropaDe(par.tropa).f>1 ? '+' : '−') + Math.round(Math.abs(tropaDe(par.tropa).f - 1)*100) + ' % sobre la tabla de ' + (tropaDe(par.tropa).base==='andina' ? 'tropa andina' : 'tropa normal') + '. Valor estimado, sin fuente doctrinaria: ajústalo con la experiencia de tu unidad («Las de mi unidad»).');
+    { const tt = [...new Set(tramos.map(t=>t.tecnica).filter(t=>t!=='desplazamiento'))];
+      if(tt.length) avisos.push('Técnica de movimiento: ' + tt.map(k=>TECNICAS[k].n.toLowerCase() + ' (' + Math.round((1 - TECNICAS[k].f)*100) + ' % más lento)').join(', ') + ' en ' + tramos.filter(t=>t.tecnica!=='desplazamiento').length + ' tramo(s). Porcentajes estimados: el manual no da cifras.'); }
     const jor = JORNADA[par.unidadTipo] || JORNADA.pie;
     if(dist>jor*1000) avisos.push('Más de ' + jor + ' km: sobre la jornada de marcha ' + (par.unidadTipo==='montada' ? 'montada' : 'a pie') + ' (' + jor + ' km). Divide en jornadas o planifica descanso y recuperación.');
     let meta = null;
@@ -495,7 +513,7 @@ const MARCHA = (function(){
   const MGRS_LAT = 'CDEFGHJKLMNPQRSTUVWX';
   const banda = lat=>MGRS_LAT[Math.max(0, Math.min(19, Math.floor((lat + 80)/8)))];
 
-  return {TROPAS, tropaDe, factorAltura, tipoMarcha, velBattle, cicloBattle, PATRONES, PRESETS_BR, wbgt, trabajoDe, CLAVES, listaPropia, rumboEntre, sobreTramo, deWgs84, camposDesde, VIAS, UNIDADES, VEL_GENERAL, JORNADA, velGeneral, columna, CALOR, TRABAJOS, calor, DATUMS, TERRENOS, TABLA_VERTICAL, METODOS, llAUtm, utmALl, aWgs84, puntoWgs, velVertical, porDefecto, declinacion,
+  return {FORMACIONES, DISTANCIAS, TECNICAS, formacionDe, TROPAS, tropaDe, factorAltura, tipoMarcha, velBattle, cicloBattle, PATRONES, PRESETS_BR, wbgt, trabajoDe, CLAVES, listaPropia, rumboEntre, sobreTramo, deWgs84, camposDesde, VIAS, UNIDADES, VEL_GENERAL, JORNADA, velGeneral, columna, CALOR, TRABAJOS, calor, DATUMS, TERRENOS, TABLA_VERTICAL, METODOS, llAUtm, utmALl, aWgs84, puntoWgs, velVertical, porDefecto, declinacion,
     leerAng, tiempoTramo, calcular, horaAHoras, verDur, verHora, verGms, banda};
 })();
 if(typeof globalThis!=='undefined') globalThis.MARCHA = MARCHA;
