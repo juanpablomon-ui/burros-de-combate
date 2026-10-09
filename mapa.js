@@ -62,7 +62,9 @@ const Mapa = (function(){
     capaGrid = L.layerGroup().addTo(map); capaRuta = L.layerGroup().addTo(map);
     map.on('moveend', ()=>{ A.vistaMapa = {c:map.getCenter(), z:map.getZoom()}; grid(); lectura(map.getCenter()); });
     map.on('mousemove', e=>lectura(e.latlng, true));
-    map.on('click', e=>{ if(agregar) agregarPunto(e.latlng); else cerrarHoja(); });
+    map.on('click', e=>{ cerrarMenu(); if(agregar) agregarPunto(e.latlng); else cerrarHoja(); });
+    map.on('contextmenu', e=>{ L.DomEvent.preventDefault(e); menuLugar(e.latlng, e.originalEvent); });
+    map.on('movestart zoomstart', cerrarMenu);
     // botones
     cont.querySelectorAll('[data-base]').forEach(b=>b.onclick = ()=>{ pref.base = b.dataset.base; guardarPref(); ponerBase(pref.base); curvas();
       cont.querySelectorAll('[data-base]').forEach(x=>x.classList.toggle('on', x===b)); });
@@ -156,7 +158,8 @@ const Mapa = (function(){
     R.tramos.forEach(t=>{ const a = ok[t.iA], b = ok[t.iB];
       const ln = L.polyline([[a.lat, a.lon], [b.lat, b.lon]], {color:'#14150f', weight:9, opacity:.55}).addTo(capaRuta);
       const l2 = L.polyline([[a.lat, a.lon], [b.lat, b.lon]], {color:colPte(t.pte), weight:5, opacity:.95}).addTo(capaRuta);
-      [ln, l2].forEach(x=>x.on('click', e=>{ L.DomEvent.stop(e); insertar(t.iB, e.latlng); }));
+      [ln, l2].forEach(x=>{ x.on('click', e=>{ L.DomEvent.stop(e); insertar(t.iB, e.latlng); });
+        x.on('contextmenu', e=>{ L.DomEvent.stop(e); L.DomEvent.preventDefault(e); menuTramo(t, e.latlng, e.originalEvent); }); });
       l2.bindTooltip(`${A.esc(t.de)} → ${A.esc(t.a)}: ${A.f(t.dist)} m · ${t.dv>=0 ? '+' : ''}${A.f(t.dv)} m (${A.f(t.pte*100, 0)} %) · rumbo ${A.f(t.azM, 0)}° / ${t.mils} ‰ · ${M.verDur(t.t)}`, {sticky:true});
     });
     // los puntos en el mismo lugar (ida y vuelta) van en un solo marcador; al arrastrarlo se mueven todos
@@ -165,6 +168,7 @@ const Mapa = (function(){
       if(!p.ev){ // punto de ruta: solo marca el camino
         const mk = L.marker([p.lat, p.lon], {icon:L.divIcon({className:'m-ruta' + (sel===i ? ' sel' : ''), iconSize:[14, 14], iconAnchor:[7, 7]}), draggable:true, autoPan:true}).addTo(capaRuta);
         mk.on('click', e=>{ L.DomEvent.stop(e); abrirHoja(i); });
+        mk.on('contextmenu', e=>{ L.DomEvent.stop(e); L.DomEvent.preventDefault(e); menuPunto([i], e.originalEvent); });
         mk.on('dragstart', ()=>guardarDeshacer()); mk.on('dragend', e=>mover(i, e.target.getLatLng()));
         return; }
       const k = p.lat.toFixed(5) + ',' + p.lon.toFixed(5); if(!grupos.has(k)) grupos.set(k, []); grupos.get(k).push(i); });
@@ -175,6 +179,7 @@ const Mapa = (function(){
         html:`<span class="n">${ids.map(i=>nEv[i]).join('·')}</span><span class="et"${ids.length>1 ? ` style="left:${ids.map(i=>nEv[i]).join('·').length*7.5 + 18}px"` : ''}>${cls.length ? `<i class="clave">${A.esc(cls.join(' / '))}</i> ` : ''}<b>${A.esc(nombres.join(' / '))}</b> ${isNaN(p.cota) ? '' : A.f(p.cota) + ' m'}${horas.length ? ' · ' + horas.join(' / ') : ''}</span>`});
       const mk = L.marker([p.lat, p.lon], {icon:ic, draggable:true, autoPan:true}).addTo(capaRuta);
       mk.on('click', e=>{ L.DomEvent.stop(e); abrirHoja(ids.includes(sel) && ids.length>1 ? ids[(ids.indexOf(sel) + 1)%ids.length] : ids[0]); });
+      mk.on('contextmenu', e=>{ L.DomEvent.stop(e); L.DomEvent.preventDefault(e); menuPunto(ids, e.originalEvent); });
       mk.on('dragstart', ()=>guardarDeshacer());
       mk.on('dragend', e=>{ const ll = e.target.getLatLng(); ids.forEach(i=>mover(i, ll, true)); A.guardar(); ruta(); ids.forEach(i=>cotaAuto(i)); if(ids.includes(sel)) abrirHoja(sel); });
     });
@@ -287,13 +292,82 @@ const Mapa = (function(){
     h.querySelectorAll('[data-h]').forEach(inp=>inp.oninput = ()=>{ const k = inp.dataset.h; p[k] = inp.value; if(k==='cota'){ delete p.cotaAuto; delete p.cotaSrc; }
       A.guardar(); clearTimeout(h._t); h._t = setTimeout(()=>{ ruta(); }, 300); });
     $('#hCerrar').onclick = cerrarHoja;
-    $('#hEv').onchange = e=>{ p.ev = e.target.checked; if(p.ev && !p.nombre){ p.nombre = 'PC' + (R.eventos.filter(x=>x<i).length); } if(!p.ev){ p.nombre = /^PC\d+$/.test(p.nombre) ? '' : p.nombre; p.clave = ''; }
-      renumerar(m); A.guardar(); ruta(); abrirHoja(i); };
+    $('#hEv').onchange = e=>{ ponerEvento(i, e.target.checked); abrirHoja(i); };
     h.querySelectorAll('[data-hacc]').forEach(b=>b.onclick = ()=>{ const a = b.dataset.hacc;
       if(a==='ant') return abrirHoja(i - 1); if(a==='sig') return abrirHoja(i + 1);
-      if(a==='borra'){ guardarDeshacer(); m.puntos.splice(i, 1); renumerar(m); A.guardar(); cerrarHoja(); ruta(); A.aviso('Punto borrado (↶ para deshacer)'); } });
+      if(a==='borra') borrarPunto(i); });
     ruta();
     if(g && g.ok && !map.getBounds().pad(-0.15).contains([g.lat, g.lon])) map.panTo([g.lat, g.lon]);
+  }
+  function ponerEvento(i, si){
+    const m = A.actual(), p = m.puntos[i], R = A.calcular(m); guardarDeshacer(); p.ev = si;
+    if(si && !p.nombre) p.nombre = 'PC' + R.eventos.filter(x=>x<i).length;
+    if(!si){ p.nombre = /^PC\d+$/.test(p.nombre) ? '' : p.nombre; p.clave = ''; }
+    renumerar(m); A.guardar(); ruta();
+  }
+  function borrarPunto(i){ const m = A.actual(); guardarDeshacer(); m.puntos.splice(i, 1); renumerar(m); A.guardar(); cerrarHoja(); ruta(); A.aviso('Punto borrado (↶ para deshacer)'); }
+
+  /* ---------- menú del botón derecho (en el teléfono: mantener presionado) ----------
+     Como en el C2 TOQUI: arriba los datos del lugar (tocar para copiar), abajo las acciones. */
+  function cerrarMenu(){ const x = document.getElementById('mMenu'); if(x) x.remove(); }
+  function abrirMenu(ev, titulo, items){
+    cerrarMenu(); if(!ev) return;
+    const d = document.createElement('div'); d.id = 'mMenu'; d.className = 'm-menu';
+    d.innerHTML = `<div class="mm-tit">${titulo}</div>` + items.map((it, k)=>it.sep ? '<div class="mm-sep"></div>'
+      : it.dato ? `<button class="mm-dato" data-k="${k}" title="Copiar"><span>${A.esc(it.lbl)}</span><b class="mono" ${it.id ? `id="${it.id}"` : ''}>${A.esc(it.val)}</b></button>`
+      : `<button class="mm-acc${it.peligro ? ' peligro' : ''}" data-k="${k}" ${it.no ? 'disabled' : ''}><span class="mm-ico">${it.ico || ''}</span>${A.esc(it.lbl)}${it.nota ? `<small>${A.esc(it.nota)}</small>` : ''}</button>`).join('');
+    document.body.appendChild(d);
+    d.querySelectorAll('[data-k]').forEach(b=>b.onclick = e=>{ e.stopPropagation(); const it = items[+b.dataset.k]; cerrarMenu();
+      if(it.dato) A.copiar(it.copia || it.val); else if(it.fn) it.fn(); });
+    const x = ev.clientX, y = ev.clientY, r = d.getBoundingClientRect();
+    d.style.left = Math.max(6, Math.min(x, innerWidth - r.width - 6)) + 'px'; d.style.top = Math.max(6, Math.min(y, innerHeight - r.height - 6)) + 'px';
+  }
+  // se cierra al tocar fuera o con Escape (un solo par de escuchas para todos los menús)
+  document.addEventListener('pointerdown', e=>{ const d = document.getElementById('mMenu'); if(d && !d.contains(e.target)) cerrarMenu(); }, true);
+  addEventListener('keydown', e=>{ if(e.key==='Escape') cerrarMenu(); }, true);
+  // datos de coordenadas de un lugar (en el datum de la marcha), como filas que se copian
+  function datosLugar(lat, lon){
+    const m = A.actual(), dat = m.datum || 'WGS84', u = M.camposDesde(lat, lon, 'UTM', dat, +m.zona || undefined);
+    const utm = u.zona + M.banda(lat) + ' ' + A.f(+u.e) + ' E ' + A.f(+u.n) + ' N', gms = M.verGms(lat, 'N', 'S') + '  ' + M.verGms(lon, 'E', 'W');
+    return [{dato:true, lbl:'UTM (' + dat + ')', val:utm}, {dato:true, lbl:'Geográficas', val:gms}, {dato:true, lbl:'Decimal', val:lat.toFixed(6) + ', ' + lon.toFixed(6)}];
+  }
+  function menuPunto(ids, ev){
+    const m = A.actual(), R = A.calcular(m), i = ids.includes(sel) ? sel : ids[0], p = m.puntos[i], g = R.puntos[i]; if(!g || !g.ok) return;
+    const fijo = R.eventos[0]===i || R.eventos[R.eventos.length - 1]===i, t = R.tramos.find(x=>x.iB===i), s = R.tramos.find(x=>x.iA===i);
+    const items = datosLugar(g.lat, g.lon);
+    items.push({dato:true, lbl:'Cota', val:isNaN(g.cota) ? '—' : A.f(g.cota) + ' m'});
+    if(t) items.push({dato:true, lbl:'Llega', val:M.verHora(t.llegada) + ' · ' + A.f(t.distAcum/1000, 2) + ' km'});
+    if(s) items.push({dato:true, lbl:'Al siguiente', val:A.f(s.azM, 0) + '° / ' + s.mils + ' ‰ · ' + A.f(s.dist) + ' m'});
+    items.push({sep:true});
+    if(ids.length>1) ids.forEach(k=>{ if(k!==i) items.push({ico:'⇄', lbl:'Elegir «' + (m.puntos[k].nombre || 'punto') + '» (n.º ' + (k + 1) + ')', nota:'mismo lugar, otra pasada', fn:()=>menuPunto([k].concat(ids.filter(x=>x!==k)), ev)}); });
+    items.push(g.ev ? {ico:'○', lbl:'Quitar evento', nota:fijo ? 'la partida y la llegada siempre son eventos' : 'queda como punto de ruta', no:fijo, fn:()=>ponerEvento(i, false)}
+      : {ico:'◉', lbl:'Marcar como evento', nota:'punto de control que se informa por radio', fn:()=>ponerEvento(i, true)});
+    if(m.par.reabast==='si' && !fijo) items.push({ico:'💧', lbl:p.agua ? 'Quitar punto de agua' : 'Marcar punto de agua', nota:'se repone el agua aquí', fn:()=>{ guardarDeshacer(); p.agua = !p.agua; A.guardar(); ruta(); A.aviso(p.agua ? '💧 Punto de agua' : 'Ya no es punto de agua'); }});
+    items.push({ico:'✎', lbl:'Editar punto', nota:'nombre, cota, detención, observaciones', fn:()=>abrirHoja(i)});
+    items.push({ico:'⏸', lbl:'Detención aquí', nota:(+p.det ? p.det + ' min' : 'sin detención') + ' (comida, descanso, reorganización)', fn:()=>{ abrirHoja(i); setTimeout(()=>{ const x = document.querySelector('[data-h=det]'); if(x){ x.focus(); x.select(); } }, 50); }});
+    if(i>0) items.push({ico:'＋', lbl:'Insertar punto antes', nota:'a mitad del tramo anterior', fn:()=>{ const a = R.puntos[i - 1]; if(a && a.ok) insertar(i, L.latLng((a.lat + g.lat)/2, (a.lon + g.lon)/2)); }});
+    if(i<m.puntos.length - 1) items.push({ico:'＋', lbl:'Insertar punto después', nota:'a mitad del tramo siguiente', fn:()=>{ const b = R.puntos[i + 1]; if(b && b.ok) insertar(i + 1, L.latLng((b.lat + g.lat)/2, (b.lon + g.lon)/2)); }});
+    items.push({ico:'⤢', lbl:'Centrar el mapa aquí', fn:()=>map.setView([g.lat, g.lon], Math.max(map.getZoom(), 16))});
+    items.push({sep:true}, {ico:'🗑', lbl:'Borrar punto', peligro:true, fn:()=>borrarPunto(i)});
+    abrirMenu(ev, `${g.ev ? '◉' : '·'} <b>${A.esc(g.nombre || 'Punto de ruta')}</b>${g.clave ? ` <i class="clave">${A.esc(g.clave)}</i>` : ''}<small>${g.ev ? 'evento n.º ' + (R.eventos.indexOf(i) + 1) : 'punto de ruta'}</small>`, items);
+  }
+  function menuTramo(t, ll, ev){
+    const items = [{dato:true, lbl:'Tramo', val:t.de + ' → ' + t.a}, {dato:true, lbl:'Rumbo', val:A.f(t.azM, 0) + '° / ' + t.mils + ' ‰'},
+      {dato:true, lbl:'Distancia', val:A.f(t.dist) + ' m · ' + (t.dv>=0 ? '+' : '') + A.f(t.dv) + ' m (' + A.f(t.pte*100, 0) + ' %)'}, {dato:true, lbl:'Tiempo', val:M.verDur(t.t)}, {sep:true},
+      {ico:'＋', lbl:'Insertar punto aquí', nota:'punto de ruta en este lugar', fn:()=>insertar(t.iB, ll)},
+      {ico:'◉', lbl:'Insertar evento aquí', nota:'punto de control que se informa por radio', fn:()=>{ insertar(t.iB, ll); ponerEvento(t.iB, true); abrirHoja(t.iB); }}];
+    abrirMenu(ev, '<b>Tramo</b><small>' + A.esc(t.de) + ' → ' + A.esc(t.a) + '</small>', items.concat(datosLugar(ll.lat, ll.lng).map(x=>Object.assign(x, {lbl:x.lbl + ' (este lugar)'}))));
+  }
+  function menuLugar(ll, ev){
+    const m = A.actual(), R = A.calcular(m), ok = R.puntos.filter(p=>p.ok), u = ok[ok.length - 1];
+    const items = datosLugar(ll.lat, ll.lng);
+    items.push({dato:true, lbl:'Cota', val:'…', id:'mmCota'});
+    if(u){ const r = M.rumboEntre(u, {lat:ll.lat, lon:ll.lng}, R.zona, R.decl.valor); items.push({dato:true, lbl:'Desde ' + (u.nombre || 'el último punto'), val:A.f(r.azM, 0) + '° / ' + r.mils + ' ‰ · ' + A.f(r.dist) + ' m'}); }
+    items.push({sep:true}, {ico:'＋', lbl:ok.length ? 'Agregar punto aquí' : 'Poner el PIM aquí', nota:ok.length ? 'al final de la ruta' : 'inicio de la marcha', fn:()=>agregarPunto(ll)});
+    if(ok.length) items.push({ico:'◉', lbl:'Agregar evento aquí', nota:'al final, como punto de control', fn:()=>{ agregarPunto(ll); const k = A.actual().puntos.length - 1; ponerEvento(k, true); abrirHoja(k); }});
+    items.push({ico:'⤢', lbl:'Centrar el mapa aquí', fn:()=>map.panTo(ll)});
+    abrirMenu(ev, '<b>Este lugar</b>', items);
+    DEM.cotaPunto(ll.lat, ll.lng).then(r=>{ const x = document.getElementById('mmCota'); if(x) x.textContent = r ? '≈ ' + A.f(Math.round(r.v)) + ' m' : 'sin datos'; }).catch(()=>{});
   }
   function cerrarHoja(){ const h = $('#mHoja'); if(h){ h.hidden = true; h.innerHTML = ''; } if(sel!==null){ sel = null; ruta(); } }
 
@@ -364,7 +438,7 @@ const Mapa = (function(){
     });
   }
 
-  function cerrar(){ if(!map) return; const m = map; map = null; capaCursor = null; capaCurvas = null; try { m.stop(); m.off(); m.remove(); } catch(e){} }
+  function cerrar(){ cerrarMenu(); if(!map) return; const m = map; map = null; capaCursor = null; capaCurvas = null; try { m.stop(); m.off(); m.remove(); } catch(e){} }
   return {abrir, ruta, cerrar, BASES};
 })();
 if(typeof globalThis!=='undefined') globalThis.Mapa = Mapa;
