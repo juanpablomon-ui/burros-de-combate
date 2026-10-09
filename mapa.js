@@ -92,11 +92,23 @@ const Mapa = (function(){
     if(ok.length===1) map.setView([ok[0].lat, ok[0].lon], 15); else map.fitBounds(L.latLngBounds(ok.map(p=>[p.lat, p.lon])), {padding:[40, 40]}); }
   function miPosicion(){
     if(!navigator.geolocation) return A.aviso('Este equipo no entrega la posición');
+    if(!window.isSecureContext) return A.dialogo(`<h3>◎ Mi posición</h3><p class="nota">La posición solo funciona con una dirección segura (https).
+      Abre la app desde <b>https://juanpablomon-ui.github.io/burros-de-combate/</b>.</p><div class="btns"><button class="btn" data-cerrar>Entendido</button></div>`);
     A.aviso('Buscando posición…');
-    navigator.geolocation.getCurrentPosition(p=>{ const ll = [p.coords.latitude, p.coords.longitude];
+    const poner = p=>{ const ll = [p.coords.latitude, p.coords.longitude];
       map.setView(ll, Math.max(map.getZoom(), 15));
-      L.circleMarker(ll, {radius:8, color:'#6fb3d9', fillColor:'#6fb3d9', fillOpacity:.5}).addTo(capaRuta).bindTooltip('Mi posición (±' + Math.round(p.coords.accuracy) + ' m)').openTooltip(); },
-      ()=>A.aviso('No se pudo obtener la posición (¿permiso o https?)'), {enableHighAccuracy:true, timeout:15000});
+      L.circleMarker(ll, {radius:8, color:'#6fb3d9', fillColor:'#6fb3d9', fillOpacity:.5}).addTo(capaRuta).bindTooltip('Mi posición (±' + Math.round(p.coords.accuracy) + ' m)').openTooltip(); };
+    // en el computador no hay GPS: la posición sale del Wi-Fi; si la de alta precisión falla o demora, se pide la normal
+    const fallo = e=>{
+      const pc = !/Android|iPhone|iPad|iPod/i.test(navigator.userAgent), mac = /Mac/i.test(navigator.platform || navigator.userAgent);
+      const txt = e.code===1 ? (pc ? `El navegador o el computador no dan permiso para la ubicación.<br><br><b>1.</b> En la barra de direcciones, toca el ícono a la izquierda de la dirección y deja <b>Ubicación: Permitir</b>.<br>
+          <b>2.</b> ${mac ? 'En el Mac: <b>Configuración del Sistema → Privacidad y seguridad → Localización</b>: actívala y activa tu navegador (Chrome, Safari o Edge).' : 'En Windows: <b>Configuración → Privacidad y seguridad → Ubicación</b>: actívala y permite que las apps de escritorio la usen.'}<br>
+          <b>3.</b> Vuelve a cargar la página y toca ◎ otra vez.` : 'No hay permiso para la ubicación: actívalo en los ajustes del teléfono para el navegador y vuelve a intentar.')
+        : e.code===2 ? (pc ? 'El computador no pudo calcular dónde está. Sin GPS, la posición sale del <b>Wi-Fi</b>: revisa que el Wi-Fi esté encendido (aunque uses cable) y que la Localización del sistema esté activa.' : 'Sin señal GPS: sal a un lugar abierto y vuelve a intentar.')
+        : 'La posición demoró demasiado. Vuelve a intentar' + (pc ? ' (en el computador sale del Wi-Fi y puede tardar).' : ' en un lugar abierto.');
+      A.dialogo(`<h3>◎ No se pudo obtener la posición</h3><p class="nota">${txt}</p><div class="btns"><button class="btn" data-cerrar>Entendido</button></div>`); };
+    navigator.geolocation.getCurrentPosition(poner, e=>{ if(e.code===1) return fallo(e);
+      navigator.geolocation.getCurrentPosition(poner, fallo, {enableHighAccuracy:false, timeout:20000, maximumAge:600000}); }, {enableHighAccuracy:true, timeout:10000});
   }
 
   /* ---------- lectura de coordenadas (en el datum de la marcha) ---------- */
