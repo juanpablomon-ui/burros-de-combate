@@ -323,8 +323,10 @@ function pesoSOP(m, R, c, items, grupos, llevaL, base, sinMochila, modoMo){
   const fus = lista.find(o=>o.base), nFus = Math.max(0, c.n - lista.filter(o=>!o.base).reduce((a, o)=>a + o.n, 0)); if(fus) fus.n = nFus;
   const lineas = lineasDe('fusilero'), comun = Math.round((base + suma(lineas))*10)/10;
   const conEsp = (o, li)=>{ const g = gE[o.key]; let kg = 0; if(g && o.n>0){ g.items.forEach(x=>{ const k = x.q*x.kg/o.n; x.porPortador = k; li[x.linea] += k; if(x.lleva) kg += k; }); } return kg; };
-  const puestos = lista.map(o=>{ const li = lineasDe(o.base ? 'fusilero' : o.key); conEsp(o, li); const total = Math.round((comun + suma(li) - suma(lineasDe('fusilero')))*10)/10;   // li ya trae el equipo especial
-    return Object.assign(o, {lineas:li, total, kg:total - comun, items:gE[o.key] ? gE[o.key].items : [], esp:gE[o.key] || null, recibe:[], sop:S[o.base ? 'fusilero' : o.key] || {}}); });
+  // para mostrar el desglose: agua y equipo especial común (lo que rota + lo asignado al puesto) que se suman a las líneas escritas
+  const aguaLleva = llevaL(aguaL) ? aguaKg : 0, rotaLleva = [1, 2, 5, 3].reduce((a, l)=>a + (llevaL(l) ? rota[l] : 0), 0);
+  const puestos = lista.map(o=>{ const li = lineasDe(o.base ? 'fusilero' : o.key), e = conEsp(o, li), total = Math.round((comun + suma(li) - suma(lineasDe('fusilero')))*10)/10;   // li ya trae el equipo especial
+    return Object.assign(o, {aguaKg:aguaLleva, espKg:rotaLleva + e, lineas:li, total, kg:total - comun, items:gE[o.key] ? gE[o.key].items : [], esp:gE[o.key] || null, recibe:[], sop:S[o.base ? 'fusilero' : o.key] || {}}); });
   Object.values(gE).forEach(g=>{ if(!puestos.some(o=>o.key===g.key)){ const o = {key:g.key, nombre:g.nombre, n:g.n, kit:[], reemplaza:[], recibe:[]}, li = lineasDe('fusilero'), e = conEsp(o, li);
     puestos.push(Object.assign(o, {lineas:li, total:Math.round((comun + e)*10)/10, kg:e, items:g.items, esp:g})); } });
   const especial = puestos.filter(o=>!o.base && o.n>0), portadores = especial.reduce((a, g)=>a + g.n, 0), fusilero = puestos.find(o=>o.base) || null;
