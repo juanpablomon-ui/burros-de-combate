@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.45', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.46', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -61,8 +61,10 @@
   function ir(v){ S.v = v; guardar(); pintar(); window.scrollTo(0, 0); }
   $('#pestanas').addEventListener('click', e=>{ const b = e.target.closest('button[data-v]'); if(b) ir(b.dataset.v); });
   // Perfil y Lista van dentro de la pestaña Cuadro
-  const PESTANA = {perfil:'cuadro', lista:'cuadro', material:'cuadro'};
-  const subCuadro = ()=>`<div class="seg subv no-imp">${[['cuadro', 'Cuadro de marcha y navegación'], ['perfil', 'Perfil'], ['material', 'Material'], ['lista', 'Lista']].map(([k, n])=>`<button data-sv="${k}" class="${S.v===k ? 'on' : ''}">${n}</button>`).join('')}</div>`;
+  // Perfil y Lista van dentro de Cuadro; Material va dentro de Datos de la marcha (pedido del usuario)
+  const PESTANA = {perfil:'cuadro', lista:'cuadro', material:'ruta'};
+  const subDatos = ()=>`<div class="seg subv no-imp">${[['ruta', 'Ruta y cálculo'], ['material', 'Material y carga']].map(([k, n])=>`<button data-sv="${k}" class="${S.v===k ? 'on' : ''}">${n}</button>`).join('')}</div>`;
+  const subCuadro = ()=>`<div class="seg subv no-imp">${[['cuadro', 'Cuadro de marcha y navegación'], ['perfil', 'Perfil'], ['lista', 'Lista']].map(([k, n])=>`<button data-sv="${k}" class="${S.v===k ? 'on' : ''}">${n}</button>`).join('')}</div>`;
   vista.addEventListener('click', e=>{ const b = e.target.closest('[data-sv]'); if(b) ir(b.dataset.sv); });
   function pintar(){
     const m = actual(); if(!m && S.v!=='marchas') S.v = 'marchas';
@@ -74,7 +76,8 @@
     document.querySelectorAll('#pestanas button').forEach(b=>{ b.classList.toggle('on', b.dataset.v===(PESTANA[S.v] || S.v)); b.disabled = !m && b.dataset.v!=='marchas'; b.style.opacity = b.disabled ? .35 : 1; });
     $('#subtitulo').textContent = m ? m.nombre + (m.unidad ? ' · ' + m.unidad : '') : 'Planificación de marchas';
     ({marchas:vMarchas, mapa:vMapa, ruta:vRuta, cuadro:vCuadro, perfil:vPerfil, material:vMaterial, luz:vLuz, lista:vLista, seguir:vSeguir, enviar:vEnviar})[S.v]();
-    if(PESTANA[S.v] || S.v==='cuadro') vista.insertAdjacentHTML('afterbegin', subCuadro());
+    if(S.v==='ruta' || S.v==='material') vista.insertAdjacentHTML('afterbegin', subDatos());
+    else if(PESTANA[S.v] || S.v==='cuadro') vista.insertAdjacentHTML('afterbegin', subCuadro());
   }
 
   /* =====================================================================  MARCHAS  */
@@ -193,7 +196,9 @@
     const m = actual(), p = m.par, R = M.calcular(m);
     const opc = (o, sel)=>Object.entries(o).map(([k, n])=>`<option value="${k}"${k===sel ? ' selected' : ''}>${esc(n)}</option>`).join('');
     const vt = R.vel.tabla, pct = x=>Math.round((x||0)*1000)/10;
-    const tropas = {normal:'Tropa normal', andina:'Tropa andina'};
+    // tipos de tropa según el uso (militar o civil); el que está elegido siempre aparece
+    const tropas = Object.fromEntries(Object.entries(M.TROPAS).filter(([k, t])=>k===p.tropa || (Uso.civil() ? t.civil || k==='andina' : !t.civil)).map(([k, t])=>[k, t.n + (t.est ? ' — estimado' : '')]));
+    const TT = M.tropaDe(p.tropa);
     const terrenos = Object.fromEntries(Object.entries(M.TERRENOS).map(([k, v])=>[k, v.n]));
     const sinAl = p.metodo==='battle' || p.metodo==='forzada', vb = M.velBattle(p), carga = `<label class="c">Carga por hombre (kg)${!p.cargaManual && R.carga ? ' <small>del material</small>' : ''}<input class="num" data-par="carga" data-redibujar inputmode="decimal" value="${!p.cargaManual && R.carga ? f(R.carga.total, 1) : esc(p.carga)}" ${!p.cargaManual && R.carga ? 'disabled' : ''}></label>`;
     const campo = (k, n, ph)=>`<label class="c">${n}<input class="num" data-par="${k}" data-redibujar inputmode="decimal" value="${esc(p[k])}"${ph ? ` placeholder="${ph}"` : ''}></label>`;
@@ -251,12 +256,12 @@
           : `<label class="c">Altos (% del tiempo de marcha)<input class="num" data-par="altos" data-pct inputmode="decimal" value="${pct(p.altos)}"></label>`}
           <label class="c">Imprevistos (%)<input class="num" data-par="imprev" data-pct inputmode="decimal" value="${pct(p.imprev)}"></label>
         </div>
-        <p class="nota">${!p.cargaManual && R.carga ? `La carga sale del <b>Material</b> (Cuadro → Material): <b>${f(R.carga.inicial, 1)} kg al partir</b> y ${f(R.carga.final, 1)} kg al llegar (el agua se bebe en el camino); cada tramo se calcula con su carga.` : R.sinEfectivo ? '<b style="color:var(--ocre)">Falta el efectivo</b> (Unidad y columna): sin él no se puede calcular la carga desde el material; se usa la carga escrita.' : 'Carga escrita a mano.'}
+        <p class="nota">${!p.cargaManual && R.carga ? `La carga sale del <b>Material</b> (Datos → Material y carga): <b>${f(R.carga.inicial, 1)} kg al partir</b> y ${f(R.carga.final, 1)} kg al llegar (el agua se bebe en el camino); cada tramo se calcula con su carga.` : R.sinEfectivo ? '<b style="color:var(--ocre)">Falta el efectivo</b> (Unidad y columna): sin él no se puede calcular la carga desde el material; se usa la carga escrita.' : 'Carga escrita a mano.'}
           <label style="display:block;margin:6px 0"><input type="checkbox" data-par="cargaManual" data-redibujar ${p.cargaManual ? 'checked' : ''} style="width:auto;vertical-align:middle"> Escribir la carga a mano</label>
           ${sinAl ? ' La carga define el esfuerzo para el calor.' : p.metodo!=='general' ? ' La tabla trae 10, 20 y 30 kg: con otra carga se interpola.' : ' En marcha general, con carga sobre unos 18 kg la velocidad baja.'}</p>
         ${sinAl ? notaSinAltos : ''}
-        ${p.metodo!=='general' && !sinAl ? `<p class="nota">Tabla de velocidades de marcha vertical en montaña para ${esc(tropas[p.tropa].toLowerCase())}, ${esc(M.TERRENOS[p.terreno].n.toLowerCase())}, ${f(vt.carga, 1)} kg:
-          subida <b>${esc(vt.rango)} m/h</b>, bajada <b>${f(vt.baj)} m/h</b>.${p.terreno==='esquies' && p.tropa==='normal' ? ' <b>Esquíes: la tabla solo trae valores para tropa andina.</b>' : ''}
+        ${p.metodo!=='general' && !sinAl ? `<p class="nota">Tabla de velocidades de marcha vertical en montaña para ${esc(TT.base==='andina' ? 'tropa andina' : 'tropa normal')}, ${esc(M.TERRENOS[p.terreno].n.toLowerCase())}, ${f(vt.carga, 1)} kg:
+          subida <b>${esc(vt.rango)} m/h</b>, bajada <b>${f(vt.baj)} m/h</b>.${TT.est ? ` <b>${esc(TT.n)}: ${TT.f>1 ? '+' : '−'}${Math.round(Math.abs(TT.f - 1)*100)} % sobre esa tabla (estimado).</b>` : ''}${p.terreno==='esquies' && TT.base==='normal' ? ' <b>Esquíes: la tabla solo trae valores para tropa andina.</b>' : ''}
           ${R.vel.fuente==='tabla' ? 'Ritmo: bajo = valor menor del rango, normal = el medio, exigente = el mayor. ' : ''}Si conoces el rendimiento real de tu unidad, elige «Las de mi unidad».</p>` : ''}
         ${p.metodo==='general' || p.metodo==='forzada' ? `<div class="tabla-env" style="margin:10px 0"><table class="t"><thead><tr><th class="tx">Velocidades ${esc(M.UNIDADES[p.unidadTipo].toLowerCase())} (km/h)</th>${Object.values(M.VIAS).map(v=>`<th>${esc(v)}</th>`).join('')}</tr></thead>
           <tbody>${['dia', 'noche'].map(dn=>`<tr><td class="tx">${dn==='dia' ? 'Día' : 'Noche'}</td>${Object.keys(M.VIAS).map(v=>`<td>${f(M.VEL_GENERAL[p.unidadTipo][v][dn], 1)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
@@ -270,9 +275,11 @@
             : 'Por defecto 10 % de altos; súbelos según el entrenamiento, la carga y la dificultad.'}
           Imprevistos (10 % por defecto, sobre marcha + altos): reserva para lo inesperado, incluido el agotamiento momentáneo; durante la marcha, los altos no planificados se registran en Seguir con su motivo.
           ${R.vel.fuente==='mide' ? '<br>Valores originales MIDE: 300 m/h de subida y 500 m/h de bajada, sin importar tropa ni carga.' : ''}</p>
-        ${p.metodo==='montana' ? `<details class="avanzado"><summary>⚙ Avanzado</summary><div class="campos">
-          <label class="c">Pendiente crítica (%)<input class="num" data-par="pteCr" data-pct inputmode="decimal" value="${pct(p.pteCr)}"></label></div>
-          <p class="nota">Sobre esta pendiente el tramo se calcula por el desnivel; bajo ella, por la distancia (5 % por defecto).</p></details>` : ''}
+        <details class="avanzado"><summary>⚙ Avanzado</summary><div class="campos">
+          ${p.metodo==='montana' ? `<label class="c">Pendiente crítica (%)<input class="num" data-par="pteCr" data-pct inputmode="decimal" value="${pct(p.pteCr)}"></label>` : ''}
+          <label class="c ancho"><span><input type="checkbox" data-par="ajusteAltura" data-redibujar ${p.ajusteAltura!==false ? 'checked' : ''} style="width:auto;vertical-align:middle"> Más lento en altura (sobre 1.500 m)</span></label></div>
+          ${p.metodo==='montana' ? '<p class="nota">Sobre la pendiente crítica el tramo se calcula por el desnivel; bajo ella, por la distancia (5 % por defecto).</p>' : ''}
+          <p class="nota">Sobre unos 1.500 m la capacidad física baja cerca de un <b>7 % por cada 1.000 m</b> (estudios de fisiología en altura); la tropa andina, de fuerzas especiales o aclimatada pierde la mitad. Cada tramo se ajusta con su altura media.</p></details>
         <h2>Declinación magnética</h2>
         <div class="campos">
           <label class="c ancho"><span><input type="checkbox" data-par="declAuto" data-redibujar ${p.declAuto ? 'checked' : ''} style="width:auto;vertical-align:middle"> Calcular automática (modelo WMM2025, según lugar y fecha)</span></label>
@@ -301,7 +308,11 @@
         <div class="campos">
           <label class="c">Temperatura (°C)<input class="num" data-par="temp" data-redibujar inputmode="decimal" value="${esc(p.temp)}" placeholder="del pronóstico"></label>
           <label class="c">Humedad (%)<input class="num" data-par="hum" data-redibujar inputmode="numeric" value="${esc(p.hum)}" placeholder="del pronóstico"></label>
+          <div class="c"><span>&nbsp;</span><button class="btn" id="bPron">🌡 Traer del pronóstico</button></div>
         </div>
+        ${p.pron && +p.pron.temp===+String(p.temp).replace(',', '.') ? `<p class="nota">${p.pron.fuente==='pronóstico' ? 'Del <b>pronóstico</b>' : 'Del <b>clima normal</b> (promedio de ' + p.pron.anios + ' años: la fecha está lejos y aún no hay pronóstico)'} para el PIM:
+          ${esc(p.pron.temp)} °C y ${esc(p.pron.hum)} % a las ${esc(p.pron.hora)} (la hora más calurosa de la marcha)${p.pron.viento ? ' · viento hasta ' + esc(p.pron.viento) + ' km/h' : ''}${p.pron.tmin!==undefined ? ' · mínima ' + esc(p.pron.tmin) + ' °C' : ''}.
+          ${+p.pron.viento>=40 ? '<b style="color:var(--rojo)">Viento fuerte: cuidado en filos y cumbres.</b>' : ''}${p.pron.tmin!==undefined && +p.pron.tmin<=0 ? ' <b style="color:var(--azul)">Bajo 0 °C: riesgo de hielo y frío.</b>' : ''}</p>` : ''}
         ${R.calor ? `<div class="info">${R.calor.cat ? `Calor <b>categoría ${esc(R.calor.n)}</b>` : 'Calor <b>sin restricción</b>'} (índice ${f(R.calor.wbgt, 1)} °C${R.calor.fuenteWbgt==='medido' ? ', medido' : ''}).
           ${R.calor.trabajo<60 ? `<br>Cada hora: <b>${R.calor.trabajo} min de marcha y ${R.calor.descanso} min de descanso</b>.` : '<br>Sin descansos extra por calor.'}
           <br>Agua: <b>${f(R.calor.lh, 1)} L por hora</b> por hombre.
@@ -356,12 +367,48 @@
       const R2 = M.calcular(m); vista.querySelectorAll('[data-pc]').forEach(o=>{ o.placeholder = R2.puntos[+o.dataset.pc].clave || ''; const e = $('#ev' + o.dataset.pc); if(e) e.innerHTML = evento(R2.puntos[+o.dataset.pc].clave); });
       const pc = vista.querySelector('.punto[data-i="' + inp.dataset.pc + '"] [data-p=clave]'); if(pc) pc.value = inp.value; });
     const ta = vista.querySelector('[data-redibujar-al-salir]'); if(ta) ta.onchange = ()=>{ pintar(); $('#dClaves').open = true; };
+    const bp = $('#bPron'); if(bp) bp.onclick = async()=>{ bp.disabled = true; bp.textContent = 'Buscando…';
+      try { const r = await pronostico(m, M.calcular(m)); Object.assign(m.par, {temp:String(r.temp), hum:String(r.hum), pron:r}); guardar();
+        const y = window.scrollY; pintar(); window.scrollTo(0, y); vista.querySelectorAll('details').forEach(d=>{ if(/Calor y agua/.test(d.querySelector('summary').textContent)) d.open = true; });
+        aviso('🌡 ' + r.temp + ' °C y ' + r.hum + ' % (' + r.fuente + ')'); }
+      catch(e){ bp.disabled = false; bp.textContent = '🌡 Traer del pronóstico'; aviso('⚠ ' + (e.message || 'Sin conexión: escribe la temperatura y la humedad')); } };
     lp('cotas', async()=>{
       const R = M.calcular(m), faltan = m.puntos.map((x, i)=>i).filter(i=>(m.puntos[i].cota==='' || m.puntos[i].cotaAuto) && R.puntos[i].lat!==null && R.puntos[i].lat!==undefined && !isNaN(R.puntos[i].lat));
       if(!faltan.length) return aviso('Todos los puntos tienen cota escrita');
       aviso('Buscando ' + faltan.length + ' cota' + (faltan.length===1 ? '' : 's') + '…'); let n = 0;
       for(const i of faltan){ const r = await DEM.cotaPunto(R.puntos[i].lat, R.puntos[i].lon); if(r){ Object.assign(m.puntos[i], {cota:Math.round(r.v), cotaAuto:true, cotaSrc:r.src}); n++; } }
       guardar(); pintar(); aviso(n ? '✔ ' + n + ' cota' + (n===1 ? '' : 's') + ' del terreno (revísalas con la carta)' : 'Sin conexión: no se pudieron obtener las cotas'); });
+  }
+  /* temperatura y humedad del pronóstico (Open-Meteo, gratuito, sin clave) en el PIM, en la hora más calurosa de la marcha.
+     Hasta 16 días adelante (o hasta 3 meses atrás): pronóstico. Más lejos: promedio de esa fecha en los últimos 5 años (clima normal). */
+  async function pronostico(m, R){
+    const p0 = R.puntos.find(x=>x.ok); if(!p0) throw new Error('Primero ubica el PIM');
+    if(!m.fecha || R.res.partida===null) throw new Error('Falta la fecha o la hora de partida');
+    const ini = new Date(m.fecha + 'T00:00:00'), h0 = R.res.partida, h1 = R.res.partida + Math.max(R.res.total || 0, 1);
+    const dia = d=>{ const x = new Date(ini.getTime() + d*864e5); return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); };
+    const dIni = dia(0), dFin = dia(Math.floor(h1/24)), dias = (ini - new Date(new Date().toDateString()))/864e5;
+    const pedir = async url=>{ const r = await fetch(url); if(!r.ok) throw new Error('El servicio del pronóstico no respondió'); return r.json(); };
+    const campos = 'hourly=temperature_2m,relative_humidity_2m,wind_speed_10m&timezone=auto&latitude=' + p0.lat.toFixed(4) + '&longitude=' + p0.lon.toFixed(4);
+    // de una respuesta: la hora más calurosa dentro de la marcha
+    const peor = (j, desplaz)=>{ const H = j.hourly; let mejor = null, tmin = Infinity, vmax = 0;
+      H.time.forEach((t, k)=>{ const d = new Date(t), hrs = (new Date(d.getTime() + desplaz*864e5) - ini)/36e5;
+        if(hrs<h0 - 0.5 || hrs>h1 + 0.5 || H.temperature_2m[k]===null) return;
+        tmin = Math.min(tmin, H.temperature_2m[k]); vmax = Math.max(vmax, H.wind_speed_10m[k] || 0);
+        if(!mejor || H.temperature_2m[k]>mejor.temp) mejor = {temp:H.temperature_2m[k], hum:H.relative_humidity_2m[k], hora:t.slice(11, 16)}; });
+      return mejor && Object.assign(mejor, {tmin, viento:vmax}); };
+    if(dias<=15 && dias>=-90){
+      const r = peor(await pedir('https://api.open-meteo.com/v1/forecast?' + campos + '&start_date=' + dIni + '&end_date=' + dFin), 0);
+      if(!r) throw new Error('El pronóstico no trae datos para esas horas');
+      return {temp:Math.round(r.temp), hum:Math.round(r.hum), hora:r.hora, viento:Math.round(r.viento), tmin:Math.round(r.tmin), fuente:'pronóstico'};
+    }
+    // clima normal: la misma fecha en los últimos 5 años con datos
+    const anio = new Date().getFullYear(), res = [];
+    for(let a=1; a<=5; a++){ const off = (ini.getFullYear() - (anio - a)), sh = s=>(+s.slice(0, 4) - off) + s.slice(4);
+      try { const j = await pedir('https://archive-api.open-meteo.com/v1/archive?' + campos + '&start_date=' + sh(dIni) + '&end_date=' + sh(dFin));
+        const desplaz = (ini - new Date(sh(dIni) + 'T00:00:00'))/864e5, r = peor(j, desplaz); if(r) res.push(r); } catch(e){} }
+    if(!res.length) throw new Error('Sin conexión: escribe la temperatura y la humedad');
+    const prom = k=>Math.round(res.reduce((x, r)=>x + r[k], 0)/res.length);
+    return {temp:prom('temp'), hum:prom('hum'), hora:res[0].hora, viento:prom('viento'), tmin:prom('tmin'), fuente:'clima normal', anios:res.length};
   }
   function pintarPuntos(){
     const m = actual(), cont = $('#puntos'); if(!cont) return; const Rc = M.calcular(m);
