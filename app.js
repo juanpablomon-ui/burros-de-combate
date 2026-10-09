@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.62', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.63', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -768,7 +768,8 @@
         ${it.tipo ? `<div class="mf-s mf-tipo">${esc(it.tipo)}</div>` : ''}
         ${x && x.modo==='h' ? '<div class="mf-s">litros al partir (1 kg por litro + envase); se bebe en el camino' + (m.par.reabast==='si' ? ' y se repone en los puntos de agua' : '') + '</div>' : g ? `<div class="mf-s">${f(total, 1)} kg que lleva${g.n===1 ? ' 1 portador' : 'n ' + g.n + ' portadores'} (${esc(g.nombre.toLowerCase())})${g.n===1 ? '' : ', repartido'}: ${f(x.porPortador, 1)} kg cada uno</div>`
           : x && x.modo==='c' && n>1 ? `<div class="mf-s">rota entre todos: ${f(total, 1)} kg repartidos entre ${n} hombres = ${f(x.porHombre, 2)} kg por hombre</div>`
-          : indiv && n>1 ? `<div class="mf-s">en la unidad: ${fq(x.q)} ${esc(u==='u' ? 'unid.' : u)} · ${f(total, 1)} kg (${n} hombres)</div>` : ''}</div>`; }).join('')}
+          : indiv && n>1 ? `<div class="mf2 mf-port"><label>Lo llevan <span class="mf-c"><input class="num" data-ll="${it.id}" value="${esc(st.llevan || '')}" placeholder="${n}" inputmode="numeric" aria-label="Cuántos lo llevan"><em>de ${n}</em></span></label></div>
+          <div class="mf-s">en la unidad: ${fq(x.q)} ${esc(u==='u' ? 'unid.' : u)} · ${f(total, 1)} kg${x.llevan<n ? ' — lo llevan ' + x.llevan + ' de ' + n + ' (cuenta entero para ellos)' : ' (' + n + ' hombres)'}</div>` : ''}</div>`; }).join('')}
       ${linea ? `<div class="mf mf-nuevo"><div class="mf2" style="margin-left:0"><input data-an="${linea}" placeholder="Agregar a la ${LINEAS[linea]}: nombre" aria-label="Nombre">
         <span class="mf-c"><input class="num" data-ac="${linea}" placeholder="1" inputmode="decimal" aria-label="Cantidad"><em>cant.</em></span><span class="mf-c"><input class="num" data-ak="${linea}" placeholder="kg" inputmode="decimal" aria-label="kg c/u"><em>kg c/u</em></span>
         <select data-am="${linea}" aria-label="Cómo se lleva"><option value="i">por hombre</option><option value="c"${linea===4 ? ' selected' : ''}>de la unidad</option></select><button class="btn mini pri" data-aa="${linea}">＋ Agregar</button></div></div>` : ''}</div>`).join('');
@@ -890,7 +891,7 @@
     const cuenta = ()=>$('#mtCuenta').innerHTML = `<b>${hechos()} de ${tot}</b> listos.`; cuenta();
     const Mt = ()=>m.material || (m.material = {});
     vista.querySelectorAll('[data-mt]').forEach(x=>x.onchange = ()=>{ const o = Mt()[x.dataset.mt] || (Mt()[x.dataset.mt] = {}); o.ok = x.checked; x.closest('tr,.mf').classList.toggle('hecho', x.checked); guardar(); cuenta(); });
-    let tC = null; const recarga = ()=>{ clearTimeout(tC); tC = setTimeout(()=>{ const y = window.scrollY, a = document.activeElement && document.activeElement.dataset; const foco = a && (a.pu ? '[data-pu="' + a.pu + '"]' : a.sop ? '[data-sop="' + a.sop + '"]' : a.pl ? '[data-pl="' + a.pl + '"]' : a.on ? '[data-on="' + a.on + '"]' : a.okc ? '[data-okc="' + a.okc + '"]' : a.okk ? '[data-okk="' + a.okk + '"]' : a.pn ? '[data-pn="' + a.pn + '"]' : a.pnom ? '[data-pnom="' + a.pnom + '"]' : a.mch ? '[data-mch="' + a.mch + '"]' : a.mc ? '[data-mc="' + a.mc + '"]' : a.mk ? '[data-mk="' + a.mk + '"]' : document.activeElement.id ? '#' + document.activeElement.id : null);
+    let tC = null; const recarga = ()=>{ clearTimeout(tC); tC = setTimeout(()=>{ const y = window.scrollY, a = document.activeElement && document.activeElement.dataset; const foco = a && (a.ll ? '[data-ll="' + a.ll + '"]' : a.pu ? '[data-pu="' + a.pu + '"]' : a.sop ? '[data-sop="' + a.sop + '"]' : a.pl ? '[data-pl="' + a.pl + '"]' : a.on ? '[data-on="' + a.on + '"]' : a.okc ? '[data-okc="' + a.okc + '"]' : a.okk ? '[data-okk="' + a.okk + '"]' : a.pn ? '[data-pn="' + a.pn + '"]' : a.pnom ? '[data-pnom="' + a.pnom + '"]' : a.mch ? '[data-mch="' + a.mch + '"]' : a.mc ? '[data-mc="' + a.mc + '"]' : a.mk ? '[data-mk="' + a.mk + '"]' : document.activeElement.id ? '#' + document.activeElement.id : null);
       const ab = [...vista.querySelectorAll('details[open] > summary')].map(x=>x.firstChild.textContent);
       pintar(); vista.querySelectorAll('details > summary').forEach(x=>{ if(ab.includes(x.firstChild.textContent)) x.parentNode.open = true; });
       window.scrollTo(0, y); if(foco){ const e = vista.querySelector(foco); if(e){ e.focus(); const v = e.value; e.value = ''; e.value = v; } } }, 700); };
@@ -933,6 +934,7 @@
       guardar(); const y = window.scrollY; pintar(); window.scrollTo(0, y); });
     vista.querySelectorAll('[data-pn]').forEach(x=>x.oninput = ()=>{ port(x.dataset.pn).n = x.value; guardar(); recarga(); });
     vista.querySelectorAll('[data-pnom]').forEach(x=>x.oninput = ()=>{ port(x.dataset.pnom).nombre = x.value; guardar(); recarga(); });
+    vista.querySelectorAll('[data-ll]').forEach(x=>x.oninput = ()=>{ const o = Mt()[x.dataset.ll] || (Mt()[x.dataset.ll] = {}); o.llevan = x.value; guardar(); recarga(); });
     vista.querySelectorAll('[data-pl]').forEach(x=>x.oninput = ()=>{ const o = m.par.pesoLinea || (m.par.pesoLinea = {}); o[x.dataset.pl] = x.value; guardar(); recarga(); });
     vista.querySelectorAll('[data-modo-carga]').forEach(b=>b.onclick = ()=>{ m.par.modoCarga = b.dataset.modoCarga; guardar(); pintar(); });
     const fila = i=>{ const U = m.pesoUnidad || (m.pesoUnidad = []); return U[i] || (U[i] = {}); };

@@ -54,8 +54,8 @@ const MATERIAL = [
     ['radioH', 'Radio portátil de mano con batería', c=>c.civil ? null : c.n, c=>'puede ser una por hombre (escribe 0 si no se usan)']]},
   // equipo que sirve a toda la unidad para la misión o la marcha: se escribe el total y su peso se reparte entre todos
   {g:'Equipo especial de la patrulla', items:[
-    ['radio', 'Radio', c=>Math.max(1, c.unidades) + 1, c=>'1 por unidad de marcha + la del comandante'],
-    ['batRad', 'Baterías de repuesto para radio', c=>(Math.max(1, c.unidades) + 1)*Math.max(1, Math.ceil(c.horas/8)), c=>'1 por radio cada 8 h'],
+    ['radio', 'Radio', c=>c.n<=1 ? 1 : Math.max(1, c.unidades) + 1, c=>'1 por unidad de marcha + la del comandante'],
+    ['batRad', 'Baterías de repuesto para radio', c=>(c.n<=1 ? 1 : Math.max(1, c.unidades) + 1)*Math.max(1, Math.ceil(c.horas/8)), c=>'1 por radio cada 8 h'],
     ['camilla', 'Camilla plegable', c=>c.n>=10 ? Math.ceil(c.n/40) : null, c=>'1 cada 40 hombres'],
     ['cuerda', 'Cuerda de seguridad', c=>c.montana || c.nieve ? Math.max(1, Math.ceil(c.n/10)) : null, c=>'1 cada 10 hombres para pasos difíciles'],
     ['otroEq', 'Otro equipo de la unidad', c=>0, c=>'o agrega elementos propios con «＋ Agregar»']]},
@@ -77,15 +77,15 @@ const MATERIAL = [
     ['solar', 'Protector solar y labial', c=>c.noche<0.9 ? Math.max(1, Math.ceil(c.n/5)) : null, c=>'marcha con luz de día'],
     ['evac', 'Plan de evacuación (punto, vehículo, frecuencia)', c=>'1', c=>'para lesionados o rezagados']]},
   {g:'Navegación y control', items:[
-    ['carta', 'Carta(s) de la zona', c=>Math.max(1, c.unidades) + '+', c=>'1 por unidad de marcha'],
-    ['brujula', 'Brújula', c=>Math.max(1, Math.ceil(c.n/10)), c=>'1 por jefe de grupo'],
-    ['gps', 'GPS o teléfono con Burros de Combate cargado', c=>Math.max(1, c.unidades), c=>'con la ruta y la batería llena'],
+    ['carta', 'Carta de la zona', c=>c.n, c=>'la lleva cada hombre'],
+    ['brujula', 'Brújula', c=>c.n, c=>'la lleva cada hombre'],
+    ['gps', 'GPS o teléfono con Burros de Combate cargado', c=>c.n, c=>'con la ruta y la batería llena; indica cuántos lo llevan'],
     ['bateria', 'Batería externa', c=>Math.max(1, c.unidades), c=>'para el teléfono / GPS'],
-    ['cuadro', 'Cuadro de marcha y navegación impreso', c=>Math.max(1, c.unidades) + 1, c=>'1 por comandante + 1 de reserva'],
+    ['cuadro', 'Cuadro de marcha y navegación impreso', c=>c.n<=1 ? 1 : Math.max(1, c.unidades) + 1, c=>'1 por comandante + 1 de reserva'],
     ['reloj', 'Reloj sincronizado', c=>Math.max(1, Math.ceil(c.n/10)), c=>'jefes de grupo'],
     ['marcador', 'Marcador de paso / contador de pasos', c=>Math.max(1, c.unidades), c=>'a la cabeza de cada unidad']]},
   {g:'Comunicaciones', items:[
-    ['claves', 'Lista de nombres clave y frecuencias', c=>Math.max(1, c.unidades) + 1, c=>'«PASANDO ALFA…»'],
+    ['claves', 'Lista de nombres clave y frecuencias', c=>c.n<=1 ? 1 : Math.max(1, c.unidades) + 1, c=>'«PASANDO ALFA…»'],
     ['silbato', 'Silbato / señales', c=>Math.max(1, Math.ceil(c.n/10)), c=>'jefes de grupo']]},
   {g:'Equipo individual', items:[
     ['cuchillo', 'Cuchillo o bayoneta', c=>c.n, c=>'en el cinturón de carga'],
@@ -171,7 +171,7 @@ const PESOS = {fusil:[4, 'i'], cargad:[0.5, 'i'], granada:[0.4, 'i'], casco:[1.4
   palaZ:[1, 'i'], picota:[2, 'c'], zapaOtro:[1.5, 'c'], muniExtra:[0.5, 'i'], cuchillo:[0.4, 'i'], radioH:[0.5, 'i'], abrigo3:[0.9, 'i'], mochAs:[1, 'i'], saco:[1.5, 'i'], aislante:[0.4, 'i'], carpa:[2.5, 'c'], cocina:[0.8, 'c'], olla:[0.4, 'c'], aseo:[0.2, 'i'],
   racion24:[1.3, 'i'], racion12:[0.9, 'i'], ifak:[0.5, 'i'], botPA:[0.3, 'i'], potab:[0.1, 'c'], sales:[0.01, 'i'], colac:[0.25, 'i'],
   socorr:[0, 'x'], calcet:[0.1, 'i'], manta:[0.06, 'i'], solar:[0.1, 'c'], evac:[0, 'x'],
-  carta:[0.05, 'c'], brujula:[0.1, 'c'], gps:[0.25, 'c'], bateria:[0.25, 'c'], cuadro:[0.02, 'c'], reloj:[0, 'x'], marcador:[0.05, 'c'],
+  carta:[0.05, 'i'], brujula:[0.1, 'i'], gps:[0.25, 'i'], bateria:[0.25, 'c'], cuadro:[0.02, 'c'], reloj:[0, 'x'], marcador:[0.05, 'c'],
   claves:[0.01, 'c'], silbato:[0.02, 'c'],
   mochila:[2, 'i'], poncho:[0.6, 'i'], abrigo:[0.8, 'i'], gorro:[0.2, 'i'], lentes:[0.05, 'i'], sombrero:[0.1, 'i'],
   linterna:[0.2, 'i'], luzquim:[0.03, 'i'], pilas:[0.1, 'i'], vision:[0.6, 'i'],
@@ -214,7 +214,7 @@ const OMES = {
 const PUESTOS = Object.assign(Object.fromEntries(Object.entries(OMES).map(([k, o])=>[k, o.n])), {otro:'Otro puesto'});
 const ESPECIAL = new Set(['radio', 'batRad', 'camilla', 'cuerda', 'otroEq']);
 // la navegación la lleva el comandante (carta, brújula, GPS, cuadro y nombres clave)
-const PORT_DEF = {carta:{puesto:'comandante'}, brujula:{puesto:'comandante'}, gps:{puesto:'comandante'}, cuadro:{puesto:'comandante'}, claves:{puesto:'comandante'},
+const PORT_DEF = {cuadro:{puesto:'comandante'}, claves:{puesto:'comandante'},
   radio:{puesto:'radio', cuenta:true}, batRad:{puesto:'radio'}, camilla:{rota:true}, cuerda:{rota:true}, otroEq:{rota:true}};
 function portDe(m, id){
   const st = ((m.material || {})[id] || {}).port || {}, d = PORT_DEF[id] || {rota:true}, ps = st.puesto==='enfermero' ? 'trauma' : st.puesto;
@@ -227,7 +227,7 @@ function omesDe(m, c){
   Object.entries(OMES).forEach(([k, o])=>{ if(civil && !o.civil) return; const st = O[k] || {}, ex = st.extra || [];
     const kit = o.kit.map(([id, n, cant, kg, linea])=>{ const s2 = (st.kit || {})[id] || {}; return {id, n, cant:s2.cant!==undefined && s2.cant!=='' ? numCant(s2.cant) : cant, kg:s2.kg!==undefined && s2.kg!=='' ? numCant(s2.kg) : kg,
       linea:+s2.linea || linea, quitar:!!s2.quitar, a:s2.a || '', cant0:cant, kg0:kg}; }).concat(ex.map((x, i)=>({id:'e' + i, n:x.n, cant:numCant(x.cant) || 1, kg:numCant(x.kg), linea:+x.linea || 2, propio:true})));
-    const pj = o.pareja ? L.find(x=>x.key===o.pareja) : null, nDef = pj ? pj.n : o.def ? o.def(c) : 0;   // pareja: tantos como el puesto con que trabaja
+    const pj = o.pareja ? L.find(x=>x.key===o.pareja) : null, nDef = c.hay && c.n<=1 ? 0 : pj ? pj.n : o.def ? o.def(c) : 0;   // un solo hombre: sin puestos por defecto   // pareja: tantos como el puesto con que trabaja
     L.push({key:k, nombre:o.n, n:st.n!==undefined && st.n!=='' ? numCant(st.n) : nDef, nDef, pareja:pj ? pj.nombre : '', kit, reemplaza:o.reemplaza || [], quita:o.quita || {}, base:k==='fusilero'}); });
   (m.omeExtra || []).forEach((x, i)=>L.push({key:'p' + i, nombre:x.n || 'Puesto propio', n:numCant(x.cantidad), nDef:0, propio:i,
     kit:(x.kit || []).map((y, j)=>({id:'e' + j, n:y.n, cant:numCant(y.cant) || 1, kg:numCant(y.kg), linea:+y.linea || 2, propio:true})), reemplaza:[], quita:{}}));
@@ -238,9 +238,12 @@ function pesoMaterial(m, R){
   const c = contextoMaterial(m, R), Mt = m.material || {}, base = numCant((m.par || {}).cargaBase), items = [];
   MATERIAL.forEach(g=>g.items.forEach(([id, n, cant])=>{ const v = cant(c); if(v===null || v===undefined) return;
     // cantidad escrita por hombre (`cantH`, elementos individuales) o total de la unidad (`cant`)
-    const st = Mt[id] || {}, q = st.cantH!==undefined && st.cantH!=='' ? numCant(st.cantH)*c.n : numCant(st.cant || v), [kg0, modo] = PESOS[id] || [0, 'x'], kg = st.kg!==undefined && st.kg!=='' ? numCant(st.kg) : kg0;
-    const porHombre = modo==='h' ? q*kg : modo==='x' ? 0 : q*kg/c.n;
-    items.push({id, n, kg, modo, q, porHombre, linea:lineaDe(m, id)}); }));
+    const st = Mt[id] || {}, [kg0, modo] = PESOS[id] || [0, 'x'], kg = st.kg!==undefined && st.kg!=='' ? numCant(st.kg) : kg0;
+    // por hombre: si no lo llevan todos («lo llevan N de M», st.llevan), su peso cuenta entero para quienes lo llevan (el más cargado) y el total es N × cantidad
+    const lleva = modo==='i' && st.llevan!==undefined && String(st.llevan).trim()!=='' ? Math.min(c.n, numCant(st.llevan)) : c.n;
+    const porUno = st.cantH!==undefined && st.cantH!=='' ? numCant(st.cantH) : numCant(st.cant || v)/c.n, q = modo==='i' ? porUno*lleva : st.cantH!==undefined && st.cantH!=='' ? numCant(st.cantH)*c.n : numCant(st.cant || v);
+    const porHombre = modo==='h' ? q*kg : modo==='x' ? 0 : modo==='i' ? (lleva>0 ? porUno*kg : 0) : q*kg/c.n;
+    items.push({id, n, kg, modo, q, porHombre, llevan:lleva, linea:lineaDe(m, id)}); }));
   // elementos agregados por el usuario: por hombre (x.modo 'i', cantidad por hombre) o de la unidad (cantidad total, se reparte)
   (m.materialExtra || []).forEach((x, i)=>{ const st = Mt['x' + i] || {}, kg = numCant(st.kg), indiv = x.modo==='i';
     const q = indiv ? (st.cantH!==undefined && st.cantH!=='' ? numCant(st.cantH) : numCant(x.cant) || 1)*c.n : numCant(st.cant || x.cant) || 1;
@@ -252,7 +255,8 @@ function pesoMaterial(m, R){
   if((m.par || {}).modoCarga==='unidad') return pesoUnidad(m, c, llevaL, sinMochila, modoMo);
   // equipo de la unidad: o rota entre todos, o lo llevan los portadores de un puesto
   const grupos = {};
-  items.forEach(x=>{ x.lleva = x.modo!=='x' && lleva(x); if(x.modo!=='c' || !(x.q>0)) return; const pt = portDe(m, x.id); x.rota = pt.rota; if(pt.rota) return;
+  const solo = c.hay && c.n<=1;   // marcha de un solo hombre (p. ej. entrenamiento): todo el equipo de la unidad lo lleva él
+  items.forEach(x=>{ x.lleva = x.modo!=='x' && lleva(x); if(x.modo!=='c' || !(x.q>0)) return; const pt = portDe(m, x.id); x.rota = pt.rota || solo; if(x.rota) return;
     const key = pt.puesto==='otro' ? 'otro:' + (pt.nombre || 'Otro puesto') : pt.puesto;
     const g = grupos[key] || (grupos[key] = {key, puesto:pt.puesto, nombre:pt.puesto==='otro' ? pt.nombre || 'Otro puesto' : PUESTOS[pt.puesto], n:0, items:[]});
     g.n = Math.max(g.n, pt.n || (pt.cuenta ? Math.ceil(x.q) : 0)); g.items.push(x); x.puesto = key; x.porHombre = 0; });
