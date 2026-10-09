@@ -261,16 +261,21 @@ const Documento = (function(){
     if(!pm) return `<p>Carga escrita a mano: <b>${f(+R.par.carga || 0, 1)} kg</b> por hombre.</p>`;
     const its = pm.items.filter(x=>x.porHombre>0.005);
     return `<div class="doc-res doc-carga">
-        <div class="dr dest"><div><span>Total por hombre</span><b>${f(pm.total, 1)} kg</b><small>${R.carga ? 'usada en el cálculo de tiempos' : 'no usada en el cálculo (carga a mano ' + f(+R.par.carga || 0, 1) + ' kg)'}</small></div></div>
+        <div class="dr dest"><div><span>Total por hombre</span><b>${f(pm.comun!==undefined ? pm.comun : pm.total, 1)} kg</b><small>${pm.mas ? 'fusilero o patrullero' : R.carga ? 'usada en el cálculo de tiempos' : 'no usada en el cálculo (carga a mano ' + f(+R.par.carga || 0, 1) + ' kg)'}</small></div></div>
+        ${pm.mas ? `<div class="dr dest"><div><span>El más cargado</span><b>${f(pm.total, 1)} kg</b><small>${esc(pm.mas.nombre)}: con esta carga se calcula el tiempo</small></div></div>` : ''}
         ${[1, 2, 3].map(l=>`<div class="dr"><div><span>${LINEAS[l]}</span><b>${f(pm.lineas[l], 1)} kg</b><small>${esc(LINEAS_TXT[l])}${l===3 && pm.sinMochila ? ' · se deja' : ''}</small></div></div>`).join('')}
         <div class="dr"><div><span>Carga de combate (1.ª + 2.ª)</span><b>${f(pm.combate, 1)} kg</b><small>referencia: hasta ${LIMITES_CARGA.combate} kg</small></div></div>
         <div class="dr"><div><span>Carga de marcha (con 3.ª)</span><b>${f(pm.marcha, 1)} kg</b><small>referencia: hasta ${LIMITES_CARGA.marcha} kg</small></div></div></div>
       ${pm.sinMochila ? '<p class="doc-nota"><b>La marcha se hace sin mochila:</b> la 3.ª línea se deja y no se suma.</p>' : ''}
+      ${pm.especial && pm.especial.length ? `<table class="t"><thead><tr><th class="tx">Puesto</th><th>Hombres</th><th class="tx">Equipo especial</th><th>Equipo kg</th><th>Total kg</th></tr></thead><tbody>
+        <tr><td class="tx">${A.esc(PUESTOS.fusilero)}</td><td>${pm.hay ? Math.max(0, pm.n - pm.portadores) : '—'}</td><td class="tx">—</td><td>—</td><td>${f(pm.comun, 1)}</td></tr>
+        ${pm.especial.slice().sort((a, b)=>b.total - a.total).map(g=>`<tr><td class="tx">${A.esc(g.nombre)}${pm.mas===g ? ' <b>(el más cargado)</b>' : ''}</td><td>${g.n}</td><td class="tx">${A.esc(g.items.map(x=>x.n.replace(/ \(.*\)$/, '')).join(', '))}</td><td>+${f(g.kg, 1)}</td><td><b>${f(g.total, 1)}</b></td></tr>`).join('')}
+        </tbody></table><p class="doc-nota">El tiempo de la marcha se calcula con el más cargado.</p>` : ''}
       ${pm.total>36 ? '<p class="doc-nota"><b>Sobre la carga de combate habitual (27–36 kg).</b></p>' : ''}
       <table class="t"><thead><tr><th class="tx">Elemento</th><th>Cantidad</th><th>kg c/u</th><th class="tx">Cómo se lleva</th><th>kg por hombre</th></tr></thead><tbody>
         ${[1, 2, 3, 4].map(l=>{ const g = its.filter(x=>x.linea===l); return g.length ? `<tr class="sub"><td class="tx" colspan="4"><b>${LINEAS[l]}</b> — ${esc(LINEAS_TXT[l])}${l===4 || (l===3 && pm.sinMochila) ? ' (no se suma)' : ''}</td><td><b>${f(pm.lineas[l], 2)}</b></td></tr>` + g.map(x=>`<tr><td class="tx">${esc(x.n)}</td><td>${f(x.q, x.q%1 ? 1 : 0)}</td><td>${f(x.kg, 2)}</td><td class="tx">${x.modo==='h' ? 'cada hombre (agua: hasta 3 L)' : x.modo==='i' ? 'individual' : 'colectivo, repartido'}</td><td>${f(x.porHombre, 2)}</td></tr>`).join('') : ''; }).join('')}
         ${pm.base ? `<tr class="tot"><td class="tx">Otro peso por hombre</td><td></td><td></td><td></td><td>${f(pm.base, 2)}</td></tr>` : ''}
-        <tr class="tot"><td class="tx"><b>Total por hombre</b></td><td></td><td></td><td></td><td><b>${f(pm.total, 1)} kg</b></td></tr>
+        <tr class="tot"><td class="tx"><b>Total por hombre</b>${pm.mas ? ' (sin equipo especial)' : ''}</td><td></td><td></td><td></td><td><b>${f(pm.comun!==undefined ? pm.comun : pm.total, 1)} kg</b></td></tr>
       </tbody></table>`;
   }
   function claves(m, R){

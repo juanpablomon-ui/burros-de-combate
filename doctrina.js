@@ -44,14 +44,14 @@ if(typeof globalThis!=='undefined') globalThis.LISTA = LISTA;
    el agua sale de la tabla de calor; el resto se ajusta según la orden. Ids fijos (las marcas y cantidades se guardan en m.material). */
 const MATERIAL = [
   {g:'Armamento y protección', items:[
-    ['fusil', 'Fusil (con correa y accesorios)', c=>c.civil ? null : c.n, c=>'1 por hombre; las armas de apoyo van en «Equipo especial de la unidad»'],
+    ['fusil', 'Fusil (con correa y accesorios)', c=>c.civil ? null : c.n, c=>'1 por hombre; las armas de apoyo van en «Equipo especial de la patrulla»'],
     ['cargad', 'Cargadores con munición', c=>c.civil ? null : c.n*6, c=>'6 por hombre (dotación sugerida: ajústala)'],
     ['granada', 'Granadas de mano', c=>c.civil ? null : 0, c=>'si la misión lo exige: escribe cuántas por hombre'],
     ['casco', 'Casco', c=>c.civil ? null : c.n, c=>'1 por hombre'],
     ['chaleco', 'Chaleco antibalas con placas', c=>c.civil ? null : c.n, c=>'escribe 0 si no se usa'],
     ['portaf', 'Cinturón de carga', c=>c.civil ? null : c.n, c=>'donde va la 2.ª línea']]},
   // equipo que sirve a toda la unidad para la misión o la marcha: se escribe el total y su peso se reparte entre todos
-  {g:'Equipo especial de la unidad', items:[
+  {g:'Equipo especial de la patrulla', items:[
     ['radio', 'Radio', c=>Math.max(1, c.unidades) + 1, c=>'1 por unidad de marcha + la del comandante'],
     ['batRad', 'Baterías de repuesto para radio', c=>(Math.max(1, c.unidades) + 1)*Math.max(1, Math.ceil(c.horas/8)), c=>'1 por radio cada 8 h'],
     ['mochTr', 'Mochila de trauma (enfermero)', c=>Math.max(1, c.unidades), c=>'1 por unidad de marcha'],
@@ -175,6 +175,18 @@ const lineaDe = (m, id)=>{ const l = +((m.material || {})[id] || {}).linea; retu
 const numCant = v=>{ const x = String(v===undefined || v===null ? '' : v).replace(',', '.').match(/\d+(\.\d+)?/); return x ? +x[0] : 0; };
 // carga por hombre = otro peso escrito (`par.cargaBase`) + lo que se lleva de la 1.ª, 2.ª y 3.ª línea (la 3.ª no, si se deja la mochila:
 // `par.sinMochila`); la 4.ª línea (vehículo) es solo referencia y no se suma. null si no hay material
+/* Equipo especial de la patrulla (pedido del usuario, v0.49): no lo llevan todos. Cada elemento de la unidad dice quién lo lleva: un puesto y
+   cuántos portadores (se lo reparten entre ellos), o «rotan entre todos» (se reparte entre el efectivo, como antes). El tiempo de la marcha se
+   calcula con el MÁS CARGADO. m.material[id].port = {puesto, n, nombre, rota}. */
+const PUESTOS = {fusilero:'Fusilero o patrullero', radio:'Radioperador', ametr:'Sirviente de ametralladora', enfermero:'Enfermero o socorrista', otro:'Otro puesto'};
+const ESPECIAL = new Set(['radio', 'batRad', 'mochTr', 'camilla', 'ametr', 'muniAm', 'lanzac', 'cuerda', 'otroEq']);
+const PORT_DEF = {radio:{puesto:'radio', cuenta:true}, batRad:{puesto:'radio'}, mochTr:{puesto:'enfermero', cuenta:true}, camilla:{rota:true}, ametr:{puesto:'ametr', cuenta:true},
+  muniAm:{puesto:'ametr'}, lanzac:{puesto:'otro', nombre:'Apuntador', cuenta:true}, cuerda:{rota:true}, otroEq:{rota:true}};
+function portDe(m, id){
+  const st = ((m.material || {})[id] || {}).port || {}, d = PORT_DEF[id] || {rota:true};
+  const rota = st.rota!==undefined ? !!st.rota : !!d.rota, puesto = PUESTOS[st.puesto] ? st.puesto : d.puesto || 'fusilero';
+  return {rota, puesto, n:numCant(st.n) || 0, nombre:String(st.nombre || d.nombre || '').trim(), cuenta:!!d.cuenta};
+}
 function pesoMaterial(m, R){
   if(typeof contextoMaterial==='undefined') return null;
   const c = contextoMaterial(m, R), Mt = m.material || {}, base = numCant((m.par || {}).cargaBase), items = [];
@@ -187,13 +199,25 @@ function pesoMaterial(m, R){
   (m.materialExtra || []).forEach((x, i)=>{ const st = Mt['x' + i] || {}, kg = numCant(st.kg), indiv = x.modo==='i';
     const q = indiv ? (st.cantH!==undefined && st.cantH!=='' ? numCant(st.cantH) : numCant(x.cant) || 1)*c.n : numCant(st.cant || x.cant) || 1;
     items.push({id:'x' + i, n:x.n, kg, modo:indiv ? 'i' : 'c', q, porHombre:q*kg/c.n, linea:lineaDe(m, 'x' + i)}); });
-  const sinMochila = !!(m.par || {}).sinMochila, lineas = {1:0, 2:0, 3:0, 4:0}; items.forEach(x=>{ if(x.modo!=='x') lineas[x.linea] += x.porHombre; });
-  const lleva = x=>x.linea<=2 || (x.linea===3 && !sinMochila);
-  items.forEach(x=>x.lleva = x.modo!=='x' && lleva(x));
-  const indiv = items.filter(x=>(x.modo==='h' || x.modo==='i') && lleva(x)).reduce((a, x)=>a + x.porHombre, 0), colect = items.filter(x=>x.modo==='c' && lleva(x)).reduce((a, x)=>a + x.porHombre, 0);
-  return {base, indiv, colect, lineas, sinMochila, combate:base + lineas[1] + lineas[2], marcha:base + lineas[1] + lineas[2] + lineas[3], total:Math.round((base + indiv + colect)*10)/10, n:c.n, hay:c.hay, items:items.sort((a, b)=>b.porHombre - a.porHombre)};
+  const sinMochila = !!(m.par || {}).sinMochila, lleva = x=>x.linea<=2 || (x.linea===3 && !sinMochila);
+  // equipo de la unidad: o rota entre todos, o lo llevan los portadores de un puesto
+  const grupos = {};
+  items.forEach(x=>{ x.lleva = x.modo!=='x' && lleva(x); if(x.modo!=='c' || !(x.q>0)) return; const pt = portDe(m, x.id); x.rota = pt.rota; if(pt.rota) return;
+    const key = pt.puesto==='otro' ? 'otro:' + (pt.nombre || 'Otro puesto') : pt.puesto;
+    const g = grupos[key] || (grupos[key] = {key, puesto:pt.puesto, nombre:pt.puesto==='otro' ? pt.nombre || 'Otro puesto' : PUESTOS[pt.puesto], n:0, items:[]});
+    g.n = Math.max(g.n, pt.n || (pt.cuenta ? Math.ceil(x.q) : 0)); g.items.push(x); x.puesto = key; x.porHombre = 0; });
+  const especial = Object.values(grupos).map(g=>{ g.n = Math.max(1, g.n); g.kg = g.items.filter(x=>x.lleva).reduce((a, x)=>a + x.q*x.kg, 0)/g.n;
+    g.items.forEach(x=>x.porPortador = x.q*x.kg/g.n); return g; });
+  const lineas = {1:0, 2:0, 3:0, 4:0}; items.forEach(x=>{ if(x.modo!=='x' && !x.puesto) lineas[x.linea] += x.porHombre; });
+  const indiv = items.filter(x=>(x.modo==='h' || x.modo==='i') && x.lleva).reduce((a, x)=>a + x.porHombre, 0), colect = items.filter(x=>x.modo==='c' && x.lleva && !x.puesto).reduce((a, x)=>a + x.porHombre, 0);
+  const comun = Math.round((base + indiv + colect)*10)/10;
+  especial.forEach(g=>{ g.total = Math.round((comun + g.kg)*10)/10; });
+  const mas = especial.reduce((a, g)=>!a || g.total>a.total ? g : a, null), portadores = especial.reduce((a, g)=>a + g.n, 0);
+  return {base, indiv, colect, lineas, sinMochila, combate:base + lineas[1] + lineas[2], marcha:base + lineas[1] + lineas[2] + lineas[3],
+    comun, especial, portadores, mas:mas && mas.total>comun ? mas : null, total:mas && mas.total>comun ? mas.total : comun,   // el tiempo se calcula con el más cargado
+    n:c.n, hay:c.hay, items:items.sort((a, b)=>b.porHombre - a.porHombre)};
 }
-if(typeof globalThis!=='undefined'){ globalThis.PESOS = PESOS; globalThis.pesoMaterial = pesoMaterial; globalThis.LINEAS = LINEAS; globalThis.LIMITES_CARGA = LIMITES_CARGA; globalThis.LINEAS_TXT = LINEAS_TXT; globalThis.lineaDe = lineaDe; }
+if(typeof globalThis!=='undefined'){ globalThis.PESOS = PESOS; globalThis.pesoMaterial = pesoMaterial; globalThis.LINEAS = LINEAS; globalThis.PUESTOS = PUESTOS; globalThis.portDe = portDe; globalThis.ESPECIAL = ESPECIAL; globalThis.LIMITES_CARGA = LIMITES_CARGA; globalThis.LINEAS_TXT = LINEAS_TXT; globalThis.lineaDe = lineaDe; }
 
 /* Siglas y términos que usa la app (tarjeta en Marchas) */
 const GLOSARIO = [
