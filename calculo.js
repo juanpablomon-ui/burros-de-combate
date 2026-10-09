@@ -326,7 +326,7 @@ const MARCHA = (function(){
     const p = Object.assign(porDefecto(), m.par || {});
     if(p.cargaManual || typeof pesoMaterial==='undefined') return calcular0(m);
     // sin efectivo no se puede repartir el equipo de la unidad: se usa la carga escrita
-    if(!(num(p.efectivo)>0)){ const R0 = calcular0(m); R0.avisos.push('Indica el efectivo (Puntos → Unidad y columna) para calcular la carga desde el material; mientras, se usa la carga escrita (' + fmt(num(p.carga)||0) + ' kg).'); R0.sinEfectivo = true; return R0; }
+    if(!(num(p.efectivo)>0)){ const R0 = calcular0(m); R0.avisos.push('Indica el efectivo (Datos → Unidad y columna) para calcular la carga desde el material; mientras, se usa la carga escrita (' + fmt(num(p.carga)||0) + ' kg).'); R0.sinEfectivo = true; return R0; }
     // la carga sale del material, y el material (agua, raciones) de la duración de la marcha, que a su vez depende de la carga:
     // se repite hasta que se estabiliza. Cada tramo usa su propia carga (el agua se bebe en el camino y se repone en los puntos de agua).
     let R = calcular0(m), pm = null, ct = null, antes = null;

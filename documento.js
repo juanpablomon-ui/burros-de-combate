@@ -140,7 +140,7 @@ const Documento = (function(){
     if(S.matriz) partes.push(sec('Matriz de eventos', matriz(m, R), partes.length>0));
     if(S.luz) partes.push(sec('Luz y visibilidad', luz(m, R, fig), partes.length>0));
     if(S.claves) partes.push(sec('Nombres clave y eventos para la radio', claves(m, R), partes.length>0));
-    if(S.apoyo) partes.push(sec('Columna, calor y agua', A.apoyo(R) || '<p>Sin datos de columna ni de calor (pestaña Puntos).</p>', partes.length>0));
+    if(S.apoyo) partes.push(sec('Columna, calor y agua', A.apoyo(R) || '<p>Sin datos de columna ni de calor (pestaña Datos).</p>', partes.length>0));
     if(S.carga) partes.push(sec('Carga por hombre', carga(m, R), partes.length>0));
     if(S.material) partes.push(sec('Material para la marcha', A.material(m, R), partes.length>0));
     if(S.lista) partes.push(sec('Lista de verificación', lista(m), partes.length>0));

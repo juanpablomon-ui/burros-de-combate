@@ -529,3 +529,12 @@ table.mat td.lin{width:64px} table.mat td.lin select{padding:5px 6px;font-size:1
 .mm-acc small{flex-basis:100%;padding-left:26px;font-size:11px;color:var(--tenue)}
 .mm-acc.peligro{color:var(--rojo)} .mm-acc.peligro .mm-ico{color:var(--rojo)}
 .mm-sep{height:1px;background:var(--linea);margin:4px 0}
+/* pestaña «Datos de la marcha» (en el teléfono, «Datos») */
+.t-corta{display:none}
+@media (max-width:1100px){ .t-larga{display:none} .t-corta{display:inline} }
+/* barra de botones de los puntos, arriba y abajo de la lista */
+.barra-puntos{margin:10px 0}
+/* aviso para ubicar un punto tocando la carta */
+.m-ubicar{position:absolute;z-index:1003;top:56px;left:50%;transform:translateX(-50%);max-width:calc(100% - 20px);display:flex;flex-wrap:wrap;align-items:center;gap:8px;
+  background:var(--panel);border:2px solid var(--ocre);border-radius:12px;padding:8px 12px;box-shadow:0 6px 20px #000a;font-size:14px}
+.pestanas button>span{white-space:nowrap}

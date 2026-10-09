@@ -62,7 +62,7 @@ const Mapa = (function(){
     capaGrid = L.layerGroup().addTo(map); capaRuta = L.layerGroup().addTo(map);
     map.on('moveend', ()=>{ A.vistaMapa = {c:map.getCenter(), z:map.getZoom()}; grid(); lectura(map.getCenter()); });
     map.on('mousemove', e=>lectura(e.latlng, true));
-    map.on('click', e=>{ cerrarMenu(); if(agregar) agregarPunto(e.latlng); else cerrarHoja(); });
+    map.on('click', e=>{ cerrarMenu(); if(ubicando!==null) return ponerUbicado(e.latlng); if(agregar) agregarPunto(e.latlng); else cerrarHoja(); });
     map.on('contextmenu', e=>{ L.DomEvent.preventDefault(e); menuLugar(e.latlng, e.originalEvent); });
     map.on('movestart zoomstart', cerrarMenu);
     // botones
@@ -80,6 +80,7 @@ const Mapa = (function(){
     $('#mCartas').onclick = dialogoCartas;
     $('#mPerf').onclick = e=>{ pref.perfil = !pref.perfil; guardarPref(); e.currentTarget.classList.toggle('on', pref.perfil); perfil(); };
     cargarCartas(); ruta(); grid(); lectura(map.getCenter()); perfil(); curvas();
+    ubicando = null; if(A.ubicar!==undefined && A.ubicar!==null){ const k = A.ubicar; A.ubicar = null; agregar = false; const b = $('#mAgregar'); if(b) b.classList.remove('pri'); modoUbicar(k); }
     const este = map; setTimeout(()=>{ if(map===este) map.invalidateSize({animate:false}); }, 50);
     return map;
   }
@@ -298,6 +299,29 @@ const Mapa = (function(){
       if(a==='borra') borrarPunto(i); });
     ruta();
     if(g && g.ok && !map.getBounds().pad(-0.15).contains([g.lat, g.lon])) map.panTo([g.lat, g.lon]);
+  }
+  /* ---------- ubicar un punto de la lista tocando la carta (botón «🗺 Ubicar en la carta» de Datos) ---------- */
+  let ubicando = null;
+  function bandaUbicar(html){ let b = document.getElementById('mUbicar'); if(!html){ if(b) b.remove(); return; }
+    if(!b){ b = document.createElement('div'); b.id = 'mUbicar'; b.className = 'm-ubicar'; $('#mapa').parentNode.appendChild(b); } b.innerHTML = html; return b; }
+  function modoUbicar(i){
+    const m = A.actual(), p = m.puntos[i], g = A.calcular(m).puntos[i]; if(!p) return;
+    ubicando = i; cerrarHoja();
+    const nom = A.esc(p.nombre || (i===0 ? 'PIM' : 'punto ' + (i + 1)));
+    const b = bandaUbicar(`<span>📍 Toca la carta donde va <b>«${nom}»</b>${g && g.ok ? ' (ahora está en el círculo)' : ''}</span><button class="btn mini" id="uCancelar">Cancelar</button>`);
+    b.querySelector('#uCancelar').onclick = ()=>{ ubicando = null; bandaUbicar(null); A.ir('ruta'); };
+    if(g && g.ok){ map.setView([g.lat, g.lon], Math.max(map.getZoom(), 15));
+      L.circleMarker([g.lat, g.lon], {radius:22, color:'#e3a63a', weight:3, fill:false, dashArray:'5 5', interactive:false}).addTo(capaRuta); }
+  }
+  function ponerUbicado(ll){
+    const i = ubicando, m = A.actual(); ubicando = null; guardarDeshacer();
+    if(i===0 && !m.puntos[0].nombre) m.puntos[0].nombre = 'PIM';
+    mover(i, ll);
+    const nom = A.esc(m.puntos[i].nombre || 'el punto');
+    const b = bandaUbicar(`<span>✔ <b>${nom}</b> ubicado (la cota se completa sola)</span><button class="btn mini pri" id="uVolver">‹ Volver a los datos</button><button class="btn mini" id="uOtro">Corregir</button><button class="btn mini" id="uListo">Seguir en la carta</button>`);
+    b.querySelector('#uVolver').onclick = ()=>{ bandaUbicar(null); A.ir('ruta'); };
+    b.querySelector('#uOtro').onclick = ()=>modoUbicar(i);
+    b.querySelector('#uListo').onclick = ()=>bandaUbicar(null);
   }
   function ponerEvento(i, si){
     const m = A.actual(), p = m.puntos[i], R = A.calcular(m); guardarDeshacer(); p.ev = si;

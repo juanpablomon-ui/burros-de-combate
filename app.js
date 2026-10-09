@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.42', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.43', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -210,7 +210,7 @@
         ${p.brPatron==='terreno' ? `Formato británico: 14,5 km en 90 min (10 min por milla), en grupo, con unos 14 kg más el fusil; trote en lo plano y en bajada, paso en subida.` : ''}</p>`
       : `<p class="nota">Marcha forzada: velocidad de la marcha general <b>${esc(p.forzadaPct)} % más rápida</b> y <b>sin altos</b> (se bebe caminando). Si el calor lo exige, se agregan descansos. Al llegar, la unidad necesita descanso y recuperación.</p>`;
     vista.innerHTML = `<div class="btns" style="margin:0 0 12px"><button class="btn" id="bAlMapa">🗺 Ver y editar la ruta en el mapa</button></div>
-      <details class="tarjeta" ${m.puntos.some(x=>x.cota!=='') ? '' : 'open'}><summary>Datos de la marcha<span class="res">${esc(m.fecha ? m.fecha.split('-').reverse().join('-') : '')} ${esc(m.hora)}</span></summary>
+      <details class="tarjeta" ${m.puntos.some(x=>x.cota!=='') ? '' : 'open'}><summary>Fecha, hora y coordenadas<span class="res">${esc(m.fecha ? m.fecha.split('-').reverse().join('-') : '')} ${esc(m.hora)}</span></summary>
         <div class="campos">
           <label class="c ancho">Nombre / itinerario<input data-m="nombre" value="${esc(m.nombre)}"></label>
           <label class="c ancho">Unidad<input data-m="unidad" value="${esc(m.unidad)}" placeholder="p. ej. 2.ª Sección, 1.ª Cía."></label>
@@ -338,28 +338,30 @@
 
       <h2>Puntos de control</h2>
       <p class="nota">En orden de marcha: PIM, PC1, PC2… (y el regreso si corresponde). Coordenadas UTM o geográficas (escribe <span class="mono">33 21 36</span> o <span class="mono">33.36</span>; sur y oeste se asumen). La cota es obligatoria.</p>
+      <div class="btns barra-puntos"><button class="btn pri" data-lp="punto">＋ Agregar punto</button><button class="btn" data-lp="regreso">↩ Agregar regreso (misma ruta)</button><button class="btn" data-lp="cotas">⛰ Completar cotas desde el terreno</button><button class="btn" data-lp="ver">Ver cuadro de marcha ›</button></div>
       <div id="puntos"></div>
-      <div class="btns"><button class="btn pri" id="bPunto">＋ Agregar punto</button><button class="btn" id="bRegreso">↩ Agregar regreso (misma ruta)</button><button class="btn" id="bCotas">⛰ Completar cotas desde el terreno</button><button class="btn" id="bVer">Ver cuadro de marcha ›</button></div>`;
+      <div class="btns barra-puntos"><button class="btn pri" data-lp="punto">＋ Agregar punto</button><button class="btn" data-lp="regreso">↩ Agregar regreso (misma ruta)</button><button class="btn" data-lp="cotas">⛰ Completar cotas desde el terreno</button><button class="btn" data-lp="ver">Ver cuadro de marcha ›</button></div>`;
     pintarPuntos(); actualizarCalculos();
-    $('#bPunto').onclick = ()=>{ const u = m.puntos[m.puntos.length - 1];
+    const lp = (k, fn)=>vista.querySelectorAll('[data-lp="' + k + '"]').forEach(b=>b.onclick = fn);
+    lp('punto', ()=>{ const u = m.puntos[m.puntos.length - 1];
       m.puntos.push(punto('PC' + M.calcular(m).eventos.length, Object.assign(u ? {tipo:u.tipo, zona:u.zona} : {}, {ev:true}))); guardar(); pintarPuntos(); actualizarCalculos();
-      const c = vista.querySelectorAll('.punto'); c[c.length - 1].scrollIntoView({behavior:'smooth', block:'center'}); };
-    $('#bRegreso').onclick = ()=>{ if(m.puntos.length<2) return aviso('Primero ingresa la ida');
+      const c = vista.querySelectorAll('.punto'); c[c.length - 1].scrollIntoView({behavior:'smooth', block:'center'}); });
+    lp('regreso', ()=>{ if(m.puntos.length<2) return aviso('Primero ingresa la ida');
       m.puntos.slice(0, -1).reverse().forEach(x=>m.puntos.push(Object.assign({}, x, {det:'', obs:x.obs ? 'Regreso — ' + x.obs : 'Regreso'})));
       const u = m.puntos[m.puntos.length - 1]; if(!u.nombre || u.nombre==='PIM') u.nombre = 'PTM';   // término de marcha
-      guardar(); pintarPuntos(); actualizarCalculos(); aviso('↩ Regreso agregado'); };
-    $('#bVer').onclick = ()=>ir('cuadro'); $('#bAlMapa').onclick = ()=>ir('mapa');
+      guardar(); pintarPuntos(); actualizarCalculos(); aviso('↩ Regreso agregado'); });
+    lp('ver', ()=>ir('cuadro')); $('#bAlMapa').onclick = ()=>ir('mapa');
     $('#bClavesAuto').onclick = ()=>{ m.puntos.forEach(x=>{ x.clave = ''; }); guardar(); pintar(); $('#dClaves').open = true; aviso('↺ Nombres clave automáticos'); };
     vista.querySelectorAll('[data-pc]').forEach(inp=>inp.oninput = ()=>{ m.puntos[+inp.dataset.pc].clave = inp.value; guardar();
       const R2 = M.calcular(m); vista.querySelectorAll('[data-pc]').forEach(o=>{ o.placeholder = R2.puntos[+o.dataset.pc].clave || ''; const e = $('#ev' + o.dataset.pc); if(e) e.innerHTML = evento(R2.puntos[+o.dataset.pc].clave); });
       const pc = vista.querySelector('.punto[data-i="' + inp.dataset.pc + '"] [data-p=clave]'); if(pc) pc.value = inp.value; });
     const ta = vista.querySelector('[data-redibujar-al-salir]'); if(ta) ta.onchange = ()=>{ pintar(); $('#dClaves').open = true; };
-    $('#bCotas').onclick = async()=>{
+    lp('cotas', async()=>{
       const R = M.calcular(m), faltan = m.puntos.map((x, i)=>i).filter(i=>(m.puntos[i].cota==='' || m.puntos[i].cotaAuto) && R.puntos[i].lat!==null && R.puntos[i].lat!==undefined && !isNaN(R.puntos[i].lat));
       if(!faltan.length) return aviso('Todos los puntos tienen cota escrita');
       aviso('Buscando ' + faltan.length + ' cota' + (faltan.length===1 ? '' : 's') + '…'); let n = 0;
       for(const i of faltan){ const r = await DEM.cotaPunto(R.puntos[i].lat, R.puntos[i].lon); if(r){ Object.assign(m.puntos[i], {cota:Math.round(r.v), cotaAuto:true, cotaSrc:r.src}); n++; } }
-      guardar(); pintar(); aviso(n ? '✔ ' + n + ' cota' + (n===1 ? '' : 's') + ' del terreno (revísalas con la carta)' : 'Sin conexión: no se pudieron obtener las cotas'); };
+      guardar(); pintar(); aviso(n ? '✔ ' + n + ' cota' + (n===1 ? '' : 's') + ' del terreno (revísalas con la carta)' : 'Sin conexión: no se pudieron obtener las cotas'); });
   }
   function pintarPuntos(){
     const m = actual(), cont = $('#puntos'); if(!cont) return; const Rc = M.calcular(m);
@@ -385,7 +387,7 @@
         <div class="extra"><label class="c">Observaciones (punto característico)<input data-p="obs" value="${esc(x.obs)}" placeholder="puente, portezuelo, cruce…"></label>
           <label class="c">Detención (min)<input class="num" data-p="det" inputmode="numeric" value="${esc(x.det)}" placeholder="0"></label></div>
         <div class="estado" id="est${i}"></div>
-        <div class="acc"><button class="btn mini" data-acc="sube" ${i ? '' : 'disabled'} aria-label="Subir">▲</button><button class="btn mini" data-acc="baja" ${i<m.puntos.length - 1 ? '' : 'disabled'} aria-label="Bajar">▼</button>
+        <div class="acc"><button class="btn mini" data-acc="carta" title="Marcar o corregir este punto tocando la carta">🗺 Ubicar en la carta</button><button class="btn mini" data-acc="sube" ${i ? '' : 'disabled'} aria-label="Subir">▲</button><button class="btn mini" data-acc="baja" ${i<m.puntos.length - 1 ? '' : 'disabled'} aria-label="Bajar">▼</button>
           <button class="btn mini" data-acc="dup">Duplicar</button><button class="btn mini peligro" data-acc="borra">Borrar</button></div>
       </div>`;
     }).join('');
@@ -453,6 +455,7 @@
       P[i].tipo = b.dataset.tipo; }
     else if(b.dataset.acc==='sube' && i>0) [P[i - 1], P[i]] = [P[i], P[i - 1]];
     else if(b.dataset.acc==='baja' && i<P.length - 1) [P[i + 1], P[i]] = [P[i], P[i + 1]];
+    else if(b.dataset.acc==='carta'){ apiMapa.ubicar = i; return ir('mapa'); }
     else if(b.dataset.acc==='dup') P.splice(i + 1, 0, Object.assign({}, P[i], {nombre:P[i].nombre + "'"}));
     else if(b.dataset.acc==='borra'){ return confirmar('¿Borrar el punto «' + P[i].nombre + '»?', ()=>{ P.splice(i, 1); guardar(); pintarPuntos(); actualizarCalculos(); }); }
     else return;
@@ -713,9 +716,9 @@
         <label class="c">Reabastecimiento de agua en ruta<select id="mtReab"><option value="no"${m.par.reabast!=='si' ? ' selected' : ''}>No: se carga toda el agua</option><option value="si"${m.par.reabast==='si' ? ' selected' : ''}>Sí, en puntos de agua</option></select></label>
         <label class="c">Ración de combate<select id="mtRac"><option value="24"${m.par.racion!=='12' ? ' selected' : ''}>De 24 horas</option><option value="12"${m.par.racion==='12' ? ' selected' : ''}>De 12 horas</option></select></label>
         <label class="c">Otro peso por hombre (kg)<input class="num" id="mtBase" inputmode="decimal" value="${esc(m.par.cargaBase || '')}" placeholder="no listado"></label></div>
-      <p class="nota">Esta carga se usa en toda la marcha: tiempos de cada tramo, calor y descansos. ${m.par.cargaManual ? '<b style="color:var(--ocre)">Ahora la carga está escrita a mano (Puntos → Cálculo de tiempos).</b>' : ''}
+      <p class="nota">Esta carga se usa en toda la marcha: tiempos de cada tramo, calor y descansos. ${m.par.cargaManual ? '<b style="color:var(--ocre)">Ahora la carga está escrita a mano (Datos → Cálculo de tiempos).</b>' : ''}
         ${Uso.civil() ? 'Lo que sirve a todo el grupo (radio, botiquín grande, cuerda, carpas) va en «Equipo especial de la unidad» y se reparte.' : 'El fusil, la munición, el casco y los chalecos están en la lista (Armamento y protección); el equipo que sirve a toda la unidad, en «Equipo especial de la unidad».'} Usa «Otro peso» solo para lo que no esté en la lista${!Uso.civil() && +String(m.par.cargaBase || '').replace(',', '.')>0 ? ` — <b style="color:var(--ocre)">si ahí habías escrito el fusil, casco y chaleco, bórralo para no contarlos dos veces</b>` : ''}.
-        Material de grupo repartido: ${f(pm.colect, 1)} kg por hombre, entre ${pm.hay ? pm.n + ' hombres' : '1 hombre: indica el efectivo en Puntos → Unidad y columna'}. Más pesado por hombre: ${top || '—'}.
+        Material de grupo repartido: ${f(pm.colect, 1)} kg por hombre, entre ${pm.hay ? pm.n + ' hombres' : '1 hombre: indica el efectivo en Datos → Unidad y columna'}. Más pesado por hombre: ${top || '—'}.
         Los pesos son <b>sugeridos</b>: cámbialos en «kg» de cada elemento. El agua de reabastecimiento en ruta no se suma.</p></div>`;
   }
   function vMaterial(){
@@ -724,7 +727,7 @@
     const H = htmlMaterial(m, R), tot = H.filas.reduce((a, g)=>a + g.its.length, 0), hechos = ()=>H.filas.reduce((a, g)=>a + g.its.filter(it=>(m.material||{})[it.id] && m.material[it.id].ok).length, 0);
     vista.innerHTML = `<h2>Material para la marcha</h2>
       <p class="nota" id="mtCuenta"></p>
-      <div class="info">Calculado para <b>${H.c.hay ? H.c.n + ' hombres' : '1 hombre (indica el efectivo en Puntos → Unidad y columna)'}</b>, ${M.verDur(H.c.horas)} de marcha y ${f(H.c.km, 1)} km${H.c.noche ? ', con ' + Math.round(H.c.noche*100) + ' % de noche' : ''}.
+      <div class="info">Calculado para <b>${H.c.hay ? H.c.n + ' hombres' : '1 hombre (indica el efectivo en Datos → Unidad y columna)'}</b>, ${M.verDur(H.c.horas)} de marcha y ${f(H.c.km, 1)} km${H.c.noche ? ', con ' + Math.round(H.c.noche*100) + ' % de noche' : ''}.
         El agua sale de la tabla de calor (${H.c.calorDato ? 'con el índice WBGT indicado' : 'sin índice WBGT: se usa calor bajo'}); las demás cantidades son <b>sugerencias</b>: escribe la tuya si la orden dice otra cosa.
         Aparecen solo los elementos que corresponden (noche, montaña, nieve, calor).</div>
       ${cargaHtml(m, R)}
@@ -744,7 +747,7 @@
     const mo = $('#mtMochila'); if(mo) mo.onchange = ()=>{ m.par.sinMochila = mo.checked; guardar(); const y = window.scrollY; pintar(); window.scrollTo(0, y); };
     const pe = $('#mtPern'); if(pe) pe.onchange = ()=>{ m.par.pernocta = pe.checked; guardar(); const y = window.scrollY; pintar(); window.scrollTo(0, y); };
     const pw = $('#mtPeso'); if(pw) pw.oninput = ()=>{ m.par.pesoCorp = pw.value; guardar(); recarga(); };
-    const re = $('#mtReab'); if(re) re.onchange = ()=>{ m.par.reabast = re.value; guardar(); const y = window.scrollY; pintar(); window.scrollTo(0, y); if(re.value==='si') aviso('Marca los puntos de agua en la pestaña Puntos'); };
+    const re = $('#mtReab'); if(re) re.onchange = ()=>{ m.par.reabast = re.value; guardar(); const y = window.scrollY; pintar(); window.scrollTo(0, y); if(re.value==='si') aviso('Marca los puntos de agua en la pestaña Datos'); };
     const ra = $('#mtRac'); if(ra) ra.onchange = ()=>{ m.par.racion = ra.value; guardar(); const y = window.scrollY; pintar(); window.scrollTo(0, y); };
     vista.querySelectorAll('[data-mx]').forEach(x=>x.onclick = ()=>{ m.materialExtra.splice(+x.dataset.mx, 1); delete Mt()['x' + x.dataset.mx]; guardar(); pintar(); });
     $('#mtAgregar').onclick = ()=>{ const n = $('#mtNuevo').value.trim(); if(!n) return; (m.materialExtra || (m.materialExtra = [])).push({n, cant:$('#mtNuevoC').value.trim()});

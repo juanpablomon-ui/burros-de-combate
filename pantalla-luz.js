@@ -97,7 +97,7 @@ const PantallaLuz = (function(){
   function pintar(vista, api){
     A = api; const m = A.actual(), R = A.calcular(m), p0 = R.puntos.find(p=>p.ok);
     if(!p0){ vista.innerHTML = `<div class="tarjeta vacio">Marca al menos el PIM para calcular la luz del lugar.</div>`; return; }
-    if(!m.fecha){ vista.innerHTML = `<div class="tarjeta vacio">Falta la fecha de la marcha (pestaña Puntos → Datos de la marcha).</div>`; return; }
+    if(!m.fecha){ vista.innerHTML = `<div class="tarjeta vacio">Falta la fecha de la marcha (pestaña Datos → Fecha, hora y coordenadas).</div>`; return; }
     if(!verFecha || verFecha.marcha!==m.id) verFecha = {marcha:m.id, f:m.fecha};
     const f = verFecha.f, esDia = f===m.fecha, D = LUZ.dia(f, p0.lat, p0.lon), sur = p0.lat<0, t1 = LUZ.inicioDia(f) + 864e5;
     const sig = t=>t && t.valueOf()>=t1 ? ' <small>(día sig.)</small>' : '';
