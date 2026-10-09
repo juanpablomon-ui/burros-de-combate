@@ -538,3 +538,9 @@ table.mat td.lin{width:64px} table.mat td.lin select{padding:5px 6px;font-size:1
 .m-ubicar{position:absolute;z-index:1003;top:56px;left:50%;transform:translateX(-50%);max-width:calc(100% - 20px);display:flex;flex-wrap:wrap;align-items:center;gap:8px;
   background:var(--panel);border:2px solid var(--ocre);border-radius:12px;padding:8px 12px;box-shadow:0 6px 20px #000a;font-size:14px}
 .pestanas button>span{white-space:nowrap}
+/* material por línea: kg de la línea en el título, tipo de cada elemento y fila para agregar */
+.mat-kg{font-family:var(--mono);font-size:12px;color:var(--suave);font-weight:500;margin-left:8px;letter-spacing:0;text-transform:none}
+.mf-tipo{font-style:italic}
+.mf-nuevo{border-style:dashed;background:none}
+.mf-nuevo input[data-an]{flex:1 1 180px;min-width:140px;padding:6px 8px}
+.mf-nuevo select{margin-left:0!important}

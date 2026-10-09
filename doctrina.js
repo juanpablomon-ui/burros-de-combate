@@ -44,7 +44,7 @@ if(typeof globalThis!=='undefined') globalThis.LISTA = LISTA;
    el agua sale de la tabla de calor; el resto se ajusta según la orden. Ids fijos (las marcas y cantidades se guardan en m.material). */
 const MATERIAL = [
   {g:'Armamento y protección', items:[
-    ['fusil', 'Fusil (con correa y accesorios)', c=>c.civil ? null : c.n, c=>'1 por hombre; las armas de apoyo se agregan en «Otros»'],
+    ['fusil', 'Fusil (con correa y accesorios)', c=>c.civil ? null : c.n, c=>'1 por hombre; las armas de apoyo van en «Equipo especial de la unidad»'],
     ['cargad', 'Cargadores con munición', c=>c.civil ? null : c.n*6, c=>'6 por hombre (dotación sugerida: ajústala)'],
     ['granada', 'Granadas de mano', c=>c.civil ? null : 0, c=>'si la misión lo exige: escribe cuántas por hombre'],
     ['casco', 'Casco', c=>c.civil ? null : c.n, c=>'1 por hombre'],
@@ -183,8 +183,10 @@ function pesoMaterial(m, R){
     const st = Mt[id] || {}, q = st.cantH!==undefined && st.cantH!=='' ? numCant(st.cantH)*c.n : numCant(st.cant || v), [kg0, modo] = PESOS[id] || [0, 'x'], kg = st.kg!==undefined && st.kg!=='' ? numCant(st.kg) : kg0;
     const porHombre = modo==='h' ? q*kg : modo==='x' ? 0 : q*kg/c.n;
     items.push({id, n, kg, modo, q, porHombre, linea:lineaDe(m, id)}); }));
-  (m.materialExtra || []).forEach((x, i)=>{ const st = Mt['x' + i] || {}, q = numCant(st.cant || x.cant) || 1, kg = numCant(st.kg);
-    items.push({id:'x' + i, n:x.n, kg, modo:'c', q, porHombre:q*kg/c.n, linea:lineaDe(m, 'x' + i)}); });
+  // elementos agregados por el usuario: por hombre (x.modo 'i', cantidad por hombre) o de la unidad (cantidad total, se reparte)
+  (m.materialExtra || []).forEach((x, i)=>{ const st = Mt['x' + i] || {}, kg = numCant(st.kg), indiv = x.modo==='i';
+    const q = indiv ? (st.cantH!==undefined && st.cantH!=='' ? numCant(st.cantH) : numCant(x.cant) || 1)*c.n : numCant(st.cant || x.cant) || 1;
+    items.push({id:'x' + i, n:x.n, kg, modo:indiv ? 'i' : 'c', q, porHombre:q*kg/c.n, linea:lineaDe(m, 'x' + i)}); });
   const sinMochila = !!(m.par || {}).sinMochila, lineas = {1:0, 2:0, 3:0, 4:0}; items.forEach(x=>{ if(x.modo!=='x') lineas[x.linea] += x.porHombre; });
   const lleva = x=>x.linea<=2 || (x.linea===3 && !sinMochila);
   items.forEach(x=>x.lleva = x.modo!=='x' && lleva(x));

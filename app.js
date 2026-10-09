@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.47', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.48', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -713,7 +713,15 @@
     const filas = MATERIAL.map(g=>{ const its = g.items.map(([id, n, cant, nota])=>{ const v = cant(c); if(v===null || v===undefined) return null;
         return {id, n, auto:String(v), nota:nota(c)}; }).filter(Boolean);
       return its.length ? {g:g.g, its} : null; }).filter(Boolean);
-    if(extra.length) filas.push({g:'Otros (agregados por mí)', its:extra.map((x, i)=>({id:'x' + i, n:x.n, auto:x.cant || '', nota:'', propio:i}))});
+    if(extra.length) filas.push({g:'Otros (agregados por mí)', its:extra.map((x, i)=>({id:'x' + i, n:x.n, auto:x.cant || '', nota:x.modo==='i' ? 'por hombre' : 'de la unidad', propio:i}))});
+    // orden por línea de equipamiento (por defecto) o por tipo de elemento
+    if((m.matOrden || 'linea')==='linea'){
+      const noCarga = it=>it.propio===undefined && (PESOS[it.id] || [0, 'c'])[1]==='x', L = {1:[], 2:[], 3:[], 4:[], x:[]};
+      filas.forEach(({g, its})=>its.forEach(it=>L[noCarga(it) ? 'x' : lineaDe(m, it.id)].push(Object.assign({}, it, {tipo:g}))));
+      const porLinea = [1, 2, 3, 4].map(l=>({g:LINEAS[l] + ' — ' + LINEAS_TXT[l], linea:l, its:L[l]})).filter(x=>x.its.length || x.linea<4 || !papel);
+      if(L.x.length) porLinea.push({g:'Datos y planificación (no se cargan)', its:L.x});
+      filas.length = 0; porLinea.forEach(x=>filas.push(x));
+    }
     if(!papel) return {c, filas, html:fichasMaterial(m, R, filas)};
     return {c, filas, html:filas.map(({g, its})=>`<h3 class="${papel ? 'doc-h3' : 'mat-g'}">${esc(g)}</h3><table class="t mat"><tbody>
       ${its.map(it=>{ const st = Mt[it.id] || {}; return `<tr class="${st.ok ? 'hecho' : ''}"><td class="tx ck">${papel ? (st.ok ? '☑' : '☐') : `<input type="checkbox" data-mt="${it.id}" ${st.ok ? 'checked' : ''}>`}</td>
@@ -731,7 +739,7 @@
   // en pantalla: una ficha por elemento, del ancho del teléfono: cantidad con su unidad × kg por unidad = kg (total y por hombre)
   function fichasMaterial(m, R, filas){
     const Mt = m.material || {}, pm = R.carga || pesoMaterial(m, R), porId = {}; (pm ? pm.items : []).forEach(x=>porId[x.id] = x);
-    return filas.map(({g, its})=>`<h3 class="mat-g">${esc(g)}</h3><div class="mat-lista">${its.map(it=>{
+    return filas.map(({g, its, linea})=>`<h3 class="mat-g">${esc(g)}${linea && pm ? ` <span class="mat-kg">${f(pm.lineas[linea], 1)} kg por hombre${linea===4 ? ' (no se suma)' : linea===3 && pm.sinMochila ? ' (se deja)' : ''}</span>` : ''}</h3><div class="mat-lista">${its.length ? '' : '<p class="nota">Sin elementos en esta línea.</p>'}${its.map(it=>{
       const st = Mt[it.id] || {}, pz = PESOS[it.id] || [0, 'c'], noCarga = pz[1]==='x', kg0 = it.propio!==undefined ? '' : pz[0];
       const u = unidadDe(st.cant || it.auto), u1 = UNI1[u] || u.replace(/s$/, ''), x = porId[it.id], n = pm ? pm.n : 1;
       const total = x ? x.q*x.kg : 0, num0 = String(it.auto).replace(/[^\d.,+].*$/, '').trim() || it.auto;
@@ -746,8 +754,12 @@
           <span class="mf-x">=</span><span class="mf-t">${indiv ? f(x.porHombre, x.porHombre<10 ? 1 : 0) + ' kg <small>por hombre</small>' : f(total, total<10 ? 1 : 0) + ' kg' + (x && x.modo==='c' && n>1 ? ' <small>en total</small>' : '')}</span>
           <select data-ml="${it.id}" aria-label="Línea">${[1, 2, 3, 4].map(l=>`<option value="${l}"${lineaDe(m, it.id)===l ? ' selected' : ''}>${l===4 ? '4.ª (vehículo)' : l + '.ª línea'}</option>`).join('')}</select>`}
           ${it.propio!==undefined ? `<button class="btn mini peligro" data-mx="${it.propio}" aria-label="Quitar">✕</button>` : ''}</div>
+        ${it.tipo ? `<div class="mf-s mf-tipo">${esc(it.tipo)}</div>` : ''}
         ${x && x.modo==='h' ? '<div class="mf-s">litros al partir (1 kg por litro + envase); se bebe en el camino' + (m.par.reabast==='si' ? ' y se repone en los puntos de agua' : '') + '</div>' : x && x.modo==='c' && n>1 ? `<div class="mf-s">de grupo: ${f(total, 1)} kg repartidos entre ${n} hombres = ${f(x.porHombre, 2)} kg por hombre</div>`
-          : indiv && n>1 ? `<div class="mf-s">en la unidad: ${fq(x.q)} ${esc(u==='u' ? 'unid.' : u)} · ${f(total, 1)} kg (${n} hombres)</div>` : ''}</div>`; }).join('')}</div>`).join('');
+          : indiv && n>1 ? `<div class="mf-s">en la unidad: ${fq(x.q)} ${esc(u==='u' ? 'unid.' : u)} · ${f(total, 1)} kg (${n} hombres)</div>` : ''}</div>`; }).join('')}
+      ${linea ? `<div class="mf mf-nuevo"><div class="mf2" style="margin-left:0"><input data-an="${linea}" placeholder="Agregar a la ${linea}.ª línea: nombre" aria-label="Nombre">
+        <span class="mf-c"><input class="num" data-ac="${linea}" placeholder="1" inputmode="decimal" aria-label="Cantidad"><em>cant.</em></span><span class="mf-c"><input class="num" data-ak="${linea}" placeholder="kg" inputmode="decimal" aria-label="kg c/u"><em>kg c/u</em></span>
+        <select data-am="${linea}" aria-label="Cómo se lleva"><option value="i">por hombre</option><option value="c"${linea===4 ? ' selected' : ''}>de la unidad</option></select><button class="btn mini pri" data-aa="${linea}">＋ Agregar</button></div></div>` : ''}</div>`).join('');
   }
   // carga por hombre: peso base + material individual + parte del colectivo; con la opción de usarla en el cálculo de tiempos
   function cargaHtml(m, R){
@@ -783,6 +795,7 @@
     if(!R.tramos.length){ vista.innerHTML = '<div class="tarjeta vacio">Completa la ruta para calcular el material.</div>'; return; }
     const H = htmlMaterial(m, R), tot = H.filas.reduce((a, g)=>a + g.its.length, 0), hechos = ()=>H.filas.reduce((a, g)=>a + g.its.filter(it=>(m.material||{})[it.id] && m.material[it.id].ok).length, 0);
     vista.innerHTML = `<h2>Material para la marcha</h2>
+      <div class="seg" style="margin-bottom:8px"><button data-orden="linea" class="${(m.matOrden || 'linea')==='linea' ? 'on' : ''}">Por línea de equipo</button><button data-orden="tipo" class="${m.matOrden==='tipo' ? 'on' : ''}">Por tipo de elemento</button></div>
       <p class="nota" id="mtCuenta"></p>
       <div class="info">Calculado para <b>${H.c.hay ? H.c.n + ' hombres' : '1 hombre (indica el efectivo en Datos → Unidad y columna)'}</b>, ${M.verDur(H.c.horas)} de marcha y ${f(H.c.km, 1)} km${H.c.noche ? ', con ' + Math.round(H.c.noche*100) + ' % de noche' : ''}.
         El agua sale de la tabla de calor (${H.c.calorDato ? 'con el índice WBGT indicado' : 'sin índice WBGT: se usa calor bajo'}); las demás cantidades son <b>sugerencias</b>: escribe la tuya si la orden dice otra cosa.
@@ -809,6 +822,13 @@
     vista.querySelectorAll('[data-mx]').forEach(x=>x.onclick = ()=>{ m.materialExtra.splice(+x.dataset.mx, 1); delete Mt()['x' + x.dataset.mx]; guardar(); pintar(); });
     $('#mtAgregar').onclick = ()=>{ const n = $('#mtNuevo').value.trim(); if(!n) return; (m.materialExtra || (m.materialExtra = [])).push({n, cant:$('#mtNuevoC').value.trim()});
       const k = $('#mtNuevoK').value.trim(); if(k){ const Mx = Mt(); Mx['x' + (m.materialExtra.length - 1)] = {kg:k}; } guardar(); pintar(); };
+    vista.querySelectorAll('[data-orden]').forEach(b=>b.onclick = ()=>{ m.matOrden = b.dataset.orden; guardar(); pintar(); });
+    // agregar un elemento directo en una línea
+    vista.querySelectorAll('[data-aa]').forEach(b=>b.onclick = ()=>{ const l = b.dataset.aa, n = vista.querySelector('[data-an="' + l + '"]').value.trim(); if(!n) return aviso('Escribe el nombre del elemento');
+      const ex = m.materialExtra || (m.materialExtra = []), modo = vista.querySelector('[data-am="' + l + '"]').value;
+      ex.push({n, cant:vista.querySelector('[data-ac="' + l + '"]').value.trim() || '1', modo}); const o = Mt()['x' + (ex.length - 1)] = {linea:+l};
+      const k = vista.querySelector('[data-ak="' + l + '"]').value.trim(); if(k) o.kg = k;
+      guardar(); const y = window.scrollY; pintar(); window.scrollTo(0, y); aviso('＋ ' + n + ' en la ' + l + '.ª línea'); });
     $('#mtLimpia').onclick = ()=>{ Object.values(Mt()).forEach(o=>o.ok = false); guardar(); pintar(); };
     $('#mtDoc').onclick = ()=>documento('material');
   }
