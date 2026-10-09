@@ -122,15 +122,17 @@ const Seguir = (function(){
     mensaje('INI', {});
     pintar();
   }
+  const avisoMochila = e=>({deja:'DEJAR LA MOCHILA DE SOSTENIMIENTO', dejaTodo:'DEJAR LAS DOS MOCHILAS', recogeB:'RECOGER LA MOCHILA DE SOSTENIMIENTO',
+    recogeA:'RECOGER LA MOCHILA DE ASALTO', recoge:'RECOGER LAS DOS MOCHILAS'})[e] || '';
   function llegar(k, auto){
     const m = A.actual(), E = m.ejec, P = plan(m); if(!E || E.llegadas[k]) return;
     if(!P.pts[k].ev){ E.llegadas[k] = ahora(); A.guardar(); pintarVivo();   // quiebre de la ruta: sin mensaje (solo el aviso de la mochila)
-      if(P.pts[k].mochila){ if(navigator.vibrate) navigator.vibrate([200, 100, 200]); A.aviso(P.pts[k].mochila==='deja' ? '🎒 DEJAR LA MOCHILA DE SOSTENIMIENTO aquí' : P.pts[k].mochila==='dejaTodo' ? '🎒 DEJAR LAS MOCHILAS aquí' : '🎒 RECOGER LAS MOCHILAS aquí'); } return; }
+      if(P.pts[k].mochila){ if(navigator.vibrate) navigator.vibrate([200, 100, 200]); A.aviso('🎒 ' + avisoMochila(P.pts[k].mochila) + ' aquí'); } return; }
     for(let j=1; j<k; j++) if(!E.llegadas[j]) E.llegadas[j] = P.pts[j].ev ? -1 : ahora();   // eventos saltados / quiebres ya pasados
     E.llegadas[k] = ahora();
     const d = (E.llegadas[k] - E.inicio)/60000 - P.pts[k].lleg*60, p = P.pts[k];
     if(navigator.vibrate) navigator.vibrate([200, 100, 200]);
-    A.aviso((auto ? '📍 ' : '✔ ') + verbo() + ' ' + rotulo(p) + ' — ' + dif(d) + (p.mochila==='deja' ? ' · 🎒 DEJAR LA MOCHILA DE SOSTENIMIENTO' : p.mochila==='dejaTodo' ? ' · 🎒 DEJAR LAS MOCHILAS' : p.mochila==='recoge' ? ' · 🎒 RECOGER LAS MOCHILAS' : ''));
+    A.aviso((auto ? '📍 ' : '✔ ') + verbo() + ' ' + rotulo(p) + ' — ' + dif(d) + (p.mochila ? ' · 🎒 ' + avisoMochila(p.mochila) : ''));
     mensaje('PC', {pc:p.nombre, clave:p.clave || '', n:k, h:hh(E.llegadas[k]), dif:Math.round(d)});
     if(k===P.pts.length - 1) terminar(true); else { A.guardar(); pintar(); }
   }

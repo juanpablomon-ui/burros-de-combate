@@ -149,10 +149,13 @@ function cargasTramo(m, R, pm){
   // (se sigue con la de asalto), «dejaTodo» = las dos; el agua se cuenta aparte aunque vaya en la mochila
   const P = m.puntos || [], L = (pm.mas || {lineas:pm.lineas}).lineas, modo = pm.mochilaModo || 'dentro', menosAgua = l=>conAgua && ag.linea===l ? ag.porHombre : 0;
   const mo3 = pm.sinMochila || modo==='solo' ? 0 : L[3] - menosAgua(3), mo5 = pm.sinMochila ? 0 : (L[5] || 0) - menosAgua(5);
-  const quita = e=>e==='deja' ? mo3 : e==='dejaTodo' ? mo3 + mo5 : 0;
-  let est = ''; const sinEn = R.tramos.map(t=>{ const q = P[t.iA] || {}; if(q.mochila==='deja' || q.mochila==='dejaTodo') est = q.mochila; if(q.mochila==='recoge') est = ''; return quita(est); });
-  const ult = R.tramos.length ? P[R.tramos[R.tramos.length - 1].iB] || {} : {}; if(ult.mochila==='recoge') est = ''; else if(ult.mochila==='deja' || ult.mochila==='dejaTodo') est = ult.mochila;
-  const sin = quita(est);
+  // estado de cada mochila a lo largo de la ruta: «deja» (3.ª B), «dejaTodo» (las dos), «recogeB», «recogeA» y «recoge» (las dos)
+  const est = {B:false, A:false}, aplica = e=>{ if(e==='deja') est.B = true; else if(e==='dejaTodo'){ est.B = true; est.A = true; }
+    else if(e==='recogeB') est.B = false; else if(e==='recogeA') est.A = false; else if(e==='recoge'){ est.B = false; est.A = false; } };
+  const quita = ()=>(est.B ? mo3 : 0) + (est.A ? mo5 : 0);
+  const sinEn = R.tramos.map(t=>{ aplica((P[t.iA] || {}).mochila); return quita(); });
+  if(R.tramos.length) aplica((P[R.tramos[R.tramos.length - 1].iB] || {}).mochila);
+  const sin = quita();
   if(!pl && !sinEn.some(Boolean) && !sin) return null;
   const base = pm.total - ini*kgL, H = pl ? pl.H : R.res.total;
   return {tramos:R.tramos.map((t, k)=>{ const h = mar ? H*(t.tAcum - t.t/2)/mar : 0; return Math.round((base + enHora(h)*kgL - sinEn[k])*10)/10; }),

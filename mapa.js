@@ -369,7 +369,8 @@ const Mapa = (function(){
     if(m.par.reabast==='si' && !fijo) items.push({ico:'💧', lbl:p.agua ? 'Quitar punto de agua' : 'Marcar punto de agua', nota:'se repone el agua aquí', fn:()=>{ guardarDeshacer(); p.agua = !p.agua; A.guardar(); ruta(); A.aviso(p.agua ? '💧 Punto de agua' : 'Ya no es punto de agua'); }});
     if(i>0 && !m.par.sinMochila){ const mo = (v, lbl, nota, txt)=>({ico:'🎒', lbl:(p.mochila===v ? '✓ ' : '') + lbl, nota, fn:()=>{ guardarDeshacer(); p.mochila = p.mochila===v ? '' : v; A.guardar(); ruta(); if(p.mochila) A.aviso('🎒 ' + txt + ' en ' + (p.nombre || 'este punto')); }});
       items.push(mo('deja', 'Dejar la mochila de sostenimiento aquí', 'sigue con la de asalto', 'Se deja la de sostenimiento'), mo('dejaTodo', 'Dejar las dos mochilas aquí', 'sigue solo con la 1.ª y 2.ª línea', 'Se dejan las mochilas'),
-        mo('recoge', 'Recoger las mochilas aquí', 'la de asalto vuelve a la de sostenimiento', 'Se recogen las mochilas')); }
+        mo('recogeB', 'Recoger la de sostenimiento aquí', 'se vuelve a tomar la 3.ª B', 'Se recoge la de sostenimiento'), mo('recogeA', 'Recoger la de asalto aquí', 'se vuelve a tomar la 3.ª A', 'Se recoge la de asalto'),
+        mo('recoge', 'Recoger las dos aquí', 'se sigue con las dos mochilas', 'Se recogen las dos')); }
     items.push({ico:'✎', lbl:'Editar punto', nota:'nombre, cota, detención, observaciones', fn:()=>abrirHoja(i)});
     items.push({ico:'⏸', lbl:'Detención aquí', nota:(+p.det ? p.det + ' min' : 'sin detención') + ' (comida, descanso, reorganización)', fn:()=>{ abrirHoja(i); setTimeout(()=>{ const x = document.querySelector('[data-h=det]'); if(x){ x.focus(); x.select(); } }, 50); }});
     if(i>0) items.push({ico:'＋', lbl:'Insertar punto antes', nota:'a mitad del tramo anterior', fn:()=>{ const a = R.puntos[i - 1]; if(a && a.ok) insertar(i, L.latLng((a.lat + g.lat)/2, (a.lon + g.lon)/2)); }});

@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.59', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.60', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -440,7 +440,7 @@
           <label class="c">Detención (min)<input class="num" data-p="det" inputmode="numeric" value="${esc(x.det)}" placeholder="0"></label></div>
         ${i && !Uso.civil() ? `<div class="extra"><label class="c">Técnica desde el punto anterior<select data-p="tecnica"><option value="">Igual que la marcha (${esc((M.TECNICAS[m.par.tecnica] || M.TECNICAS.desplazamiento).n.toLowerCase())})</option>${Object.entries(M.TECNICAS).map(([k, t])=>`<option value="${k}"${x.tecnica===k ? ' selected' : ''}>${t.n}</option>`).join('')}</select></label>
           <label class="c">Formación en ese tramo<select data-p="formacion"><option value="">Igual que la marcha</option>${Object.entries(M.FORMACIONES).map(([k, t])=>`<option value="${k}"${x.formacion===k ? ' selected' : ''}>${t.n}</option>`).join('')}</select></label></div>` : ''}
-        ${i && !m.par.sinMochila ? `<div class="extra" style="grid-template-columns:1fr"><label class="c">🎒 Mochila en este punto<select data-p="mochila"><option value="">— Sigue igual —</option><option value="deja"${x.mochila==='deja' ? ' selected' : ''}>Se deja la de sostenimiento (sigue con la de asalto)</option><option value="dejaTodo"${x.mochila==='dejaTodo' ? ' selected' : ''}>Se dejan las dos (sigue con 1.ª y 2.ª línea)</option><option value="recoge"${x.mochila==='recoge' ? ' selected' : ''}>Se recoge aquí (la de asalto vuelve a la de sostenimiento)</option></select></label></div>` : ''}
+        ${i && !m.par.sinMochila ? `<div class="extra" style="grid-template-columns:1fr"><label class="c">🎒 Mochila en este punto<select data-p="mochila"><option value="">— Sigue igual —</option><option value="deja"${x.mochila==='deja' ? ' selected' : ''}>Se deja la de sostenimiento (sigue con la de asalto)</option><option value="dejaTodo"${x.mochila==='dejaTodo' ? ' selected' : ''}>Se dejan las dos (sigue con 1.ª y 2.ª línea)</option><option value="recogeB"${x.mochila==='recogeB' ? ' selected' : ''}>Se recoge la de sostenimiento (3.ª B)</option><option value="recogeA"${x.mochila==='recogeA' ? ' selected' : ''}>Se recoge la de asalto (3.ª A)</option><option value="recoge"${x.mochila==='recoge' ? ' selected' : ''}>Se recogen las dos</option></select></label></div>` : ''}
         <div class="estado" id="est${i}"></div>
         <div class="acc"><button class="btn mini" data-acc="carta" title="Marcar o corregir este punto tocando la carta">🗺 Ubicar en la carta</button><button class="btn mini" data-acc="sube" ${i ? '' : 'disabled'} aria-label="Subir">▲</button><button class="btn mini" data-acc="baja" ${i<m.puntos.length - 1 ? '' : 'disabled'} aria-label="Bajar">▼</button>
           <button class="btn mini" data-acc="dup">Duplicar</button><button class="btn mini peligro" data-acc="borra">Borrar</button></div>
@@ -566,7 +566,7 @@
       const c = LUZ.condicion(new Date(LUZ.inicioDia(m.fecha) + h*36e5), p0.lat, p0.lon);
       return `<span class="luzico" title="${LUZ.TIPOS[c.tipo]}${c.oscuro ? (c.conLuna ? ', con luna' : ', sin luna') : ''}">${c.tipo==='dia' ? '☀' : c.oscuro ? (c.conLuna ? '☾' : '●') : '◐'}</span>`; };
     const obs = (p, ll)=>[p.obs ? esc(p.obs) : '', ll && (ll.tecnica!=='desplazamiento' || ll.formacion) ? '<i>llega en ' + [ll.formacion ? M.FORMACIONES[ll.formacion].n.toLowerCase() : '', ll.tecnica!=='desplazamiento' ? M.TECNICAS[ll.tecnica].n.toLowerCase() : ''].filter(Boolean).join(', ') + '</i>' : '', ll && ll.det ? 'detención ' + Math.round(ll.det*60) + ' min' : '',
-      p.mochila==='deja' ? '<b>🎒 se deja la mochila de sostenimiento</b>' : p.mochila==='dejaTodo' ? '<b>🎒 se dejan las mochilas</b>' : p.mochila==='recoge' ? '<b>🎒 se recogen las mochilas</b>' : ''].filter(Boolean).join(' · ');
+      p.mochila==='deja' ? '<b>🎒 se deja la mochila de sostenimiento</b>' : p.mochila==='dejaTodo' ? '<b>🎒 se dejan las mochilas</b>' : p.mochila==='recoge' ? '<b>🎒 se recogen las dos mochilas</b>' : p.mochila==='recogeB' ? '<b>🎒 se recoge la mochila de sostenimiento</b>' : p.mochila==='recogeA' ? '<b>🎒 se recoge la mochila de asalto</b>' : ''].filter(Boolean).join(' · ');
     return `
       <div class="tabla-env solo-ancho"><table class="t cmn">
         <thead><tr><th class="tx">Punto</th><th class="tx">Evento<br>(radio)</th><th>Hora<br>llegada</th><th>Hora<br>salida</th><th>Altitud<br>(m)</th>
@@ -600,7 +600,7 @@
       const c = LUZ.condicion(new Date(LUZ.inicioDia(m.fecha) + h*36e5), p0.lat, p0.lon);
       return `<span class="luzico" title="${LUZ.TIPOS[c.tipo]}${c.oscuro ? (c.conLuna ? ', con luna' : ', sin luna') : ''}">${c.tipo==='dia' ? '☀' : c.oscuro ? (c.conLuna ? '☾' : '●') : '◐'}</span>`; };
     const obs = (p, ll)=>[p.obs ? esc(p.obs) : '', ll && (ll.tecnica!=='desplazamiento' || ll.formacion) ? '<i>llega en ' + [ll.formacion ? M.FORMACIONES[ll.formacion].n.toLowerCase() : '', ll.tecnica!=='desplazamiento' ? M.TECNICAS[ll.tecnica].n.toLowerCase() : ''].filter(Boolean).join(', ') + '</i>' : '', ll && ll.det ? 'detención ' + Math.round(ll.det*60) + ' min' : '',
-      p.mochila==='deja' ? '<b>🎒 se deja la mochila de sostenimiento</b>' : p.mochila==='dejaTodo' ? '<b>🎒 se dejan las mochilas</b>' : p.mochila==='recoge' ? '<b>🎒 se recogen las mochilas</b>' : ''].filter(Boolean).join(' · ');
+      p.mochila==='deja' ? '<b>🎒 se deja la mochila de sostenimiento</b>' : p.mochila==='dejaTodo' ? '<b>🎒 se dejan las mochilas</b>' : p.mochila==='recoge' ? '<b>🎒 se recogen las dos mochilas</b>' : p.mochila==='recogeB' ? '<b>🎒 se recoge la mochila de sostenimiento</b>' : p.mochila==='recogeA' ? '<b>🎒 se recoge la mochila de asalto</b>' : ''].filter(Boolean).join(' · ');
     vista.innerHTML = `${encabezado(m, R)}
       <h2>Resumen</h2>${kpis(R)}
       ${malos.length ? `<div class="alerta">${malos.length} punto${malos.length===1 ? '' : 's'} sin coordenada o cota válida (${malos.map(p=>esc(p.nombre || 'quiebre')).join(', ')}): sus tramos no se calcularon.</div>` : ''}
