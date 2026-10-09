@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.52', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.53', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -782,6 +782,7 @@
           ${o.base ? '<p class="nota">Lleva el equipo común (las líneas de abajo) y lo que le pasen otros puestos.</p>' : `<div class="campos">
             <label class="c">Hombres en este puesto<input class="num" data-on="${o.key}" value="${esc(o.propio!==undefined ? st.cantidad || '' : st.n!==undefined ? st.n : '')}" placeholder="${o.nDef}" inputmode="numeric"></label>
             ${o.propio!==undefined ? `<label class="c">Nombre del puesto<input data-onom="${o.propio}" value="${esc(st.n || '')}"></label><div class="c"><span>&nbsp;</span><button class="btn mini peligro" data-oborra="${o.propio}">Quitar puesto</button></div>` : ''}</div>
+            ${o.pareja ? `<p class="nota">Trabaja en pareja con el <b>${esc(o.pareja.toLowerCase())}</b>: por defecto, tantos hombres como ese puesto.</p>` : ''}
             ${o.reemplaza.length ? `<p class="nota">En reemplazo de: <b>${esc(o.reemplaza.map(nomComun).join(' y '))}</b> del equipo común.</p>` : ''}
             ${Object.keys(o.quita).length ? `<p class="nota">Lleva menos: ${esc(Object.entries(o.quita).map(([id, k])=>k + ' ' + nomComun(id)).join(', '))}.</p>` : ''}
             <div class="mat-lista">${o.kit.map(k=>`<div class="mf${k.quitar ? ' hecho' : ''}"><div class="mf-n"><b>${esc(k.n)}</b>${k.quitar ? '<small>no lo lleva</small>' : ''}</div><div class="mf2" style="margin-left:0">

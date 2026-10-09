@@ -190,11 +190,13 @@ const numCant = v=>{ const x = String(v===undefined || v===null ? '' : v).replac
 const OMES = {
   fusilero:{n:'Fusilero o patrullero', kit:[], civil:true},
   granadero:{n:'Fusilero granadero', kit:[['lanzaG', 'Lanzagranadas de 40 mm (bajo el fusil)', 1, 1.5, 2], ['gran40', 'Granadas de 40 mm', 12, 0.23, 2]], quita:{cargad:2}},
-  ametr:{n:'Sirviente de ametralladora', reemplaza:['fusil', 'cargad'], kit:[['ametrP', 'Ametralladora con bípode', 1, 10, 2], ['cintas', 'Cintas de munición en el chaleco (100 tiros)', 2, 3, 2],
-    ['cintasA', 'Cintas de munición en la mochila de asalto', 2, 3, 5], ['canon', 'Cañón de repuesto', 1, 3, 5]]},
+  // la ametralladora y el francotirador trabajan en pareja (pedido del usuario): el segundo puesto tiene por defecto tantos hombres como el primero
+  ametr:{n:'Sirviente de ametralladora', reemplaza:['fusil', 'cargad'], kit:[['ametrP', 'Ametralladora con bípode', 1, 10, 2], ['cintas', 'Cintas de munición en el chaleco (100 tiros)', 2, 3, 2]]},
+  ayudAm:{n:'Ayudante de ametralladora', pareja:'ametr', kit:[['cintasA', 'Cintas de munición en la mochila de asalto', 2, 3, 5], ['canon', 'Cañón de repuesto', 1, 3, 5]]},
   trauma:{n:'Enfermero u operador de trauma', civil:true, kit:[['mochTrK', 'Mochila de trauma', 1, 6, 5], ['torniq', 'Torniquetes y vendajes adicionales', 1, 0.6, 2]], def:c=>c.n>=6 ? 1 : 0},
   franco:{n:'Francotirador', reemplaza:['fusil', 'cargad'], kit:[['fPrec', 'Fusil de precisión con óptica', 1, 7, 2], ['muniPrec', 'Cargadores de precisión', 5, 0.3, 2],
-    ['telem', 'Telémetro o prismáticos', 1, 0.6, 1], ['camuf', 'Bípode, apoyo y kit de camuflaje', 1, 1.5, 5]]},
+    ['camuf', 'Bípode, apoyo y kit de camuflaje', 1, 1.5, 5]]},
+  observ:{n:'Observador del francotirador', pareja:'franco', kit:[['telesc', 'Telescopio de observación con trípode', 1, 1.8, 5], ['telem', 'Telémetro o prismáticos', 1, 0.6, 1]]},
   radio:{n:'Radioperador', civil:true, kit:[['antena', 'Antena y accesorios de radio', 1, 0.5, 5]]},
   antitanque:{n:'Apuntador antitanque', kit:[['lanzAT', 'Lanzacohetes o arma antitanque', 1, 7, 2], ['cohete', 'Cohetes o munición antitanque', 2, 3, 5]]}};
 const PUESTOS = Object.assign(Object.fromEntries(Object.entries(OMES).map(([k, o])=>[k, o.n])), {otro:'Otro puesto'});
@@ -211,7 +213,8 @@ function omesDe(m, c){
   Object.entries(OMES).forEach(([k, o])=>{ if(civil && !o.civil) return; const st = O[k] || {}, ex = st.extra || [];
     const kit = o.kit.map(([id, n, cant, kg, linea])=>{ const s2 = (st.kit || {})[id] || {}; return {id, n, cant:s2.cant!==undefined && s2.cant!=='' ? numCant(s2.cant) : cant, kg:s2.kg!==undefined && s2.kg!=='' ? numCant(s2.kg) : kg,
       linea:+s2.linea || linea, quitar:!!s2.quitar, a:s2.a || '', cant0:cant, kg0:kg}; }).concat(ex.map((x, i)=>({id:'e' + i, n:x.n, cant:numCant(x.cant) || 1, kg:numCant(x.kg), linea:+x.linea || 2, propio:true})));
-    L.push({key:k, nombre:o.n, n:st.n!==undefined && st.n!=='' ? numCant(st.n) : (o.def ? o.def(c) : 0), nDef:o.def ? o.def(c) : 0, kit, reemplaza:o.reemplaza || [], quita:o.quita || {}, base:k==='fusilero'}); });
+    const pj = o.pareja ? L.find(x=>x.key===o.pareja) : null, nDef = pj ? pj.n : o.def ? o.def(c) : 0;   // pareja: tantos como el puesto con que trabaja
+    L.push({key:k, nombre:o.n, n:st.n!==undefined && st.n!=='' ? numCant(st.n) : nDef, nDef, pareja:pj ? pj.nombre : '', kit, reemplaza:o.reemplaza || [], quita:o.quita || {}, base:k==='fusilero'}); });
   (m.omeExtra || []).forEach((x, i)=>L.push({key:'p' + i, nombre:x.n || 'Puesto propio', n:numCant(x.cantidad), nDef:0, propio:i,
     kit:(x.kit || []).map((y, j)=>({id:'e' + j, n:y.n, cant:numCant(y.cant) || 1, kg:numCant(y.kg), linea:+y.linea || 2, propio:true})), reemplaza:[], quita:{}}));
   return L;
