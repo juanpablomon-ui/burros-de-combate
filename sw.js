@@ -1,5 +1,5 @@
 /* Guarda la app en el equipo para que funcione sin internet. Subir VERSION en cada cambio. */
-const VERSION = 'burros-0.43';
+const VERSION = 'burros-0.44';
 const ARCHIVOS = ['./', 'index.html', 'estilos.css', 'luz.js', 'calculo.js', 'dem.js', 'curvas.js', 'mapa.js', 'seguir.js', 'pantalla-luz.js', 'documento.js', 'lib/html2canvas-1.4.1.js', 'lib/jspdf.umd.min.js', 'intercambio.js', 'doctrina.js', 'civil.js', 'app.js', 'manifest.webmanifest',
   'lib/wmm.js', 'lib/leaflet-1.9.4.js', 'lib/leaflet-1.9.4.css', 'lib/qrcode-generator-2.0.4.js', 'lib/jsQR-1.4.0.js', 'iconos/icono.svg', 'iconos/icono-180.png', 'iconos/icono-192.png', 'iconos/icono-512.png'];
 self.addEventListener('install', e=>{ e.waitUntil(caches.open(VERSION).then(c=>c.addAll(ARCHIVOS))); self.skipWaiting(); });
