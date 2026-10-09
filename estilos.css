@@ -571,3 +571,6 @@ table.sop td.sop-x{color:var(--suave);font-family:var(--mono)}
 .env-m span{flex:1;min-width:0} .env-m b{display:block} .env-m small{display:block;color:var(--suave);font-size:12px} .env-m.no{opacity:.5}
 .env-dest .btn.on{border-color:var(--ocre);background:#e3a63a26}
 .btn.grande{font-size:17px;padding:12px 26px}
+/* puesto de cada integrante */
+.integ-lista{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:6px;margin:8px 0}
+.integ-f{display:flex;align-items:center;gap:8px} .integ-f span{font-family:var(--mono);color:var(--suave);min-width:26px;text-align:right} .integ-f select{flex:1}

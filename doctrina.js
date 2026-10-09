@@ -224,12 +224,14 @@ function portDe(m, id){
 // lista de puestos de una marcha: los de la doctrina (según el uso) y los propios, con su equipo ya combinado con lo que escribió el usuario
 function omesDe(m, c){
   const civil = typeof Uso!=='undefined' && Uso.civil(), O = m.ome || {}, L = [];
+  // puesto elegido para cada integrante (m.integrantes, si m.par.porIntegrante): entonces los hombres de cada puesto se cuentan de ahí
+  const porInt = !!(m.par || {}).porIntegrante && Array.isArray(m.integrantes), cuenta = k=>porInt ? m.integrantes.slice(0, c.n).filter(x=>x===k).length : null;
   Object.entries(OMES).forEach(([k, o])=>{ if(civil && !o.civil) return; const st = O[k] || {}, ex = st.extra || [];
     const kit = o.kit.map(([id, n, cant, kg, linea])=>{ const s2 = (st.kit || {})[id] || {}; return {id, n, cant:s2.cant!==undefined && s2.cant!=='' ? numCant(s2.cant) : cant, kg:s2.kg!==undefined && s2.kg!=='' ? numCant(s2.kg) : kg,
       linea:+s2.linea || linea, quitar:!!s2.quitar, a:s2.a || '', cant0:cant, kg0:kg}; }).concat(ex.map((x, i)=>({id:'e' + i, n:x.n, cant:numCant(x.cant) || 1, kg:numCant(x.kg), linea:+x.linea || 2, propio:true})));
     const pj = o.pareja ? L.find(x=>x.key===o.pareja) : null, nDef = c.hay && c.n<=1 ? 0 : pj ? pj.n : o.def ? o.def(c) : 0;   // un solo hombre: sin puestos por defecto   // pareja: tantos como el puesto con que trabaja
-    L.push({key:k, nombre:o.n, n:st.n!==undefined && st.n!=='' ? numCant(st.n) : nDef, nDef, pareja:pj ? pj.nombre : '', kit, reemplaza:o.reemplaza || [], quita:o.quita || {}, base:k==='fusilero'}); });
-  (m.omeExtra || []).forEach((x, i)=>L.push({key:'p' + i, nombre:x.n || 'Puesto propio', n:numCant(x.cantidad), nDef:0, propio:i,
+    L.push({key:k, nombre:o.n, n:porInt ? cuenta(k) : st.n!==undefined && st.n!=='' ? numCant(st.n) : nDef, nDef, porInt, pareja:pj ? pj.nombre : '', kit, reemplaza:o.reemplaza || [], quita:o.quita || {}, base:k==='fusilero'}); });
+  (m.omeExtra || []).forEach((x, i)=>L.push({key:'p' + i, nombre:x.n || 'Puesto propio', n:porInt ? cuenta('p' + i) : numCant(x.cantidad), nDef:0, propio:i, porInt,
     kit:(x.kit || []).map((y, j)=>({id:'e' + j, n:y.n, cant:numCant(y.cant) || 1, kg:numCant(y.kg), linea:+y.linea || 2, propio:true})), reemplaza:[], quita:{}}));
   return L;
 }
@@ -272,7 +274,11 @@ function pesoMaterial(m, R){
   if((m.par || {}).modoCarga==='sop') return pesoSOP(m, R, c, items, grupos, llevaL, base, sinMochila, modoMo);
   // puestos (OME): común − lo que reemplazan + su equipo + su parte del equipo especial + lo que les pasan otros puestos
   const porId = {}; items.forEach(x=>porId[x.id] = x);
-  const lista = omesDe(m, c); lista.forEach(o=>{ const g = grupos[o.key]; o.n = Math.max(o.n, g ? g.n : 0); });
+  const lista = omesDe(m, c);
+  lista.forEach(o=>{ const g = grupos[o.key]; if(!o.porInt){ o.n = Math.max(o.n, g ? g.n : 0); return; }
+    // con el puesto elegido por integrante: el equipo de un puesto sin hombres pasa a rotar entre todos
+    if(g && o.n>0){ g.kg = g.kg*g.n/o.n; g.items.forEach(x=>x.porPortador = x.porPortador*g.n/o.n); g.n = o.n; }
+    else if(g){ g.items.forEach(x=>{ x.puesto = null; x.rota = true; x.porHombre = x.q*x.kg/c.n; lineas[x.linea] += x.porHombre; if(x.lleva) colect += x.porHombre; }); delete grupos[o.key]; } });
   const fus = lista.find(o=>o.base), nFus = Math.max(0, c.n - lista.filter(o=>!o.base).reduce((a, o)=>a + o.n, 0)); if(fus) fus.n = nFus;
   // equipo de un puesto que lleva otro puesto, los fusileros o todos («a»): el total (por hombre × hombres del puesto) se reparte entre ellos
   const mov = []; lista.forEach(o=>{ if(o.base || !(o.n>0)) return; o.kit.forEach(k=>{ if(!k.quitar && k.a && k.a!==o.key) mov.push({de:o, k, kg:k.cant*k.kg*o.n}); }); });
@@ -326,7 +332,8 @@ function pesoSOP(m, R, c, items, grupos, llevaL, base, sinMochila, modoMo){
   const lineasDe = k=>{ const li = L0(); [1, 2, 5, 3].forEach(l=>{ li[l] = usa(k, l); });
     li[aguaL] += aguaKg; Object.keys(li).forEach(l=>li[l] += rota[l]); return li; };
   const suma = li=>[1, 2, 5, 3].reduce((a, l)=>a + (llevaL(l) ? li[l] : 0), 0);
-  const lista = omesDe(m, c); lista.forEach(o=>{ const g = gE[o.key]; o.n = Math.max(o.n, g ? g.n : 0); });
+  const lista = omesDe(m, c); lista.forEach(o=>{ const g = gE[o.key]; if(!o.porInt){ o.n = Math.max(o.n, g ? g.n : 0); return; }
+    if(g && !(o.n>0)){ g.items.forEach(x=>{ x.puesto = null; rota[x.linea] += x.q*x.kg/c.n; }); delete gE[o.key]; } });
   const fus = lista.find(o=>o.base), nFus = Math.max(0, c.n - lista.filter(o=>!o.base).reduce((a, o)=>a + o.n, 0)); if(fus) fus.n = nFus;
   const lineas = lineasDe('fusilero'), comun = Math.round((base + suma(lineas))*10)/10;
   const conEsp = (o, li)=>{ const g = gE[o.key]; let kg = 0; if(g && o.n>0){ g.items.forEach(x=>{ const k = x.q*x.kg/o.n; x.porPortador = k; li[x.linea] += k; if(x.lleva) kg += k; }); } return kg; };
