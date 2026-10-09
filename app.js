@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.51', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.52', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -777,8 +777,9 @@
       <p class="nota">Todos llevan el <b>equipo común</b> (las líneas de abajo). Cada puesto lleva además su equipo, o en reemplazo de algo común. Los puestos son eventuales:
         escribe cuántos hombres lo cumplen (0 = no hay). Los pesos son <b>estimados</b>: corrígelos con los de tu unidad.</p>
       ${lista.map(o=>{ const st = o.propio!==undefined ? (m.omeExtra || [])[o.propio] || {} : (m.ome || {})[o.key] || {};
-        return `<details class="ome"${!o.base && o.n>0 ? ' open' : ''}><summary>${esc(o.nombre)}<span class="res">${o.base ? (pm.hay ? pm.fusileros + ' hombres (el resto)' : 'el resto') : o.n ? o.n + ' hombre' + (o.n===1 ? '' : 's') + ' · ' + f(o.total, 1) + ' kg' : 'no hay'}</span></summary>
-          ${o.base ? '<p class="nota">Lleva solo el equipo común: lo que le agregues va en las líneas de abajo.</p>' : `<div class="campos">
+        return `<details class="ome"${!o.base && o.n>0 ? ' open' : ''}><summary>${esc(o.nombre)}<span class="res">${o.base ? (pm.hay ? pm.fusileros + ' hombres (el resto) · ' + f(o.total, 1) + ' kg' : 'el resto') : o.n ? o.n + ' hombre' + (o.n===1 ? '' : 's') + ' · ' + f(o.total, 1) + ' kg' : 'no hay'}</span></summary>
+          ${o.recibe && o.recibe.length ? `<p class="nota">Lleva además, de otros puestos: ${o.recibe.map(r=>'<b>' + esc(r.n.replace(/ \(.*\)$/, '')) + '</b> (de ' + esc(r.de.toLowerCase()) + ') ' + f(r.kg, 1) + ' kg').join(' · ')} por hombre.</p>` : ''}
+          ${o.base ? '<p class="nota">Lleva el equipo común (las líneas de abajo) y lo que le pasen otros puestos.</p>' : `<div class="campos">
             <label class="c">Hombres en este puesto<input class="num" data-on="${o.key}" value="${esc(o.propio!==undefined ? st.cantidad || '' : st.n!==undefined ? st.n : '')}" placeholder="${o.nDef}" inputmode="numeric"></label>
             ${o.propio!==undefined ? `<label class="c">Nombre del puesto<input data-onom="${o.propio}" value="${esc(st.n || '')}"></label><div class="c"><span>&nbsp;</span><button class="btn mini peligro" data-oborra="${o.propio}">Quitar puesto</button></div>` : ''}</div>
             ${o.reemplaza.length ? `<p class="nota">En reemplazo de: <b>${esc(o.reemplaza.map(nomComun).join(' y '))}</b> del equipo común.</p>` : ''}
@@ -788,6 +789,8 @@
               <span class="mf-x">×</span><span class="mf-c"><input class="num" data-okk="${o.key}|${k.id}" value="${esc(((st.kit || {})[k.id] || {}).kg || '')}" placeholder="${String(k.kg0).replace('.', ',')}" inputmode="decimal" aria-label="kg c/u"><em>kg c/u</em></span>`}
               <span class="mf-x">=</span><span class="mf-t">${f(k.cant*k.kg, 1)} kg</span>
               ${k.propio ? '' : selL(`data-okl="${o.key}|${k.id}"`, k.linea)}
+              ${k.propio || k.quitar ? '' : `<select data-oka="${o.key}|${k.id}" aria-label="Lo lleva"><option value="">Lo lleva este puesto</option><option value="fusilero"${k.a==='fusilero' ? ' selected' : ''}>Lo llevan los fusileros (se lo reparten)</option>${lista.filter(x=>!x.base && x.key!==o.key).map(x=>`<option value="${x.key}"${k.a===x.key ? ' selected' : ''}>Lo lleva: ${esc(x.nombre.toLowerCase())}</option>`).join('')}<option value="rota"${k.a==='rota' ? ' selected' : ''}>Se reparte entre todos</option></select>`}
+              ${k.a && !k.quitar ? `<div class="mf-s" style="flex-basis:100%;margin:0">→ ${k.a==='rota' ? 'se reparte entre todos los hombres' : k.a==='fusilero' ? 'lo llevan los fusileros (' + (pm.fusileros || 0) + ')' : 'lo lleva ' + esc((lista.find(x=>x.key===k.a) || {nombre:'otro puesto'}).nombre.toLowerCase())}: ${f(k.cant*k.kg*o.n, 1)} kg en total${k.a!=='rota' && (lista.find(x=>x.key===k.a) || {}).n===0 && k.a!=='fusilero' ? ' <b style="color:var(--rojo)">(ese puesto no tiene hombres)</b>' : ''}</div>` : ''}
               <button class="btn mini${k.quitar ? '' : ' peligro'}" data-okq="${o.key}|${k.id}"${k.propio ? ` data-okprop="${k.id.slice(1)}"` : ''}>${k.propio ? '✕' : k.quitar ? 'Volver a llevar' : 'No lo lleva'}</button></div></div>`).join('')}
               <div class="mf mf-nuevo"><div class="mf2" style="margin-left:0"><input data-oan="${o.key}" placeholder="Agregar al equipo de ${esc(o.nombre.toLowerCase())}" aria-label="Nombre">
                 <span class="mf-c"><input class="num" data-oac="${o.key}" placeholder="1" inputmode="decimal" aria-label="Cantidad"><em>unid.</em></span><span class="mf-c"><input class="num" data-oak="${o.key}" placeholder="kg" inputmode="decimal" aria-label="kg c/u"><em>kg c/u</em></span>
@@ -805,7 +808,7 @@
         <div class="kpi ocre"><div class="k">${pm.mas ? 'El más cargado al partir' : 'Total por hombre al partir'}</div><div class="v">${f(pm.total, 1)} <small>kg</small></div>${pm.mas ? `<div class="s"><b>${esc(pm.mas.nombre)}</b>: con esta carga se calcula el tiempo</div>` : ''}<div class="s">${pm.sinMochila ? 'sin mochila (se deja la 3.ª línea)' : 'con mochila'}${pm.final!==undefined && Math.abs(pm.final - pm.total)>0.05 ? ' · al llegar ' + f(pm.final, 1) + ' kg' : ''}</div></div>
         ${[1, 2, 5, 3].map(l=>`<div class="kpi"${(l===3 || l===5) && pm.sinMochila || l===3 && pm.mochilaModo==='solo' ? ' style="opacity:.5"' : ''}><div class="k">${LINEAS[l]}</div><div class="v">${f(pm.lineas[l], 1)} <small>kg</small></div><div class="s">${esc(LINEAS_TXT[l])}${l===3 && pm.sinMochila ? ' · <b>se deja</b>' : ''}</div></div>`).join('')}</div>
       ${pm.especial.length ? `<h4 class="carga-h">Carga de cada puesto (por línea)</h4><div class="tabla-env"><table class="t puestos"><thead><tr><th class="tx">Puesto</th><th>H.</th>${[1, 2, 5, 3].map(l=>`<th>${LINEAS[l].replace(' línea', '')}</th>`).join('')}<th>Total</th></tr></thead><tbody>
-        ${[{nombre:PUESTOS.fusilero, n:pm.fusileros, lineas:pm.lineas, total:pm.comun, fus:true}].concat(pm.especial.slice().sort((a, b)=>b.total - a.total)).map(g=>`<tr class="${pm.mas===g ? 'mas' : ''}"><td class="tx">${esc(g.nombre)}${pm.mas===g ? ' <b class="mas-tag">más cargado</b>' : ''}${g.fus ? '<small>equipo común</small>' : g.reemplaza && g.reemplaza.length ? '<small>sin fusil</small>' : ''}</td>
+        ${[Object.assign({}, pm.fusilero || {nombre:PUESTOS.fusilero, lineas:pm.lineas, total:pm.comun}, {n:pm.fusileros, fus:true})].concat(pm.especial.slice().sort((a, b)=>b.total - a.total)).map(g=>`<tr class="${pm.mas===g || (g.fus && pm.mas===pm.fusilero) ? 'mas' : ''}"><td class="tx">${esc(g.nombre)}${pm.mas===g || (g.fus && pm.mas===pm.fusilero) ? ' <b class="mas-tag">más cargado</b>' : ''}${g.fus ? '<small>equipo común</small>' : g.reemplaza && g.reemplaza.length ? '<small>sin fusil</small>' : ''}</td>
           <td>${pm.hay ? g.n : '—'}</td>${[1, 2, 5, 3].map(l=>`<td>${f(g.lineas[l] || 0, 1)}</td>`).join('')}<td><b>${f(g.total, 1)} kg</b></td></tr>`).join('')}
         </tbody></table></div>
         <p class="nota">Todos llevan el equipo común; cada puesto lleva además su equipo (o en reemplazo, como la ametralladora en lugar del fusil) y su parte del equipo especial.
@@ -872,6 +875,7 @@
     vista.querySelectorAll('[data-okc]').forEach(x=>x.oninput = ()=>{ const [k, id] = x.dataset.okc.split('|'); kitDe(k, id).cant = x.value; guardar(); recarga(); });
     vista.querySelectorAll('[data-okk]').forEach(x=>x.oninput = ()=>{ const [k, id] = x.dataset.okk.split('|'); kitDe(k, id).kg = x.value; guardar(); recarga(); });
     vista.querySelectorAll('[data-okl]').forEach(x=>x.onchange = ()=>{ const [k, id] = x.dataset.okl.split('|'); kitDe(k, id).linea = +x.value; guardar(); quieto(); });
+    vista.querySelectorAll('[data-oka]').forEach(x=>x.onchange = ()=>{ const [k, id] = x.dataset.oka.split('|'); kitDe(k, id).a = x.value; guardar(); quieto(); });
     vista.querySelectorAll('[data-okq]').forEach(x=>x.onclick = ()=>{ const [k, id] = x.dataset.okq.split('|');
       if(x.dataset.okprop!==undefined){ const o = omeDe(k), arr = /^p\d+$/.test(k) ? o.kit : o.extra; arr.splice(+x.dataset.okprop, 1); }
       else { const e = kitDe(k, id); e.quitar = !e.quitar; } guardar(); quieto(); });
