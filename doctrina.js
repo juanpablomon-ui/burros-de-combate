@@ -94,7 +94,7 @@ const MATERIAL = [
     ['poncho', 'Poncho o chaqueta impermeable', c=>c.n, c=>''],
     ['abrigo', 'Segunda capa de abrigo (polar)', c=>c.n, c=>'la primera capa va puesta; esta, en la mochila de asalto'],
     ['abrigo3', 'Tercera capa de abrigo (chaqueta de abrigo o pluma)', c=>c.noche>0 || c.montana || c.nieve || c.pernocta ? c.n : null, c=>'en la mochila de sostenimiento'],
-    ['gorro', 'Gorro y guantes', c=>c.nieve || c.montana ? c.n : null, c=>'montaña o nieve'],
+    ['gorro', 'Gorro de abrigo y guantes', c=>c.nieve || c.montana ? c.n : null, c=>'montaña o nieve'],
     ['lentes', 'Lentes de sol', c=>c.nieve || c.montana ? c.n : null, c=>'reflejo de la nieve o del sol en altura'],
     ['saco', 'Saco de dormir', c=>c.pernocta ? c.n : null, c=>'marcha con pernocta'],
     ['aislante', 'Aislante (colchoneta)', c=>c.pernocta ? c.n : null, c=>'marcha con pernocta'],
@@ -102,7 +102,7 @@ const MATERIAL = [
     ['cocina', 'Cocinilla y gas', c=>c.pernocta ? Math.max(1, Math.ceil(c.n/4)) : null, c=>'1 cada 4 (repartida)'],
     ['olla', 'Olla y utensilios', c=>c.pernocta ? Math.max(1, Math.ceil(c.n/4)) : null, c=>'1 juego cada 4 (repartido)'],
     ['aseo', 'Útiles de aseo', c=>c.pernocta ? c.n : null, c=>'marcha con pernocta'],
-    ['sombrero', 'Sombrero o jockey', c=>c.calorCat>=2 || (c.noche<0.5 && !c.nieve) ? c.n : null, c=>'sol y calor']]},
+    ['sombrero', 'Gorro', c=>c.calorCat>=2 || (c.noche<0.5 && !c.nieve) ? c.n : null, c=>'sol y calor']]},
   // elementos de zapa (pedido del usuario): van en la mochila de sostenimiento
   {g:'Elementos de zapa', items:[
     ['palaZ', 'Pala de campaña', c=>c.civil ? null : c.n, c=>'1 por hombre (escribe 0 si no se lleva)'],
@@ -258,6 +258,9 @@ function pesoMaterial(m, R){
   // peso de una línea escrito a mano (sin ingresar sus elementos; par.pesoLinea[l], kg por hombre): reemplaza la suma de sus elementos
   const PL = (m.par || {}).pesoLinea || {}, lineasCalc = Object.assign({}, lineas);
   Object.keys(lineas).forEach(l=>{ const v = PL[l]; if(v===undefined || v===null || String(v).trim()==='') return; const d = numCant(v) - lineas[l]; lineas[l] = numCant(v); if(llevaL(+l)) indiv += d; });
+  // modo «por peso según SOP» (par.modoCarga 'sop', pedido del usuario): los kg de cada línea de cada puesto se escriben directo, sin los
+  // elementos (m.sop[puesto][l]; vacío = lo del fusilero). Se suman el agua calculada (en su línea) y el equipo especial común.
+  if((m.par || {}).modoCarga==='sop') return pesoSOP(m, c, items, grupos, llevaL, base, sinMochila, modoMo);
   // puestos (OME): común − lo que reemplazan + su equipo + su parte del equipo especial + lo que les pasan otros puestos
   const porId = {}; items.forEach(x=>porId[x.id] = x);
   const lista = omesDe(m, c); lista.forEach(o=>{ const g = grupos[o.key]; o.n = Math.max(o.n, g ? g.n : 0); });
@@ -286,6 +289,29 @@ function pesoMaterial(m, R){
   return {base, indiv, colect, lineas, lineasCalc, pesoLinea:PL, sinMochila, mochilaModo:modoMo, puestos, combate:base + lineas[1] + lineas[2], marcha:base + lineas[1] + lineas[2] + lineas[5] + lineas[3],
     comun, especial, portadores, fusileros:Math.max(0, c.n - portadores), fusilero, mas:mas && mas.total>comun ? mas : null, total:mas && mas.total>comun ? mas.total : comun,   // el tiempo se calcula con el más cargado
     n:c.n, hay:c.hay, items:items.sort((a, b)=>b.porHombre - a.porHombre)};
+}
+function pesoSOP(m, c, items, grupos, llevaL, base, sinMochila, modoMo){
+  const S = m.sop || {}, ag = items.find(x=>x.id==='agua'), aguaL = ag ? ag.linea : 2, aguaKg = ag ? ag.porHombre : 0, L0 = ()=>({1:0, 2:0, 5:0, 3:0, 4:0});
+  const v = (k, l)=>{ const x = (S[k] || {})[l]; return x!==undefined && x!==null && String(x).trim()!=='' ? numCant(x) : null; };
+  // equipo especial común: lo que rota se reparte entre todos; lo asignado, entre los portadores de su puesto
+  const rota = L0(); items.forEach(x=>{ if(x.modo==='c' && ESPECIAL.has(x.id) && !x.puesto) rota[x.linea] += x.porHombre; });
+  const gE = {}; Object.values(grupos).forEach(g=>{ const its = g.items.filter(x=>ESPECIAL.has(x.id)); if(its.length) gE[g.key] = {key:g.key, nombre:g.nombre, n:g.n, items:its}; });
+  const lineasDe = k=>{ const li = L0(); [1, 2, 5, 3].forEach(l=>{ const x = v(k, l); li[l] = x!==null ? x : (v('fusilero', l) || 0); });
+    li[aguaL] += aguaKg; Object.keys(li).forEach(l=>li[l] += rota[l]); return li; };
+  const suma = li=>[1, 2, 5, 3].reduce((a, l)=>a + (llevaL(l) ? li[l] : 0), 0);
+  const lista = omesDe(m, c); lista.forEach(o=>{ const g = gE[o.key]; o.n = Math.max(o.n, g ? g.n : 0); });
+  const fus = lista.find(o=>o.base), nFus = Math.max(0, c.n - lista.filter(o=>!o.base).reduce((a, o)=>a + o.n, 0)); if(fus) fus.n = nFus;
+  const lineas = lineasDe('fusilero'), comun = Math.round((base + suma(lineas))*10)/10;
+  const conEsp = (o, li)=>{ const g = gE[o.key]; let kg = 0; if(g && o.n>0){ g.items.forEach(x=>{ const k = x.q*x.kg/o.n; x.porPortador = k; li[x.linea] += k; if(x.lleva) kg += k; }); } return kg; };
+  const puestos = lista.map(o=>{ const li = lineasDe(o.base ? 'fusilero' : o.key); conEsp(o, li); const total = Math.round((comun + suma(li) - suma(lineasDe('fusilero')))*10)/10;   // li ya trae el equipo especial
+    return Object.assign(o, {lineas:li, total, kg:total - comun, items:gE[o.key] ? gE[o.key].items : [], esp:gE[o.key] || null, recibe:[], sop:S[o.base ? 'fusilero' : o.key] || {}}); });
+  Object.values(gE).forEach(g=>{ if(!puestos.some(o=>o.key===g.key)){ const o = {key:g.key, nombre:g.nombre, n:g.n, kit:[], reemplaza:[], recibe:[]}, li = lineasDe('fusilero'), e = conEsp(o, li);
+    puestos.push(Object.assign(o, {lineas:li, total:Math.round((comun + e)*10)/10, kg:e, items:g.items, esp:g})); } });
+  const especial = puestos.filter(o=>!o.base && o.n>0), portadores = especial.reduce((a, g)=>a + g.n, 0), fusilero = puestos.find(o=>o.base) || null;
+  const mas = especial.concat(fusilero && fusilero.n>0 ? [fusilero] : []).reduce((a, g)=>!a || g.total>a.total ? g : a, null);
+  return {sop:true, base, indiv:comun - base, colect:0, lineas, lineasCalc:Object.assign({}, lineas), pesoLinea:{}, sinMochila, mochilaModo:modoMo, puestos,
+    combate:base + lineas[1] + lineas[2], marcha:base + lineas[1] + lineas[2] + lineas[5] + lineas[3], comun, especial, portadores, fusileros:nFus, fusilero,
+    mas:mas && mas.total>comun ? mas : null, total:mas && mas.total>comun ? mas.total : comun, n:c.n, hay:c.hay, items:items.sort((a, b)=>b.porHombre - a.porHombre), aguaKg, aguaL};
 }
 if(typeof globalThis!=='undefined'){ globalThis.PESOS = PESOS; globalThis.pesoMaterial = pesoMaterial; globalThis.LINEAS = LINEAS; globalThis.PUESTOS = PUESTOS; globalThis.OMES = OMES; globalThis.omesDe = omesDe; globalThis.ORDEN_LINEAS = ORDEN_LINEAS; globalThis.portDe = portDe; globalThis.ESPECIAL = ESPECIAL; globalThis.LIMITES_CARGA = LIMITES_CARGA; globalThis.LINEAS_TXT = LINEAS_TXT; globalThis.lineaDe = lineaDe; }
 
