@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.56', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.57', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -776,15 +776,14 @@
   /* peso según SOP: los kg de cada línea de cada puesto, directo (sin los elementos). Vacío = lo del fusilero; en gris, lo que da el detalle */
   function sopHtml(m, R){
     const pm = R.carga || pesoMaterial(m, R); if(!pm || !pm.sop) return '';
-    const det = pesoMaterial(Object.assign({}, m, {par:Object.assign({}, m.par, {modoCarga:'detalle'})}), R) || {puestos:[]}, S = m.sop || {}, Ls = [1, 2, 5, 3];
-    const detL = (k, l)=>{ const o = det.puestos.find(x=>x.key===k); if(!o) return 0; const v = o.lineas[l] - (l===(det.items.find(x=>x.id==='agua') || {}).linea ? (det.items.find(x=>x.id==='agua') || {}).porHombre || 0 : 0); return Math.max(0, v); };
+    const S = m.sop || {}, Ls = [1, 2, 5, 3];
     return `<div class="tarjeta"><p class="nota">Escribe los <b>kilos por hombre</b> de cada línea según el SOP de tu unidad, <b>sin el agua</b>: el agua calculada (${f(pm.aguaKg, 1)} kg) se suma sola en la ${esc(LINEAS[pm.aguaL])}.
-        Una casilla vacía usa lo del fusilero; en gris va lo que da el detalle por elementos, como referencia. El equipo especial común se suma aparte.</p>
+        Una casilla vacía vale <b>lo que muestra en gris</b>: lo que da el detalle por elementos (si cambias el fusilero, los demás puestos se mueven igual). El equipo especial común se suma aparte.</p>
       <div class="tabla-env"><table class="t sop"><thead><tr><th class="tx">Puesto</th><th>Hombres</th>${Ls.map(l=>`<th>${esc(LINEAS[l].replace(' línea', ''))}</th>`).join('')}<th>Total</th></tr></thead><tbody>
       ${pm.puestos.filter(o=>OMES[o.key] || o.propio!==undefined).map(o=>{ const k = o.base ? 'fusilero' : o.key, st = (m.ome || {})[o.key] || {};
         return `<tr class="${pm.mas===o ? 'mas' : ''}"><td class="tx">${esc(o.nombre)}${pm.mas===o ? ' <b class="mas-tag">más cargado</b>' : ''}</td>
           <td>${o.base ? (pm.hay ? pm.fusileros : '—') : `<input class="num" data-on="${o.key}" value="${esc(o.propio!==undefined ? ((m.omeExtra || [])[o.propio] || {}).cantidad || '' : st.n!==undefined ? st.n : '')}" placeholder="${Math.max(o.nDef, o.n || 0)}" inputmode="numeric" aria-label="Hombres">`}</td>
-          ${Ls.map(l=>`<td><input class="num" data-sop="${k}|${l}" value="${esc((S[k] || {})[l] || '')}" placeholder="${f(o.base ? detL(k, l) : ((S.fusilero || {})[l] ? numCant(S.fusilero[l]) : detL(k, l)), 1)}" inputmode="decimal" aria-label="${esc(LINEAS[l])}"></td>`).join('')}
+          ${Ls.map(l=>`<td><input class="num" data-sop="${k}|${l}" value="${esc((S[k] || {})[l] || '')}" placeholder="${f(pm.usa(k, l), 1)}" inputmode="decimal" aria-label="${esc(LINEAS[l])}"></td>`).join('')}
           <td><b>${o.n>0 || o.base ? f(o.total, 1) : '—'}</b></td></tr>`; }).join('')}
       </tbody></table></div></div>`;
   }
