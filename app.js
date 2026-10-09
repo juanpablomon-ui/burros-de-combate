@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.65', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.66', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -996,7 +996,8 @@
   /* Enviar en tres pasos (pedido del usuario): 1) qué marcha(s), 2) a quién (destino, no formato), 3) un solo botón «Enviar».
      En el teléfono abre el menú Compartir con el texto o el archivo; en el computador descarga o copia. Recuerda el último destino (S.envDest). */
   const DESTINOS = {
-    c2:{n:'C2 TOQUI / KÜTRAL', d:'Mensaje con código o QR', una:true, mil:true},
+    c2:{n:'C2 TOQUI', d:'Archivo KML que el TOQUI abre como calco (botón 🌍 KML/GPX → importar)', mil:true},
+    msg:{n:'Mensaje por radio o chat', d:'Texto del plan con código (el código lo lee otra Burros) o QR', una:true},
     tel:{n:'Otro teléfono con Burros', d:'La marcha completa (archivo, código o QR)'},
     gps:{n:'GPS de mano o Wikiloc', d:'Archivo GPX'},
     atak:{n:'ATAK', d:'Archivo KML (Import Manager → archivo local)'},
@@ -1028,15 +1029,16 @@
         ${!sel.length ? '<p class="nota">Marca al menos una marcha arriba.</p>' : muchas ? `<div class="alerta">«${esc(D.n)}» admite una sola marcha: deja marcada solo una.</div>` : ''}
         ${S.envDest==='contacto' && sel.length===1 ? `<div class="campos"><label class="c">Si no hay noticias a las<input type="time" id="cvLim" value="${esc(sel[0].m.par.horaAviso || M.verHora((sel[0].R.res.termino || 0) + 1).slice(0, 5))}"></label>
           <label class="c">Teléfono del grupo<input id="cvTel" value="${esc(sel[0].m.par.contacto || '')}" placeholder="opcional" inputmode="tel"></label></div>` : ''}
-        ${(S.envDest==='c2' || S.envDest==='contacto' || S.envDest==='wsp') && sel.length===1 ? `<div class="mensaje" id="msg">${esc(textoEnvio(S.envDest, sel[0]))}</div>` : ''}
+        ${(S.envDest==='msg' || S.envDest==='contacto' || S.envDest==='wsp') && sel.length===1 ? `<div class="mensaje" id="msg">${esc(textoEnvio(S.envDest, sel[0]))}</div>` : ''}
         <div class="btns"><button class="btn pri grande" id="bEnviar" ${!sel.length || muchas ? 'disabled' : ''}>${navigator.share ? '↗ Enviar' : '⬇ Enviar'}${sel.length>1 ? ' (' + sel.length + ' marchas)' : ''}</button>
-          ${(S.envDest==='c2' || S.envDest==='tel') && sel.length===1 ? '<button class="btn" id="bQr">▦ Mostrar QR</button><button class="btn" id="bCod">📋 Copiar código</button>' : ''}</div>
+          ${(S.envDest==='msg' || S.envDest==='tel') && sel.length===1 ? '<button class="btn" id="bQr">▦ Mostrar QR</button><button class="btn" id="bCod">📋 Copiar código</button>' : ''}</div>
         <div id="qr"></div>
         <p class="nota">${navigator.share ? 'En el teléfono se abre el menú Compartir (WhatsApp, correo, AirDrop, Drive…).' : 'En el computador se descarga el archivo o se copia el mensaje.'}
           ${S.envDest==='atak' ? ' En ATAK: Import Manager → archivo local → elige el KML; la ruta y los puntos quedan como capa.' : ''}
+          ${S.envDest==='c2' ? ' En el TOQUI: botón «🌍 KML/GPX» → importar → elige el archivo; la ruta y los puntos de control quedan como calco.' : ''}
           ${S.envDest==='tel' ? ' En el otro teléfono: Marchas → «Cargar respaldo» (archivo) o «Recibir plan» (código o QR).' : ''}</p>
       </div>
-      ${civil ? '' : `<details class="tarjeta"><summary>Vínculo con el C2 TOQUI</summary><p class="nota">El plan llega al C2 como mensaje con código, QR o archivos estándar (KML, GPX, GeoJSON). La conexión directa por red se hará cuando se conozca el formato del TOQUI.</p></details>`}`;
+      ${civil ? '' : `<details class="tarjeta"><summary>Vínculo con el C2 TOQUI</summary><p class="nota">El TOQUI abre el archivo KML (o GPX o GeoJSON) como calco, con la ruta y los puntos de control. El mensaje con código no lo lee el TOQUI: sirve entre equipos con Burros. La conexión directa por red se hará cuando se defina con el TOQUI.</p></details>`}`;
     vista.querySelectorAll('[data-env]').forEach(c=>c.onchange = ()=>{ const id = c.dataset.env; S.envSel = c.checked ? [...new Set([...S.envSel, id])] : S.envSel.filter(x=>x!==id); guardar(); vEnviar(); });
     vista.querySelectorAll('[data-ver]').forEach(b=>b.onclick = e=>{ e.preventDefault(); S.actual = b.dataset.ver; ir('cuadro'); });
     vista.querySelectorAll('[data-dest]').forEach(b=>b.onclick = ()=>{ S.envDest = b.dataset.dest; guardar(); vEnviar(); });
@@ -1053,7 +1055,8 @@
   async function enviar(dest, sel){
     const x = sel[0], nom = sel.length===1 ? x.m : {nombre:sel.length + '_marchas'}, tit = sel.length===1 ? 'Marcha — ' + x.m.nombre : sel.length + ' marchas';
     const textoCompartido = async t=>{ if(navigator.share){ try { await navigator.share({title:tit, text:t}); return 'compartido'; } catch(e){ if(e && e.name==='AbortError') return 'cancelado'; } } await copiar(t); return 'copiado'; };
-    if(dest==='c2' || dest==='contacto') return textoCompartido(textoEnvio(dest, x));
+    if(dest==='msg' || dest==='contacto') return textoCompartido(textoEnvio(dest, x));
+    if(dest==='c2') return compartirArchivo(nombreArchivo(nom, 'kml'), BDC.kmlVarias(sel), 'application/vnd.google-earth.kml+xml', tit, sel.map(y=>BDC.lineaPlan(y.m, y.R)).join('\n\n'));
     if(dest==='tel') return compartirArchivo(nombreArchivo(nom, 'json'), JSON.stringify({app:'burros', v:1, marchas:sel.map(y=>y.m)}, null, 1), 'application/json', tit);
     if(dest==='gps') return compartirArchivo(nombreArchivo(nom, 'gpx'), BDC.gpxVarias(sel), 'application/gpx+xml', tit);
     if(dest==='atak' || dest==='earth') return compartirArchivo(nombreArchivo(nom, 'kml'), BDC.kmlVarias(sel), 'application/vnd.google-earth.kml+xml', tit);
