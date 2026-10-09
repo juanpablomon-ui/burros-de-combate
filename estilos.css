@@ -562,3 +562,5 @@ table.puestos{font-size:12px} table.puestos th,table.puestos td{padding:5px 4px}
 table.sop{font-size:12.5px} table.sop td input{width:50px;padding:5px 4px;text-align:right;font-size:13px} table.sop th,table.sop td{padding:4px 3px} table.sop td.tx{white-space:normal;min-width:120px}
 table.sop tr.mas td{background:#e3a63a1c}
 table.sop td.sop-x{color:var(--suave);font-family:var(--mono)}
+.tarjeta.cual{display:flex;justify-content:space-between;align-items:center;gap:10px;border-color:var(--ocre)}
+.tarjeta.cual b{display:block;font-size:17px;color:var(--ocre)} .tarjeta.cual small{display:block;color:var(--suave);font-size:12.5px}

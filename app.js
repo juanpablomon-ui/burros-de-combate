@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.60', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.61', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -971,7 +971,7 @@
     if(!R.tramos.length){ vista.innerHTML = `<div class="tarjeta vacio">Completa la ruta antes de enviarla.<div class="btns" style="justify-content:center"><button class="btn pri" id="bR">Ir a la ruta</button></div></div>`; return $('#bR').onclick = ()=>ir('ruta'); }
     const msg = BDC.mensajePlan(m, R), cod = msg.split('\n')[1];
     if(Uso.civil()) return enviarCivil(m, R, cod);
-    vista.innerHTML = `<h2>Mensaje del plan de marcha</h2>
+    vista.innerHTML = `${cualMarcha(m, R)}<h2>Mensaje del plan de marcha</h2>
       <div class="tarjeta">
         <p class="nota">Una línea para leer o dictar por radio y un <b>código</b> que otro equipo con Burros de Combate (o el C2) abre con todos los datos.
           Pégalo en el chat, correo o sistema de mensajes, o muestra el QR.</p>
@@ -1023,9 +1023,17 @@
       'Punto de partida en el mapa: https://maps.google.com/?q=' + R.puntos[R.eventos[0]].lat.toFixed(5) + ',' + R.puntos[R.eventos[0]].lon.toFixed(5),
       (m.par.contacto ? 'Contacto del grupo: ' + m.par.contacto + '\n' : '') + 'SI NO HAY NOTICIAS A LAS ' + limite + ', llamar a emergencias: 133 Carabineros · 136 Socorro Andino · 131 SAMU.'].join('\n');
   }
+  // qué marcha se está enviando (la abierta), con botón para cambiarla
+  function cualMarcha(m, R){
+    const n = S.marchas.length;
+    return `<div class="tarjeta cual"><div><span class="nota">Estás enviando la marcha</span><b>${esc(m.nombre)}</b>
+      <small>${esc([m.unidad, m.fecha ? m.fecha.split('-').reverse().join('-') : '', m.hora, R.tramos.length ? km(R.res.dist) + ' km' : ''].filter(Boolean).join(' · '))}</small></div>
+      ${n>1 ? `<button class="btn mini" data-ir-marchas>Cambiar (${n} marchas)</button>` : ''}</div>`;
+  }
+  vista.addEventListener('click', e=>{ if(e.target.closest('[data-ir-marchas]')) ir('marchas'); });
   function enviarCivil(m, R, cod){
     const r = R.res, lim0 = M.verHora((r.termino===null ? 0 : r.termino) + 1).slice(0, 5);
-    vista.innerHTML = `<h2>Plan de ruta para tu contacto de emergencia</h2>
+    vista.innerHTML = `${cualMarcha(m, R)}<h2>Plan de ruta para tu contacto de emergencia</h2>
       <div class="tarjeta">
         <p class="nota">Antes de salir, deja este plan a alguien que <b>no</b> va en la ruta: dónde van, quiénes, a qué hora vuelven y a qué hora debe dar aviso si no tiene noticias.</p>
         <div class="campos"><label class="c">Si no hay noticias a las<input type="time" id="cvLim" value="${esc(m.par.horaAviso || lim0)}"></label>
