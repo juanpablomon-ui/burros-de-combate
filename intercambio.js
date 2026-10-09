@@ -86,6 +86,25 @@ ${ok.filter(p=>p.ev).map(p=>`<Placemark><name>${xml(rot(p))}</name><description>
 </Document></kml>
 `;
   }
+  // varias marchas en un solo archivo (GPX con varias rutas; KML con una carpeta por marcha)
+  function gpxVarias(L){
+    if(L.length===1) return gpx(L[0].m, L[0].R);
+    const cuerpo = x=>{ const t = gpx(x.m, x.R); return t.slice(t.indexOf('</metadata>') + 11, t.lastIndexOf('</gpx>')); };
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Burros de Combate" xmlns="http://www.topografix.com/GPX/1/1">
+<metadata><name>${xml(L.length + ' marchas')}</name></metadata>${L.map(cuerpo).join('')}</gpx>
+`;
+  }
+  function kmlVarias(L){
+    if(L.length===1) return kml(L[0].m, L[0].R);
+    const cuerpo = x=>{ const t = kml(x.m, x.R); return `<Folder><name>${xml(x.m.nombre)}</name><description>${xml(lineaPlan(x.m, x.R))}</description>` + t.slice(t.indexOf('<Placemark>'), t.lastIndexOf('</Document>')) + '</Folder>\n'; };
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2"><Document>
+<name>${xml(L.length + ' marchas')}</name>
+<Style id="ruta"><LineStyle><color>ff3aa6e3</color><width>4</width></LineStyle></Style>
+${L.map(cuerpo).join('')}</Document></kml>
+`;
+  }
   function geojson(m, R){
     const ok = R.puntos.filter(p=>p.ok), llega = {}; R.tramos.forEach(t=>llega[t.iB] = t);
     const f = [{type:'Feature', properties:{tipo:'ruta', nombre:m.nombre, unidad:m.unidad, fecha:m.fecha, partida:m.hora,
@@ -143,6 +162,6 @@ ${ok.filter(p=>p.ev).map(p=>`<Placemark><name>${xml(rot(p))}</name><description>
       return Object.assign(p, {ev:p.ev || i===0 || !!p.nombre, nombre:c ? c[2] : p.nombre || (i===0 ? 'PIM' : ''), clave:c ? c[1] : '', cota:isFinite(p.cota) && p.cota ? Math.round(p.cota) : ''}); });
   }
 
-  return {PRE, TIPOS, codigo, leer, datosPlan, marchaDePlan, lineaPlan, mensajePlan, gpx, kml, geojson, csv, leerArchivo, b64e, b64d};
+  return {PRE, TIPOS, codigo, leer, datosPlan, marchaDePlan, lineaPlan, mensajePlan, gpx, kml, gpxVarias, kmlVarias, geojson, csv, leerArchivo, b64e, b64d};
 })();
 if(typeof globalThis!=='undefined') globalThis.BDC = BDC;

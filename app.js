@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.61', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.62', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -966,50 +966,74 @@
   }
 
   /* =====================================================================  ENVIAR  */
-  function vEnviar(){
-    const m = actual(), R = M.calcular(m);
-    if(!R.tramos.length){ vista.innerHTML = `<div class="tarjeta vacio">Completa la ruta antes de enviarla.<div class="btns" style="justify-content:center"><button class="btn pri" id="bR">Ir a la ruta</button></div></div>`; return $('#bR').onclick = ()=>ir('ruta'); }
-    const msg = BDC.mensajePlan(m, R), cod = msg.split('\n')[1];
-    if(Uso.civil()) return enviarCivil(m, R, cod);
-    vista.innerHTML = `${cualMarcha(m, R)}<h2>Mensaje del plan de marcha</h2>
-      <div class="tarjeta">
-        <p class="nota">Una línea para leer o dictar por radio y un <b>código</b> que otro equipo con Burros de Combate (o el C2) abre con todos los datos.
-          Pégalo en el chat, correo o sistema de mensajes, o muestra el QR.</p>
-        <div class="mensaje" id="msg">${esc(msg)}</div>
-        <div class="btns"><button class="btn pri" id="bCop">📋 Copiar mensaje</button>${navigator.share ? '<button class="btn" id="bComp">↗ Compartir</button>' : ''}<button class="btn" id="bQr">▦ Mostrar QR</button></div>
-        <div id="qr"></div>
-      </div>
-      <h2>Archivos</h2>
-      <div class="formatos">
-        <button class="btn" data-arch="gpx"><b>GPX</b><small>GPS de mano, Garmin, apps de navegación, ATAK</small></button>
-        <button class="btn" data-arch="kml"><b>KML</b><small>Google Earth, graficador, sistemas SIG</small></button>
-        <button class="btn" data-arch="geojson"><b>GeoJSON</b><small>Sistemas C2 y SIG (QGIS, ArcGIS)</small></button>
-        <button class="btn" data-arch="csv"><b>Excel (CSV)</b><small>Cuadro de marcha para anexar a la OPORD</small></button>
-        <button class="btn" data-arch="json"><b>Marcha (JSON)</b><small>Para abrirla en otro equipo con esta app</small></button>
-        <button class="btn" id="bImp"><b>📄 Documento / orden gráfica</b><small>Militar o civil: mapa, perfil, cuadro, matriz, luz… para imprimir o PDF</small></button>
-      </div>
-      <h2>Vínculo con el C2 TOQUI</h2>
-      <div class="tarjeta nota">
-        Hoy el plan llega al C2 de tres formas, sin depender de cómo esté hecho el sistema:
-        <b>1)</b> el mensaje con código (texto), <b>2)</b> el QR y <b>3)</b> archivos estándar (KML, GPX, GeoJSON) que cualquier C2 o SIG puede cargar como calco.
-        Durante la marcha se enviarán además la llegada a cada punto de control (adelanto/atraso), la posición, los altos y las novedades.
-        <div class="info">Para la conexión directa por red (como KÜTRAL), hay que saber qué formato acepta el TOQUI. Esta app ya usa formatos abiertos, así que el
-          enlace se puede hacer apenas se conozca esa información.</div>
-      </div>`;
-    $('#bCop').onclick = ()=>copiar(msg);
-    if($('#bComp')) $('#bComp').onclick = ()=>navigator.share({title:'Plan de marcha — ' + m.nombre, text:msg}).catch(()=>{});
-    $('#bQr').onclick = ()=>{
-      try { const q = qrcode(0, 'L'); q.addData(cod, 'Byte'); q.make(); $('#qr').innerHTML = `<div class="qr">${q.createSvgTag({cellSize:4, margin:2, scalable:true})}</div><p class="nota">Léelo con «Recibir plan» en otro equipo.</p>`; }
-      catch(e){ $('#qr').innerHTML = '<div class="alerta">La ruta es demasiado larga para un QR: usa el mensaje de texto o un archivo.</div>'; } };
-    vista.querySelectorAll('[data-arch]').forEach(b=>b.onclick = ()=>{ const k = b.dataset.arch;
-      if(k==='gpx') descargar(nombreArchivo(m, 'gpx'), BDC.gpx(m, R), 'application/gpx+xml');
-      if(k==='kml') descargar(nombreArchivo(m, 'kml'), BDC.kml(m, R), 'application/vnd.google-earth.kml+xml');
-      if(k==='geojson') descargar(nombreArchivo(m, 'geojson'), BDC.geojson(m, R), 'application/geo+json');
-      if(k==='csv') descargar(nombreArchivo(m, 'csv'), BDC.csv(m, R), 'text/csv;charset=utf-8');
-      if(k==='json') descargar(nombreArchivo(m, 'json'), JSON.stringify({app:'burros', v:1, marchas:[m]}, null, 1), 'application/json'); });
-    $('#bImp').onclick = ()=>documento();
+  /* Enviar en tres pasos (pedido del usuario): 1) qué marcha(s), 2) a quién (destino, no formato), 3) un solo botón «Enviar».
+     En el teléfono abre el menú Compartir con el texto o el archivo; en el computador descarga o copia. Recuerda el último destino (S.envDest). */
+  const DESTINOS = {
+    c2:{n:'C2 TOQUI / KÜTRAL', d:'Mensaje con código o QR', una:true, mil:true},
+    tel:{n:'Otro teléfono con Burros', d:'La marcha completa (archivo, código o QR)'},
+    gps:{n:'GPS de mano o Wikiloc', d:'Archivo GPX'},
+    atak:{n:'ATAK', d:'Archivo KML (Import Manager → archivo local)'},
+    earth:{n:'Google Earth o el graficador', d:'Archivo KML'},
+    excel:{n:'Excel', d:'Cuadro de marcha (CSV)', una:true},
+    doc:{n:'Imprimir o adjuntar', d:'Documento PDF o JPG', una:true},
+    wsp:{n:'WhatsApp o correo', d:'Resumen en texto + archivo GPX'},
+    contacto:{n:'Contacto de emergencia', d:'Plan de ruta con hora límite', una:true, civ:true}};
+  async function compartirArchivo(nombre, texto, tipo, titulo, mensaje){
+    try { const f = new File([texto], nombre, {type:tipo});
+      if(navigator.canShare && navigator.canShare({files:[f]})){ await navigator.share(Object.assign({files:[f], title:titulo}, mensaje ? {text:mensaje} : {})); return 'compartido'; } } catch(e){ if(e && e.name==='AbortError') return 'cancelado'; }
+    descargar(nombre, texto, tipo); if(mensaje) await copiar(mensaje); return 'descargado';
   }
-
+  function vEnviar(){
+    const civil = Uso.civil(), dests = Object.entries(DESTINOS).filter(([, d])=>civil ? !d.mil : !d.civ);
+    const lista = S.marchas.map(m=>{ let R = null; try { R = M.calcular(m); } catch(e){} return {m, R, ok:!!(R && R.tramos.length)}; });
+    if(!S.envSel || !S.envSel.some(id=>lista.some(x=>x.m.id===id && x.ok))) S.envSel = actual() ? [actual().id] : [];
+    S.envSel = S.envSel.filter(id=>lista.some(x=>x.m.id===id && x.ok));
+    if(!S.envDest || !dests.some(([k])=>k===S.envDest)) S.envDest = civil ? 'contacto' : 'c2';
+    const sel = lista.filter(x=>S.envSel.includes(x.m.id)), D = DESTINOS[S.envDest], muchas = sel.length>1 && D.una;
+    vista.innerHTML = `<h2>① ¿Qué marcha?</h2>
+      <div class="tarjeta env-lista">${lista.length ? lista.map(x=>`<label class="env-m${x.ok ? '' : ' no'}"><input type="checkbox" data-env="${x.m.id}" ${S.envSel.includes(x.m.id) ? 'checked' : ''} ${x.ok ? '' : 'disabled'}>
+          <span><b>${esc(x.m.nombre)}</b><small>${esc([x.m.unidad, x.m.fecha ? x.m.fecha.split('-').reverse().join('-') : '', x.m.hora, x.ok ? km(x.R.res.dist) + ' km · ' + M.verDur(x.R.res.total) : 'faltan datos de la ruta'].filter(Boolean).join(' · '))}</small></span>
+          ${x.ok ? `<button class="btn mini" data-ver="${x.m.id}">Ver</button>` : ''}</label>`).join('') : '<p class="nota">No hay marchas guardadas.</p>'}</div>
+      <h2>② ¿A quién?</h2>
+      <div class="formatos env-dest">${dests.map(([k, d])=>`<button class="btn${S.envDest===k ? ' on' : ''}" data-dest="${k}"><b>${esc(d.n)}</b><small>${esc(d.d)}${d.una ? ' · una marcha' : ' · una o varias'}</small></button>`).join('')}</div>
+      <h2>③ Enviar</h2>
+      <div class="tarjeta" id="envPaso3">
+        ${!sel.length ? '<p class="nota">Marca al menos una marcha arriba.</p>' : muchas ? `<div class="alerta">«${esc(D.n)}» admite una sola marcha: deja marcada solo una.</div>` : ''}
+        ${S.envDest==='contacto' && sel.length===1 ? `<div class="campos"><label class="c">Si no hay noticias a las<input type="time" id="cvLim" value="${esc(sel[0].m.par.horaAviso || M.verHora((sel[0].R.res.termino || 0) + 1).slice(0, 5))}"></label>
+          <label class="c">Teléfono del grupo<input id="cvTel" value="${esc(sel[0].m.par.contacto || '')}" placeholder="opcional" inputmode="tel"></label></div>` : ''}
+        ${(S.envDest==='c2' || S.envDest==='contacto' || S.envDest==='wsp') && sel.length===1 ? `<div class="mensaje" id="msg">${esc(textoEnvio(S.envDest, sel[0]))}</div>` : ''}
+        <div class="btns"><button class="btn pri grande" id="bEnviar" ${!sel.length || muchas ? 'disabled' : ''}>${navigator.share ? '↗ Enviar' : '⬇ Enviar'}${sel.length>1 ? ' (' + sel.length + ' marchas)' : ''}</button>
+          ${(S.envDest==='c2' || S.envDest==='tel') && sel.length===1 ? '<button class="btn" id="bQr">▦ Mostrar QR</button><button class="btn" id="bCod">📋 Copiar código</button>' : ''}</div>
+        <div id="qr"></div>
+        <p class="nota">${navigator.share ? 'En el teléfono se abre el menú Compartir (WhatsApp, correo, AirDrop, Drive…).' : 'En el computador se descarga el archivo o se copia el mensaje.'}
+          ${S.envDest==='atak' ? ' En ATAK: Import Manager → archivo local → elige el KML; la ruta y los puntos quedan como capa.' : ''}
+          ${S.envDest==='tel' ? ' En el otro teléfono: Marchas → «Cargar respaldo» (archivo) o «Recibir plan» (código o QR).' : ''}</p>
+      </div>
+      ${civil ? '' : `<details class="tarjeta"><summary>Vínculo con el C2 TOQUI</summary><p class="nota">El plan llega al C2 como mensaje con código, QR o archivos estándar (KML, GPX, GeoJSON). La conexión directa por red se hará cuando se conozca el formato del TOQUI.</p></details>`}`;
+    vista.querySelectorAll('[data-env]').forEach(c=>c.onchange = ()=>{ const id = c.dataset.env; S.envSel = c.checked ? [...new Set([...S.envSel, id])] : S.envSel.filter(x=>x!==id); guardar(); vEnviar(); });
+    vista.querySelectorAll('[data-ver]').forEach(b=>b.onclick = e=>{ e.preventDefault(); S.actual = b.dataset.ver; ir('cuadro'); });
+    vista.querySelectorAll('[data-dest]').forEach(b=>b.onclick = ()=>{ S.envDest = b.dataset.dest; guardar(); vEnviar(); });
+    if($('#cvLim')) $('#cvLim').onchange = e=>{ sel[0].m.par.horaAviso = e.target.value; guardar(); $('#msg').textContent = textoEnvio('contacto', sel[0]); };
+    if($('#cvTel')) $('#cvTel').oninput = e=>{ sel[0].m.par.contacto = e.target.value; guardar(); $('#msg').textContent = textoEnvio('contacto', sel[0]); };
+    const cod = sel.length===1 ? BDC.mensajePlan(sel[0].m, sel[0].R).split('\n')[1] : '';
+    if($('#bCod')) $('#bCod').onclick = ()=>copiar(cod);
+    if($('#bQr')) $('#bQr').onclick = ()=>{
+      try { const q = qrcode(0, 'L'); q.addData(cod, 'Byte'); q.make(); $('#qr').innerHTML = `<div class="qr">${q.createSvgTag({cellSize:4, margin:2, scalable:true})}</div><p class="nota">Léelo con «Recibir plan» en el otro equipo.</p>`; }
+      catch(e){ $('#qr').innerHTML = '<div class="alerta">La ruta es demasiado larga para un QR: usa el archivo o el código.</div>'; } };
+    $('#bEnviar').onclick = async()=>{ const r = await enviar(S.envDest, sel); if(r==='compartido') aviso('✔ Enviado'); else if(r==='descargado') aviso('⬇ Archivo descargado' + (S.envDest==='wsp' ? ' y resumen copiado' : '')); else if(r==='copiado') aviso('📋 Mensaje copiado'); };
+  }
+  function textoEnvio(dest, x){ return dest==='contacto' ? planCivil(x.m, x.R) : dest==='wsp' ? BDC.lineaPlan(x.m, x.R) : BDC.mensajePlan(x.m, x.R); }
+  async function enviar(dest, sel){
+    const x = sel[0], nom = sel.length===1 ? x.m : {nombre:sel.length + '_marchas'}, tit = sel.length===1 ? 'Marcha — ' + x.m.nombre : sel.length + ' marchas';
+    const textoCompartido = async t=>{ if(navigator.share){ try { await navigator.share({title:tit, text:t}); return 'compartido'; } catch(e){ if(e && e.name==='AbortError') return 'cancelado'; } } await copiar(t); return 'copiado'; };
+    if(dest==='c2' || dest==='contacto') return textoCompartido(textoEnvio(dest, x));
+    if(dest==='tel') return compartirArchivo(nombreArchivo(nom, 'json'), JSON.stringify({app:'burros', v:1, marchas:sel.map(y=>y.m)}, null, 1), 'application/json', tit);
+    if(dest==='gps') return compartirArchivo(nombreArchivo(nom, 'gpx'), BDC.gpxVarias(sel), 'application/gpx+xml', tit);
+    if(dest==='atak' || dest==='earth') return compartirArchivo(nombreArchivo(nom, 'kml'), BDC.kmlVarias(sel), 'application/vnd.google-earth.kml+xml', tit);
+    if(dest==='excel') return compartirArchivo(nombreArchivo(x.m, 'csv'), BDC.csv(x.m, x.R), 'text/csv;charset=utf-8', tit);
+    if(dest==='wsp') return compartirArchivo(nombreArchivo(nom, 'gpx'), BDC.gpxVarias(sel), 'application/gpx+xml', tit, sel.map(y=>BDC.lineaPlan(y.m, y.R)).join('\n\n'));
+    if(dest==='doc'){ S.actual = x.m.id; guardar(); documento(); return ''; }
+  }
   // uso civil: plan de ruta en texto simple para el contacto de emergencia (lo que se recomienda dejar antes de salir)
   function planCivil(m, R){
     const r = R.res, fecha = m.fecha ? m.fecha.split('-').reverse().join('-') : '', n = +m.par.efectivo || 0;
@@ -1023,54 +1047,6 @@
       'Punto de partida en el mapa: https://maps.google.com/?q=' + R.puntos[R.eventos[0]].lat.toFixed(5) + ',' + R.puntos[R.eventos[0]].lon.toFixed(5),
       (m.par.contacto ? 'Contacto del grupo: ' + m.par.contacto + '\n' : '') + 'SI NO HAY NOTICIAS A LAS ' + limite + ', llamar a emergencias: 133 Carabineros · 136 Socorro Andino · 131 SAMU.'].join('\n');
   }
-  // qué marcha se está enviando (la abierta), con botón para cambiarla
-  function cualMarcha(m, R){
-    const n = S.marchas.length;
-    return `<div class="tarjeta cual"><div><span class="nota">Estás enviando la marcha</span><b>${esc(m.nombre)}</b>
-      <small>${esc([m.unidad, m.fecha ? m.fecha.split('-').reverse().join('-') : '', m.hora, R.tramos.length ? km(R.res.dist) + ' km' : ''].filter(Boolean).join(' · '))}</small></div>
-      ${n>1 ? `<button class="btn mini" data-ir-marchas>Cambiar (${n} marchas)</button>` : ''}</div>`;
-  }
-  vista.addEventListener('click', e=>{ if(e.target.closest('[data-ir-marchas]')) ir('marchas'); });
-  function enviarCivil(m, R, cod){
-    const r = R.res, lim0 = M.verHora((r.termino===null ? 0 : r.termino) + 1).slice(0, 5);
-    vista.innerHTML = `${cualMarcha(m, R)}<h2>Plan de ruta para tu contacto de emergencia</h2>
-      <div class="tarjeta">
-        <p class="nota">Antes de salir, deja este plan a alguien que <b>no</b> va en la ruta: dónde van, quiénes, a qué hora vuelven y a qué hora debe dar aviso si no tiene noticias.</p>
-        <div class="campos"><label class="c">Si no hay noticias a las<input type="time" id="cvLim" value="${esc(m.par.horaAviso || lim0)}"></label>
-          <label class="c">Teléfono del grupo<input id="cvTel" value="${esc(m.par.contacto || '')}" placeholder="opcional" inputmode="tel"></label></div>
-        <div class="mensaje" id="msg">${esc(planCivil(m, R))}</div>
-        <div class="btns"><button class="btn pri" id="bCop">📋 Copiar</button>${navigator.share ? '<button class="btn" id="bComp">↗ Compartir (WhatsApp, correo…)</button>' : ''}</div>
-      </div>
-      <h2>Archivos</h2>
-      <div class="formatos">
-        <button class="btn" data-arch="gpx"><b>GPX</b><small>GPS de mano, Garmin, Wikiloc y apps de montaña</small></button>
-        <button class="btn" data-arch="kml"><b>KML</b><small>Google Earth y Google Maps</small></button>
-        <button class="btn" data-arch="geojson"><b>GeoJSON</b><small>Sistemas de mapas (QGIS, ArcGIS)</small></button>
-        <button class="btn" data-arch="csv"><b>Excel (CSV)</b><small>Cuadro de la ruta</small></button>
-        <button class="btn" data-arch="json"><b>Marcha (JSON)</b><small>Para abrirla en otro equipo con esta app</small></button>
-        <button class="btn" id="bImp"><b>📄 Documento / plan de ruta</b><small>Mapa, perfil, cuadro, luz… para imprimir o PDF</small></button>
-      </div>
-      <details class="tarjeta"><summary>Pasar la ruta a otro teléfono con Burros de Combate</summary>
-        <p class="nota">Código o QR que se abre con «Recibir plan» en la pestaña Marchas.</p>
-        <div class="btns"><button class="btn" id="bCod">📋 Copiar código</button><button class="btn" id="bQr">▦ Mostrar QR</button></div><div id="qr"></div></details>`;
-    const msg = ()=>$('#msg').textContent;
-    $('#cvLim').onchange = e=>{ m.par.horaAviso = e.target.value; guardar(); $('#msg').textContent = planCivil(m, R); };
-    $('#cvTel').oninput = e=>{ m.par.contacto = e.target.value; guardar(); $('#msg').textContent = planCivil(m, R); };
-    $('#bCop').onclick = ()=>copiar(msg());
-    if($('#bComp')) $('#bComp').onclick = ()=>navigator.share({title:'Plan de ruta — ' + m.nombre, text:msg()}).catch(()=>{});
-    $('#bCod').onclick = ()=>copiar(cod);
-    $('#bQr').onclick = ()=>{
-      try { const q = qrcode(0, 'L'); q.addData(cod, 'Byte'); q.make(); $('#qr').innerHTML = `<div class="qr">${q.createSvgTag({cellSize:4, margin:2, scalable:true})}</div>`; }
-      catch(e){ $('#qr').innerHTML = '<div class="alerta">La ruta es demasiado larga para un QR: usa el código o un archivo.</div>'; } };
-    vista.querySelectorAll('[data-arch]').forEach(b=>b.onclick = ()=>{ const k = b.dataset.arch;
-      if(k==='gpx') descargar(nombreArchivo(m, 'gpx'), BDC.gpx(m, R), 'application/gpx+xml');
-      if(k==='kml') descargar(nombreArchivo(m, 'kml'), BDC.kml(m, R), 'application/vnd.google-earth.kml+xml');
-      if(k==='geojson') descargar(nombreArchivo(m, 'geojson'), BDC.geojson(m, R), 'application/geo+json');
-      if(k==='csv') descargar(nombreArchivo(m, 'csv'), BDC.csv(m, R), 'text/csv;charset=utf-8');
-      if(k==='json') descargar(nombreArchivo(m, 'json'), JSON.stringify({app:'burros', v:1, marchas:[m]}, null, 1), 'application/json'); });
-    $('#bImp').onclick = ()=>documento();
-  }
-
   /* ---------- inicio ---------- */
   pintar();
   // actualización automática: se busca una versión nueva al abrir y al volver a la app; si la hay, se ofrece recargar

@@ -564,3 +564,10 @@ table.sop tr.mas td{background:#e3a63a1c}
 table.sop td.sop-x{color:var(--suave);font-family:var(--mono)}
 .tarjeta.cual{display:flex;justify-content:space-between;align-items:center;gap:10px;border-color:var(--ocre)}
 .tarjeta.cual b{display:block;font-size:17px;color:var(--ocre)} .tarjeta.cual small{display:block;color:var(--suave);font-size:12.5px}
+/* enviar en tres pasos */
+.env-lista{display:flex;flex-direction:column;gap:6px}
+.env-m{display:flex;align-items:center;gap:10px;padding:6px 4px;border-bottom:1px solid var(--linea);cursor:pointer}
+.env-m:last-child{border-bottom:0} .env-m input{width:20px;height:20px;accent-color:var(--ocre);flex:0 0 auto}
+.env-m span{flex:1;min-width:0} .env-m b{display:block} .env-m small{display:block;color:var(--suave);font-size:12px} .env-m.no{opacity:.5}
+.env-dest .btn.on{border-color:var(--ocre);background:#e3a63a26}
+.btn.grande{font-size:17px;padding:12px 26px}
