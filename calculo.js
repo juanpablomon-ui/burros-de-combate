@@ -352,7 +352,7 @@ const MARCHA = (function(){
       const g = puntoWgs(p, dat), cota = num(p.cota);
       // ev: punto de control que se informa por radio (evento); si no, es solo un punto de ruta (quiebre del camino).
       // Las marchas antiguas no tienen el campo: todos sus puntos son eventos.
-      return {i, nombre:p.nombre || '', ev:p.ev===undefined ? true : !!p.ev, claveManual:String(p.clave || '').trim().toUpperCase(), obs:p.obs || '', det:(num(p.det)||0)/60, ok:!!g && !isNaN(cota), lat:g && g.lat, lon:g && g.lon, cota};
+      return {i, nombre:p.nombre || '', ev:p.ev===undefined ? true : !!p.ev, claveManual:String(p.clave || '').trim().toUpperCase(), obs:p.obs || '', mochila:p.mochila || '', det:(num(p.det)||0)/60, ok:!!g && !isNaN(cota), lat:g && g.lat, lon:g && g.lon, cota};
     });
     // el primer y el último punto válidos siempre son eventos: PIM (inicio de marcha) y PTM (término de marcha)
     { const v = pts.filter(p=>p.ok); if(v.length){ v[0].ev = true; v[v.length - 1].ev = true;

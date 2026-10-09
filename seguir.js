@@ -14,8 +14,8 @@ const Seguir = (function(){
     const R = A.calcular(m), r = R.res, pts = [];
     if(!R.tramos.length) return null;
     const p0 = R.puntos[R.tramos[0].iA];
-    pts.push({i:p0.i, ev:true, nombre:p0.nombre, clave:p0.clave, obs:p0.obs, lat:p0.lat, lon:p0.lon, cota:p0.cota, lleg:0, sal:p0.det});
-    R.tramos.forEach(t=>{ const p = R.puntos[t.iB]; pts.push({i:p.i, ev:p.ev, nombre:p.nombre, clave:p.clave, obs:p.obs, lat:p.lat, lon:p.lon, cota:p.cota,
+    pts.push({i:p0.i, ev:true, nombre:p0.nombre, clave:p0.clave, obs:p0.obs, mochila:p0.mochila, lat:p0.lat, lon:p0.lon, cota:p0.cota, lleg:0, sal:p0.det});
+    R.tramos.forEach(t=>{ const p = R.puntos[t.iB]; pts.push({i:p.i, ev:p.ev, nombre:p.nombre, clave:p.clave, obs:p.obs, mochila:p.mochila, lat:p.lat, lon:p.lon, cota:p.cota,
       lleg:t.llegada - r.partida, sal:t.salida - r.partida, tramo:t}); });
     return {R, pts};
   }
@@ -124,12 +124,13 @@ const Seguir = (function(){
   }
   function llegar(k, auto){
     const m = A.actual(), E = m.ejec, P = plan(m); if(!E || E.llegadas[k]) return;
-    if(!P.pts[k].ev){ E.llegadas[k] = ahora(); A.guardar(); pintarVivo(); return; }   // quiebre de la ruta: sin aviso ni mensaje
+    if(!P.pts[k].ev){ E.llegadas[k] = ahora(); A.guardar(); pintarVivo();   // quiebre de la ruta: sin mensaje (solo el aviso de la mochila)
+      if(P.pts[k].mochila){ if(navigator.vibrate) navigator.vibrate([200, 100, 200]); A.aviso(P.pts[k].mochila==='deja' ? '🎒 DEJAR LA MOCHILA aquí' : '🎒 RECOGER LA MOCHILA aquí'); } return; }
     for(let j=1; j<k; j++) if(!E.llegadas[j]) E.llegadas[j] = P.pts[j].ev ? -1 : ahora();   // eventos saltados / quiebres ya pasados
     E.llegadas[k] = ahora();
     const d = (E.llegadas[k] - E.inicio)/60000 - P.pts[k].lleg*60, p = P.pts[k];
     if(navigator.vibrate) navigator.vibrate([200, 100, 200]);
-    A.aviso((auto ? '📍 ' : '✔ ') + verbo() + ' ' + rotulo(p) + ' — ' + dif(d));
+    A.aviso((auto ? '📍 ' : '✔ ') + verbo() + ' ' + rotulo(p) + ' — ' + dif(d) + (p.mochila==='deja' ? ' · 🎒 DEJAR LA MOCHILA' : p.mochila==='recoge' ? ' · 🎒 RECOGER LA MOCHILA' : ''));
     mensaje('PC', {pc:p.nombre, clave:p.clave || '', n:k, h:hh(E.llegadas[k]), dif:Math.round(d)});
     if(k===P.pts.length - 1) terminar(true); else { A.guardar(); pintar(); }
   }

@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.44', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.45', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -386,6 +386,7 @@
         ${Rc.puntos[i].ev ? `<div class="extra" style="grid-template-columns:1fr"><label class="c">Nombre clave (vacío = automático)<input class="num clave" data-p="clave" value="${esc(x.clave||'')}" placeholder="${esc(Rc.puntos[i].clave || '')}" list="listaClaves"></label></div>` : ''}
         <div class="extra"><label class="c">Observaciones (punto característico)<input data-p="obs" value="${esc(x.obs)}" placeholder="puente, portezuelo, cruce…"></label>
           <label class="c">Detención (min)<input class="num" data-p="det" inputmode="numeric" value="${esc(x.det)}" placeholder="0"></label></div>
+        ${i && !m.par.sinMochila ? `<div class="extra" style="grid-template-columns:1fr"><label class="c">🎒 Mochila en este punto<select data-p="mochila"><option value="">— Sigue igual —</option><option value="deja"${x.mochila==='deja' ? ' selected' : ''}>Se deja aquí (sigue solo con 1.ª y 2.ª línea)</option><option value="recoge"${x.mochila==='recoge' ? ' selected' : ''}>Se recoge aquí</option></select></label></div>` : ''}
         <div class="estado" id="est${i}"></div>
         <div class="acc"><button class="btn mini" data-acc="carta" title="Marcar o corregir este punto tocando la carta">🗺 Ubicar en la carta</button><button class="btn mini" data-acc="sube" ${i ? '' : 'disabled'} aria-label="Subir">▲</button><button class="btn mini" data-acc="baja" ${i<m.puntos.length - 1 ? '' : 'disabled'} aria-label="Bajar">▼</button>
           <button class="btn mini" data-acc="dup">Duplicar</button><button class="btn mini peligro" data-acc="borra">Borrar</button></div>
@@ -510,7 +511,8 @@
     const p0 = R.puntos.find(q=>q.ok), icoLuz = h=>{ if(!R.conLuz || h===null || h===undefined) return '';
       const c = LUZ.condicion(new Date(LUZ.inicioDia(m.fecha) + h*36e5), p0.lat, p0.lon);
       return `<span class="luzico" title="${LUZ.TIPOS[c.tipo]}${c.oscuro ? (c.conLuna ? ', con luna' : ', sin luna') : ''}">${c.tipo==='dia' ? '☀' : c.oscuro ? (c.conLuna ? '☾' : '●') : '◐'}</span>`; };
-    const obs = (p, ll)=>esc(p.obs) + (ll && ll.det ? (p.obs ? ' · ' : '') + 'detención ' + Math.round(ll.det*60) + ' min' : '');
+    const obs = (p, ll)=>[p.obs ? esc(p.obs) : '', ll && ll.det ? 'detención ' + Math.round(ll.det*60) + ' min' : '',
+      p.mochila==='deja' ? '<b>🎒 se deja la mochila</b>' : p.mochila==='recoge' ? '<b>🎒 se recoge la mochila</b>' : ''].filter(Boolean).join(' · ');
     return `
       <div class="tabla-env solo-ancho"><table class="t cmn">
         <thead><tr><th class="tx">Punto</th><th class="tx">Evento<br>(radio)</th><th>Hora<br>llegada</th><th>Hora<br>salida</th><th>Altitud<br>(m)</th>
@@ -543,7 +545,8 @@
     const p0 = R.puntos.find(q=>q.ok), icoLuz = h=>{ if(!R.conLuz || h===null || h===undefined) return '';
       const c = LUZ.condicion(new Date(LUZ.inicioDia(m.fecha) + h*36e5), p0.lat, p0.lon);
       return `<span class="luzico" title="${LUZ.TIPOS[c.tipo]}${c.oscuro ? (c.conLuna ? ', con luna' : ', sin luna') : ''}">${c.tipo==='dia' ? '☀' : c.oscuro ? (c.conLuna ? '☾' : '●') : '◐'}</span>`; };
-    const obs = (p, ll)=>esc(p.obs) + (ll && ll.det ? (p.obs ? ' · ' : '') + 'detención ' + Math.round(ll.det*60) + ' min' : '');
+    const obs = (p, ll)=>[p.obs ? esc(p.obs) : '', ll && ll.det ? 'detención ' + Math.round(ll.det*60) + ' min' : '',
+      p.mochila==='deja' ? '<b>🎒 se deja la mochila</b>' : p.mochila==='recoge' ? '<b>🎒 se recoge la mochila</b>' : ''].filter(Boolean).join(' · ');
     vista.innerHTML = `${encabezado(m, R)}
       <h2>Resumen</h2>${kpis(R)}
       ${malos.length ? `<div class="alerta">${malos.length} punto${malos.length===1 ? '' : 's'} sin coordenada o cota válida (${malos.map(p=>esc(p.nombre || 'quiebre')).join(', ')}): sus tramos no se calcularon.</div>` : ''}

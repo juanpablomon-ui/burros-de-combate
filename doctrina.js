@@ -135,13 +135,18 @@ function aguaPlan(m, R, lh, reabast){
 }
 // carga por hombre en cada tramo: la del partir menos el agua ya bebida (se repone en los puntos de agua)
 function cargasTramo(m, R, pm){
-  const ag = pm.items.find(x=>x.id==='agua'); if(!ag || !ag.lleva) return null;
-  const pl = contextoMaterial(m, R).agua, mar = R.res.marcha || 0, kgL = ag.kg, ini = ag.q;   // ag.q: litros al partir (o los escritos a mano)
-  const enHora = h=>{ let k = pl.segs.findIndex(x=>h<x.fin + 1e-9); if(k<0) k = pl.segs.length - 1; const sg = pl.segs[k], lleno = k===0 ? ini : sg.litros;
+  const ag = pm.items.find(x=>x.id==='agua'), conAgua = !!(ag && ag.lleva);
+  const pl = conAgua ? contextoMaterial(m, R).agua : null, mar = R.res.marcha || 0, kgL = conAgua ? ag.kg : 0, ini = conAgua ? ag.q : 0;   // ag.q: litros al partir
+  const enHora = h=>{ if(!pl) return 0; let k = pl.segs.findIndex(x=>h<x.fin + 1e-9); if(k<0) k = pl.segs.length - 1; const sg = pl.segs[k], lleno = k===0 ? ini : sg.litros;
     return Math.max(0, lleno - pl.lh*(h - sg.ini)); };
-  const base = pm.total - ini*kgL;
-  return {tramos:R.tramos.map(t=>{ const h = mar ? pl.H*(t.tAcum - t.t/2)/mar : 0; return Math.round((base + enHora(h)*kgL)*10)/10; }),
-    inicial:pm.total, final:Math.round((base + enHora(pl.H)*kgL)*10)/10};
+  // mochila (3.ª línea) que se deja en un punto y se recoge en otro (el agua se cuenta aparte, aunque vaya en la mochila)
+  const P = m.puntos || [], mo = pm.sinMochila ? 0 : pm.lineas[3] - (conAgua && ag.linea===3 ? ag.porHombre : 0);
+  let sin = false; const sinEn = R.tramos.map(t=>{ const q = P[t.iA] || {}; if(q.mochila==='deja') sin = true; if(q.mochila==='recoge') sin = false; return sin; });
+  const ult = R.tramos.length ? P[R.tramos[R.tramos.length - 1].iB] || {} : {}; if(ult.mochila==='recoge') sin = false; else if(ult.mochila==='deja') sin = true;
+  if(!pl && !sinEn.some(Boolean) && !sin) return null;
+  const base = pm.total - ini*kgL, H = pl ? pl.H : R.res.total;
+  return {tramos:R.tramos.map((t, k)=>{ const h = mar ? H*(t.tAcum - t.t/2)/mar : 0; return Math.round((base + enHora(h)*kgL - (sinEn[k] ? mo : 0))*10)/10; }),
+    inicial:pm.total, final:Math.round((base + enHora(H)*kgL - (sin ? mo : 0))*10)/10, sinEn, mochila:mo};
 }
 if(typeof globalThis!=='undefined'){ globalThis.MATERIAL = MATERIAL; globalThis.contextoMaterial = contextoMaterial; globalThis.aguaPlan = aguaPlan; globalThis.cargasTramo = cargasTramo; }
 
