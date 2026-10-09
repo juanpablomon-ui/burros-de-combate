@@ -245,6 +245,8 @@ function pesoMaterial(m, R){
   const sinMochila = !!(m.par || {}).sinMochila, modoMo = (m.par || {}).mochilaModo || 'dentro';
   // qué líneas se llevan: la mochila de sostenimiento (3) no, si se va «solo con la de asalto» o sin mochila; la de asalto (5) no, si sin mochila
   const llevaL = l=>l===1 || l===2 || (l===5 && !sinMochila) || (l===3 && !sinMochila && modoMo!=='solo'), lleva = x=>llevaL(x.linea);
+  // modo «por peso de la unidad» (pedido del usuario): solo los kg de cada línea de cada integrante (m.pesoUnidad[i][l]); nada más
+  if((m.par || {}).modoCarga==='unidad') return pesoUnidad(m, c, llevaL, sinMochila, modoMo);
   // equipo de la unidad: o rota entre todos, o lo llevan los portadores de un puesto
   const grupos = {};
   items.forEach(x=>{ x.lleva = x.modo!=='x' && lleva(x); if(x.modo!=='c' || !(x.q>0)) return; const pt = portDe(m, x.id); x.rota = pt.rota; if(pt.rota) return;
@@ -289,6 +291,16 @@ function pesoMaterial(m, R){
   return {base, indiv, colect, lineas, lineasCalc, pesoLinea:PL, sinMochila, mochilaModo:modoMo, puestos, combate:base + lineas[1] + lineas[2], marcha:base + lineas[1] + lineas[2] + lineas[5] + lineas[3],
     comun, especial, portadores, fusileros:Math.max(0, c.n - portadores), fusilero, mas:mas && mas.total>comun ? mas : null, total:mas && mas.total>comun ? mas.total : comun,   // el tiempo se calcula con el más cargado
     n:c.n, hay:c.hay, items:items.sort((a, b)=>b.porHombre - a.porHombre)};
+}
+function pesoUnidad(m, c, llevaL, sinMochila, modoMo){
+  const U = m.pesoUnidad || [], n = Math.max(1, c.n), L0 = ()=>({1:0, 2:0, 5:0, 3:0, 4:0});
+  const integrantes = Array.from({length:n}, (_, i)=>{ const f = U[i] || {}, li = L0(); [1, 2, 5, 3].forEach(l=>{ li[l] = numCant(f[l]); });
+    const total = Math.round([1, 2, 5, 3].reduce((a, l)=>a + (llevaL(l) ? li[l] : 0), 0)*10)/10;
+    return {i, nombre:String(f.nombre || '').trim() || 'Integrante ' + (i + 1), lineas:li, total}; });
+  const mas = integrantes.reduce((a, x)=>!a || x.total>a.total ? x : a, null), prom = Math.round(integrantes.reduce((a, x)=>a + x.total, 0)/n*10)/10, L = mas.lineas;
+  return {unidad:true, integrantes, base:0, indiv:prom, colect:0, lineas:L, lineasCalc:Object.assign({}, L), pesoLinea:{}, sinMochila, mochilaModo:modoMo, puestos:[], especial:[], portadores:0,
+    fusileros:n, fusilero:null, combate:L[1] + L[2], marcha:L[1] + L[2] + L[5] + L[3], comun:prom, promedio:prom, mas:mas.total>0 ? mas : null, total:mas.total,
+    n:c.n, hay:c.hay, items:[]};   // sin elementos: no se suma agua ni se descuenta lo bebido
 }
 function pesoSOP(m, R, c, items, grupos, llevaL, base, sinMochila, modoMo){
   const S = m.sop || {}, ag = items.find(x=>x.id==='agua'), aguaL = ag ? ag.linea : 2, aguaKg = ag ? ag.porHombre : 0, L0 = ()=>({1:0, 2:0, 5:0, 3:0, 4:0});

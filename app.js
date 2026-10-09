@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.57', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.58', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -773,6 +773,19 @@
         <span class="mf-c"><input class="num" data-ac="${linea}" placeholder="1" inputmode="decimal" aria-label="Cantidad"><em>cant.</em></span><span class="mf-c"><input class="num" data-ak="${linea}" placeholder="kg" inputmode="decimal" aria-label="kg c/u"><em>kg c/u</em></span>
         <select data-am="${linea}" aria-label="Cómo se lleva"><option value="i">por hombre</option><option value="c"${linea===4 ? ' selected' : ''}>de la unidad</option></select><button class="btn mini pri" data-aa="${linea}">＋ Agregar</button></div></div>` : ''}</div>`).join('');
   }
+  /* peso de la unidad: solo los kg de cada línea de cada integrante (nada más: sin agua ni equipo aparte) */
+  function unidadHtml(m, R){
+    const pm = R.carga || pesoMaterial(m, R); if(!pm || !pm.unidad) return '';
+    if(!pm.hay) return '<div class="tarjeta vacio">Indica el efectivo (Datos → Unidad y columna) para tener una fila por integrante.</div>';
+    const U = m.pesoUnidad || [], Ls = [1, 2, 5, 3];
+    return `<div class="tarjeta"><p class="nota">Escribe cuánto pesa <b>cada línea de cada integrante</b>, ya con todo lo que lleva (agua, munición, equipo especial). La app no agrega nada:
+        el tiempo se calcula con <b>el más cargado</b>. Promedio de la unidad: <b>${f(pm.promedio, 1)} kg</b>.</p>
+      <div class="btns" style="margin:0 0 8px"><button class="btn mini" id="puCopiar">Copiar la fila 1 a todos los vacíos</button></div>
+      <div class="tabla-env"><table class="t sop"><thead><tr><th class="tx">Integrante</th>${Ls.map(l=>`<th>${esc(LINEAS[l].replace(' línea', ''))}</th>`).join('')}<th>Total</th></tr></thead><tbody>
+      ${pm.integrantes.map(x=>`<tr class="${pm.mas===x ? 'mas' : ''}"><td class="tx"><input data-pun="${x.i}" value="${esc((U[x.i] || {}).nombre || '')}" placeholder="Integrante ${x.i + 1}" aria-label="Nombre o puesto" style="width:100%;min-width:110px">${pm.mas===x ? ' <b class="mas-tag">más cargado</b>' : ''}</td>
+        ${Ls.map(l=>`<td><input class="num" data-pu="${x.i}|${l}" value="${esc((U[x.i] || {})[l] || '')}" placeholder="0" inputmode="decimal" aria-label="${esc(LINEAS[l])}"></td>`).join('')}<td><b>${f(x.total, 1)}</b></td></tr>`).join('')}
+      </tbody></table></div></div>`;
+  }
   /* peso según SOP: los kg de cada línea de cada puesto, directo (sin los elementos). Vacío = lo del fusilero; en gris, lo que da el detalle */
   function sopHtml(m, R){
     const pm = R.carga || pesoMaterial(m, R); if(!pm || !pm.sop) return '';
@@ -859,24 +872,24 @@
     if(!R.tramos.length){ vista.innerHTML = '<div class="tarjeta vacio">Completa la ruta para calcular el material.</div>'; return; }
     const H = htmlMaterial(m, R), tot = H.filas.reduce((a, g)=>a + g.its.length, 0), hechos = ()=>H.filas.reduce((a, g)=>a + g.its.filter(it=>(m.material||{})[it.id] && m.material[it.id].ok).length, 0);
     vista.innerHTML = `<h2>Material para la marcha</h2>
-      <div class="seg" style="margin-bottom:8px"><button data-modo-carga="detalle" class="${m.par.modoCarga!=='sop' ? 'on' : ''}">Detallado por elementos</button><button data-modo-carga="sop" class="${m.par.modoCarga==='sop' ? 'on' : ''}">Por peso según SOP</button></div>
+      <div class="seg" style="margin-bottom:8px"><button data-modo-carga="detalle" class="${m.par.modoCarga!=='sop' ? 'on' : ''}">Detallado por elementos</button><button data-modo-carga="sop" class="${m.par.modoCarga==='sop' ? 'on' : ''}">Por peso según SOP</button><button data-modo-carga="unidad" class="${m.par.modoCarga==='unidad' ? 'on' : ''}">Por peso de la unidad</button></div>
       <p class="nota" id="mtCuenta"></p>
       <div class="info">Calculado para <b>${H.c.hay ? H.c.n + ' hombres' : '1 hombre (indica el efectivo en Datos → Unidad y columna)'}</b>, ${M.verDur(H.c.horas)} de marcha y ${f(H.c.km, 1)} km${H.c.noche ? ', con ' + Math.round(H.c.noche*100) + ' % de noche' : ''}.
         El agua sale de la tabla de calor (${H.c.calorDato ? 'con el índice WBGT indicado' : 'sin índice WBGT: se usa calor bajo'}); las demás cantidades son <b>sugerencias</b>: escribe la tuya si la orden dice otra cosa.
         Aparecen solo los elementos que corresponden (noche, montaña, nieve, calor).</div>
       <h3 class="mat-parte">Carga de cada hombre</h3>
       ${cargaHtml(m, R)}
-      ${m.par.modoCarga==='sop' ? `<h3 class="mat-parte">1. Peso de cada puesto según SOP</h3>${sopHtml(m, R)}` : `<h3 class="mat-parte">1. Equipo que llevan todos (por línea)</h3>
+      ${m.par.modoCarga==='unidad' ? `<h3 class="mat-parte">Peso de cada integrante</h3>${unidadHtml(m, R)}` : m.par.modoCarga==='sop' ? `<h3 class="mat-parte">1. Peso de cada puesto según SOP</h3>${sopHtml(m, R)}` : `<h3 class="mat-parte">1. Equipo que llevan todos (por línea)</h3>
       <div class="tarjeta">${H.lineas}</div>
       <h3 class="mat-parte">2. Equipo de cada puesto (OME)</h3>
       ${puestosHtml(m, R)}`}
-      ${H.resto ? `<h3 class="mat-parte">${m.par.modoCarga==='sop' ? '2' : '3'}. Equipo especial común</h3><div class="tarjeta">${H.resto}</div>` : ''}
-      <div class="tarjeta"><div class="campos"><label class="c ancho">Agregar otro elemento<input id="mtNuevo" placeholder="Ej: pala de campaña"></label><label class="c">Cantidad<input id="mtNuevoC" placeholder="Ej: 4"></label><label class="c">kg c/u<input id="mtNuevoK" placeholder="Ej: 1,2" inputmode="decimal"></label></div>
-        <div class="btns"><button class="btn" id="mtAgregar">＋ Agregar</button><button class="btn" id="mtLimpia">Desmarcar todo</button><button class="btn pri" id="mtDoc">📄 Documento con el material</button></div></div>`;
+      ${H.resto && m.par.modoCarga!=='unidad' ? `<h3 class="mat-parte">${m.par.modoCarga==='sop' ? '2' : '3'}. Equipo especial común</h3><div class="tarjeta">${H.resto}</div>` : ''}
+      ${m.par.modoCarga==='unidad' ? '<div class="btns"><button class="btn pri" id="mtDoc">📄 Documento con la carga</button></div>' : `      <div class="tarjeta"><div class="campos"><label class="c ancho">Agregar otro elemento<input id="mtNuevo" placeholder="Ej: pala de campaña"></label><label class="c">Cantidad<input id="mtNuevoC" placeholder="Ej: 4"></label><label class="c">kg c/u<input id="mtNuevoK" placeholder="Ej: 1,2" inputmode="decimal"></label></div>
+        <div class="btns"><button class="btn" id="mtAgregar">＋ Agregar</button><button class="btn" id="mtLimpia">Desmarcar todo</button><button class="btn pri" id="mtDoc">📄 Documento con el material</button></div></div>`}`;
     const cuenta = ()=>$('#mtCuenta').innerHTML = `<b>${hechos()} de ${tot}</b> listos.`; cuenta();
     const Mt = ()=>m.material || (m.material = {});
     vista.querySelectorAll('[data-mt]').forEach(x=>x.onchange = ()=>{ const o = Mt()[x.dataset.mt] || (Mt()[x.dataset.mt] = {}); o.ok = x.checked; x.closest('tr,.mf').classList.toggle('hecho', x.checked); guardar(); cuenta(); });
-    let tC = null; const recarga = ()=>{ clearTimeout(tC); tC = setTimeout(()=>{ const y = window.scrollY, a = document.activeElement && document.activeElement.dataset; const foco = a && (a.sop ? '[data-sop="' + a.sop + '"]' : a.pl ? '[data-pl="' + a.pl + '"]' : a.on ? '[data-on="' + a.on + '"]' : a.okc ? '[data-okc="' + a.okc + '"]' : a.okk ? '[data-okk="' + a.okk + '"]' : a.pn ? '[data-pn="' + a.pn + '"]' : a.pnom ? '[data-pnom="' + a.pnom + '"]' : a.mch ? '[data-mch="' + a.mch + '"]' : a.mc ? '[data-mc="' + a.mc + '"]' : a.mk ? '[data-mk="' + a.mk + '"]' : document.activeElement.id ? '#' + document.activeElement.id : null);
+    let tC = null; const recarga = ()=>{ clearTimeout(tC); tC = setTimeout(()=>{ const y = window.scrollY, a = document.activeElement && document.activeElement.dataset; const foco = a && (a.pu ? '[data-pu="' + a.pu + '"]' : a.sop ? '[data-sop="' + a.sop + '"]' : a.pl ? '[data-pl="' + a.pl + '"]' : a.on ? '[data-on="' + a.on + '"]' : a.okc ? '[data-okc="' + a.okc + '"]' : a.okk ? '[data-okk="' + a.okk + '"]' : a.pn ? '[data-pn="' + a.pn + '"]' : a.pnom ? '[data-pnom="' + a.pnom + '"]' : a.mch ? '[data-mch="' + a.mch + '"]' : a.mc ? '[data-mc="' + a.mc + '"]' : a.mk ? '[data-mk="' + a.mk + '"]' : document.activeElement.id ? '#' + document.activeElement.id : null);
       const ab = [...vista.querySelectorAll('details[open] > summary')].map(x=>x.firstChild.textContent);
       pintar(); vista.querySelectorAll('details > summary').forEach(x=>{ if(ab.includes(x.firstChild.textContent)) x.parentNode.open = true; });
       window.scrollTo(0, y); if(foco){ const e = vista.querySelector(foco); if(e){ e.focus(); const v = e.value; e.value = ''; e.value = v; } } }, 700); };
@@ -912,7 +925,7 @@
     const re = $('#mtReab'); if(re) re.onchange = ()=>{ m.par.reabast = re.value; guardar(); const y = window.scrollY; pintar(); window.scrollTo(0, y); if(re.value==='si') aviso('Marca los puntos de agua en la pestaña Datos'); };
     const ra = $('#mtRac'); if(ra) ra.onchange = ()=>{ m.par.racion = ra.value; guardar(); const y = window.scrollY; pintar(); window.scrollTo(0, y); };
     vista.querySelectorAll('[data-mx]').forEach(x=>x.onclick = ()=>{ m.materialExtra.splice(+x.dataset.mx, 1); delete Mt()['x' + x.dataset.mx]; guardar(); pintar(); });
-    $('#mtAgregar').onclick = ()=>{ const n = $('#mtNuevo').value.trim(); if(!n) return; (m.materialExtra || (m.materialExtra = [])).push({n, cant:$('#mtNuevoC').value.trim()});
+    if($('#mtAgregar')) $('#mtAgregar').onclick = ()=>{ const n = $('#mtNuevo').value.trim(); if(!n) return; (m.materialExtra || (m.materialExtra = [])).push({n, cant:$('#mtNuevoC').value.trim()});
       const k = $('#mtNuevoK').value.trim(); if(k){ const Mx = Mt(); Mx['x' + (m.materialExtra.length - 1)] = {kg:k}; } guardar(); pintar(); };
     const port = id=>{ const o = Mt()[id] || (Mt()[id] = {}); return o.port || (o.port = {}); };
     vista.querySelectorAll('[data-pp]').forEach(x=>x.onchange = ()=>{ const o = port(x.dataset.pp); if(x.value==='rota') o.rota = true; else { o.rota = false; o.puesto = x.value; }
@@ -921,6 +934,11 @@
     vista.querySelectorAll('[data-pnom]').forEach(x=>x.oninput = ()=>{ port(x.dataset.pnom).nombre = x.value; guardar(); recarga(); });
     vista.querySelectorAll('[data-pl]').forEach(x=>x.oninput = ()=>{ const o = m.par.pesoLinea || (m.par.pesoLinea = {}); o[x.dataset.pl] = x.value; guardar(); recarga(); });
     vista.querySelectorAll('[data-modo-carga]').forEach(b=>b.onclick = ()=>{ m.par.modoCarga = b.dataset.modoCarga; guardar(); pintar(); });
+    const fila = i=>{ const U = m.pesoUnidad || (m.pesoUnidad = []); return U[i] || (U[i] = {}); };
+    vista.querySelectorAll('[data-pu]').forEach(x=>x.oninput = ()=>{ const [i, l] = x.dataset.pu.split('|'); fila(+i)[l] = x.value; guardar(); recarga(); });
+    vista.querySelectorAll('[data-pun]').forEach(x=>x.oninput = ()=>{ fila(+x.dataset.pun).nombre = x.value; guardar(); });
+    const pc = $('#puCopiar'); if(pc) pc.onclick = ()=>{ const U = m.pesoUnidad || [], f0 = U[0] || {}, n = Math.max(1, Math.round(+m.par.efectivo || 1));
+      for(let i=1; i<n; i++){ const f = fila(i); [1, 2, 5, 3].forEach(l=>{ if(f[l]===undefined || String(f[l]).trim()==='') f[l] = f0[l] || ''; }); } guardar(); pintar(); aviso('Fila 1 copiada a los vacíos'); };
     vista.querySelectorAll('[data-sop]').forEach(x=>x.oninput = ()=>{ const [k, l] = x.dataset.sop.split('|'), S = m.sop || (m.sop = {}); (S[k] || (S[k] = {}))[l] = x.value; guardar(); recarga(); });
     // agregar un elemento directo en una línea
     vista.querySelectorAll('[data-aa]').forEach(b=>b.onclick = ()=>{ const l = b.dataset.aa, n = vista.querySelector('[data-an="' + l + '"]').value.trim(); if(!n) return aviso('Escribe el nombre del elemento');
@@ -928,7 +946,7 @@
       ex.push({n, cant:vista.querySelector('[data-ac="' + l + '"]').value.trim() || '1', modo}); const o = Mt()['x' + (ex.length - 1)] = {linea:+l};
       const k = vista.querySelector('[data-ak="' + l + '"]').value.trim(); if(k) o.kg = k;
       guardar(); const y = window.scrollY; pintar(); window.scrollTo(0, y); aviso('＋ ' + n + ' en la ' + LINEAS[l]); });
-    $('#mtLimpia').onclick = ()=>{ Object.values(Mt()).forEach(o=>o.ok = false); guardar(); pintar(); };
+    if($('#mtLimpia')) $('#mtLimpia').onclick = ()=>{ Object.values(Mt()).forEach(o=>o.ok = false); guardar(); pintar(); };
     $('#mtDoc').onclick = ()=>documento('material');
   }
 
