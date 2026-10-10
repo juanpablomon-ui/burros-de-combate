@@ -81,7 +81,7 @@ ${ok.map(p=>`<rtept ${w(p)}><ele>${p.cota}</ele><name>${xml(rot(p))}</name></rte
 <kml xmlns="http://www.opengis.net/kml/2.2"><Document>
 <name>${xml(m.nombre)}</name><description>${xml(lineaPlan(m, R))}</description>
 <Style id="ruta"><LineStyle><color>ff3aa6e3</color><width>4</width></LineStyle></Style>
-<Placemark><name>${xml(m.nombre)}</name><styleUrl>#ruta</styleUrl><LineString><tessellate>1</tessellate><altitudeMode>clampToGround</altitudeMode><coordinates>${ok.map(c).join(' ')}</coordinates></LineString></Placemark>
+<Placemark><name>${xml(m.nombre)}</name><styleUrl>#ruta</styleUrl><ExtendedData><Data name="tipo"><value>ruta</value></Data></ExtendedData><LineString><tessellate>1</tessellate><altitudeMode>clampToGround</altitudeMode><coordinates>${ok.map(c).join(' ')}</coordinates></LineString></Placemark>
 ${ok.filter(p=>p.ev).map(p=>`<Placemark><name>${xml(rot(p))}</name><description>${xml('Cota ' + p.cota + ' m' + (llega[p.i]!==undefined ? ' · llegada ' + hhmm(llega[p.i]) : ' · partida ' + hhmm(R.res.partida)) + (p.obs ? ' · ' + p.obs : ''))}</description><Point><coordinates>${c(p)}</coordinates></Point></Placemark>`).join('\n')}
 </Document></kml>
 `;
