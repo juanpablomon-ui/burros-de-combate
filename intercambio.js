@@ -74,14 +74,24 @@ ${ok.map(p=>`<rtept ${w(p)}><ele>${p.cota}</ele><name>${xml(rot(p))}</name></rte
 </gpx>
 `;
   }
+  // estilos: el recorrido completo en color fuerte; la ruta de eventos (PIM, PC, PTM) la dibuja el TOQUI con sus tarjetas
+  const ESTILOS_KML = '<Style id="ruta"><LineStyle><color>ff111111</color><width>3</width></LineStyle></Style>\n<Style id="recorrido"><LineStyle><color>ff003bff</color><width>6</width></LineStyle></Style>';
+  // la línea marcada «tipo = ruta» el TOQUI la abre como Ruta nativa (hasta 60 puntos): se envía con los eventos; si hay puntos de ruta
+  // (quiebres), el recorrido completo va aparte como línea de color fuerte
+  function lineasKml(m, ok, c){
+    const ev = ok.filter(p=>p.ev), cs = pts=>`<LineString><tessellate>1</tessellate><altitudeMode>clampToGround</altitudeMode><coordinates>${pts.map(c).join(' ')}</coordinates></LineString>`;
+    const ruta = pts=>`<Placemark><name>${xml(m.nombre)}</name><styleUrl>#ruta</styleUrl><ExtendedData><Data name="tipo"><value>ruta</value></Data></ExtendedData>${cs(pts)}</Placemark>`;
+    if(ev.length===ok.length) return ruta(ok);
+    return `<Placemark><name>${xml('Recorrido — ' + m.nombre)}</name><styleUrl>#recorrido</styleUrl>${cs(ok)}</Placemark>\n` + (ev.length>=2 && ev.length<=60 ? ruta(ev) : '');
+  }
   function kml(m, R){
     const ok = R.puntos.filter(p=>p.ok), c = p=>`${r6(p.lon)},${r6(p.lat)},${p.cota}`;
     const llega = {}; R.tramos.forEach(t=>llega[t.iB] = t.llegada);
     return `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2"><Document>
 <name>${xml(m.nombre)}</name><description>${xml(lineaPlan(m, R))}</description>
-<Style id="ruta"><LineStyle><color>ff3aa6e3</color><width>4</width></LineStyle></Style>
-<Placemark><name>${xml(m.nombre)}</name><styleUrl>#ruta</styleUrl><ExtendedData><Data name="tipo"><value>ruta</value></Data></ExtendedData><LineString><tessellate>1</tessellate><altitudeMode>clampToGround</altitudeMode><coordinates>${ok.map(c).join(' ')}</coordinates></LineString></Placemark>
+${ESTILOS_KML}
+${lineasKml(m, ok, c)}
 ${ok.filter(p=>p.ev).map(p=>`<Placemark><name>${xml(rot(p))}</name><description>${xml('Cota ' + p.cota + ' m' + (llega[p.i]!==undefined ? ' · llegada ' + hhmm(llega[p.i]) : ' · partida ' + hhmm(R.res.partida)) + (p.obs ? ' · ' + p.obs : ''))}</description><Point><coordinates>${c(p)}</coordinates></Point></Placemark>`).join('\n')}
 </Document></kml>
 `;
@@ -101,7 +111,7 @@ ${ok.filter(p=>p.ev).map(p=>`<Placemark><name>${xml(rot(p))}</name><description>
     return `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2"><Document>
 <name>${xml(L.length + ' marchas')}</name>
-<Style id="ruta"><LineStyle><color>ff3aa6e3</color><width>4</width></LineStyle></Style>
+${ESTILOS_KML}
 ${L.map(cuerpo).join('')}</Document></kml>
 `;
   }
