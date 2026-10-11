@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.71', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.72', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -877,9 +877,8 @@
       <p class="nota">Límites <b>referenciales</b> (manual de marchas a pie de EE.UU.): carga de combate hasta unos ${L.combate} kg; carga de marcha de aproximación hasta unos ${L.marcha} kg.
         ${pm.lineas[4] ? `4.ª línea (vehículo o apoyo): ${f(pm.lineas[4], 1)} kg por hombre, <b>no se suma</b>.` : '4.ª línea: lo que va en vehículos o con el apoyo logístico; no la carga el hombre (elige «4.ª» en un elemento para dejarlo ahí).'}</p>`}
       <div class="campos">
-        <label class="c ancho"><span><input type="checkbox" id="mtPern" ${m.par.pernocta ? 'checked' : ''} style="width:auto;vertical-align:middle"> <b>Con pernocta</b> (saco, aislante, carpa, cocinilla, olla y aseo)</span></label>
+        ${!Uso.civil() ? '' : `<label class="c ancho"><span><input type="checkbox" id="mtPern" ${m.par.pernocta ? 'checked' : ''} style="width:auto;vertical-align:middle"> <b>Con pernocta</b> (saco, aislante, carpa, cocinilla, olla y aseo)</span></label>`}
         ${Uso.civil() ? '' : `<label class="c ancho"><span><input type="checkbox" id="mtMochila" ${m.par.sinMochila ? 'checked' : ''} style="width:auto;vertical-align:middle"> <b>Se deja la mochila</b> (toda la marcha solo con la 1.ª y 2.ª línea, sin ninguna mochila; p. ej. carrera de combate)</span></label>`}
-        ${Uso.civil() ? '' : `<label class="c ancho">2.ª línea (según la misión)<select id="mtPorta"><option value="lbe"${(m.par.portaCarga || 'lbe')==='lbe' ? ' selected' : ''}>Arnés soporte de carga (LBE)</option><option value="placas"${m.par.portaCarga==='placas' ? ' selected' : ''}>Porta placas (con placas)</option></select></label>`}
         <label class="c ancho">Mochila de asalto o de misión<select id="mtMochModo"><option value="dentro"${(m.par.mochilaModo || 'dentro')==='dentro' ? ' selected' : ''}>Va dentro de la de sostenimiento</option><option value="separadas"${m.par.mochilaModo==='separadas' ? ' selected' : ''}>Las dos por separado</option><option value="solo"${m.par.mochilaModo==='solo' ? ' selected' : ''}>Solo la mochila de asalto (sin la de sostenimiento)</option></select></label>
         <label class="c">Reabastecimiento de agua en ruta<select id="mtReab"><option value="no"${m.par.reabast!=='si' ? ' selected' : ''}>No: se carga toda el agua</option><option value="si"${m.par.reabast==='si' ? ' selected' : ''}>Sí, en puntos de agua</option></select></label>
         <label class="c">Ración de combate<select id="mtRac"><option value="24"${m.par.racion!=='12' ? ' selected' : ''}>De 24 horas</option><option value="12"${m.par.racion==='12' ? ' selected' : ''}>De 12 horas</option></select></label>
@@ -944,7 +943,6 @@
       const o = omeDe(k); if(/^p\d+$/.test(k)) (o.kit || (o.kit = [])).push(it); else (o.extra || (o.extra = [])).push(it); guardar(); quieto(); aviso('＋ ' + n); });
     const on = $('#omeAgregar'); if(on) on.onclick = ()=>{ const n = $('#omeNuevo').value.trim(); if(!n) return aviso('Escribe el nombre del puesto');
       (m.omeExtra || (m.omeExtra = [])).push({n, cantidad:'1', kit:[]}); guardar(); quieto(); aviso('＋ Puesto «' + n + '»'); };
-    const pp = $('#mtPorta'); if(pp) pp.onchange = ()=>{ m.par.portaCarga = pp.value; guardar(); const y = window.scrollY; pintar(); window.scrollTo(0, y); };
     const mm = $('#mtMochModo'); if(mm) mm.onchange = ()=>{ m.par.mochilaModo = mm.value; guardar(); const y = window.scrollY; pintar(); window.scrollTo(0, y); };
     const re = $('#mtReab'); if(re) re.onchange = ()=>{ m.par.reabast = re.value; guardar(); const y = window.scrollY; pintar(); window.scrollTo(0, y); if(re.value==='si') aviso('Marca los puntos de agua en la pestaña Datos'); };
     const ra = $('#mtRac'); if(ra) ra.onchange = ()=>{ m.par.racion = ra.value; guardar(); const y = window.scrollY; pintar(); window.scrollTo(0, y); };
