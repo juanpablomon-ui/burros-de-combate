@@ -49,12 +49,13 @@ const MATERIAL = [
     ['muniExtra', 'Cargadores adicionales (mochila de asalto)', c=>c.civil ? null : 0, c=>'munición extra para la tarea: cuántos por hombre'],
     ['granada', 'Granadas de mano', c=>c.civil ? null : 0, c=>'si la misión lo exige: escribe cuántas por hombre'],
     ['casco', 'Casco', c=>c.civil ? null : c.n, c=>'1 por hombre'],
-    ['chaleco', 'Chaleco antibalas con placas', c=>c.civil ? null : c.n, c=>'escribe 0 si no se usa'],
+    ['chaleco', 'Chaleco antibalas con placas', c=>c.civil || c.portaCarga==='placas' ? null : c.n, c=>'escribe 0 si no se usa'],
     ['pistola', 'Pistola', c=>c.civil ? null : c.n, c=>'en el cinturón del pantalón'],
     ['cargPis', 'Cargadores de pistola', c=>c.civil ? null : c.n*2, c=>'2 por hombre, en el cinturón del pantalón'],
     ['baqueta', 'Baqueta para el fusil', c=>c.civil ? null : c.n, c=>''],
     ['granHumo', 'Granada de humo', c=>c.civil ? null : c.n, c=>'en las baleras'],
-    ['arnes', 'Arnés soporte de carga (LBE): arnés, 2 baleras, tacho y morral', c=>c.civil ? null : c.n, c=>'las cantimploras y el IFAK van aparte'],
+    ['arnes', 'Arnés soporte de carga (LBE): arnés, 2 baleras, tacho y morral', c=>c.civil || c.portaCarga==='placas' ? null : c.n, c=>'las cantimploras y el IFAK van aparte'],
+    ['portaPl', 'Porta placas con placas y bolsillos (baleras)', c=>c.civil || c.portaCarga!=='placas' ? null : c.n, c=>'reemplaza al arnés LBE y al chaleco antibalas'],
     ['portaf', 'Cinturón de carga', c=>c.civil ? null : c.n, c=>'1.ª línea: con el IFAK y el cuchillo o bayoneta'],
     ['radioH', 'Radio portátil de mano con batería', c=>c.civil ? null : c.n, c=>'puede ser una por hombre (escribe 0 si no se usan)']]},
   // equipo que sirve a toda la unidad para la misión o la marcha: se escribe el total y su peso se reparte entre todos
@@ -169,7 +170,7 @@ const MATERIAL = [
 function contextoMaterial(m, R){
   const p = R.par, hay = (+p.efectivo||0)>0, cal = R.calor;
   const aguaH = cal && cal.lh ? cal.lh : 0.71;   // sin índice de calor: categoría 1, trabajo moderado (¾ qt/h)
-  const c0 = {mochilaModo:p.mochilaModo || 'dentro', civil:typeof Uso!=='undefined' && Uso.civil(), pernocta:!!p.pernocta, n:hay ? Math.round(+p.efectivo) : 1, hay, horas:R.res.total || 0, reabast:p.reabast==='si', racion:String(p.racion || '24'), km:R.res.dist/1000, noche:R.fracNoche || 0, aguaH, calorDato:!!(cal && cal.lh),
+  const c0 = {portaCarga:p.portaCarga || 'lbe', mochilaModo:p.mochilaModo || 'dentro', civil:typeof Uso!=='undefined' && Uso.civil(), pernocta:!!p.pernocta, n:hay ? Math.round(+p.efectivo) : 1, hay, horas:R.res.total || 0, reabast:p.reabast==='si', racion:String(p.racion || '24'), km:R.res.dist/1000, noche:R.fracNoche || 0, aguaH, calorDato:!!(cal && cal.lh),
     calorCat:cal ? cal.cat : 0, montana:['montana', 'mide'].includes(p.metodo), nieve:p.terreno && p.terreno!=='sinNieve' && ['montana', 'mide'].includes(p.metodo), terreno:p.terreno,
     unidades:Math.max(1, Math.round(+p.unidades||1)), carga:p.metodo!=='general' ? p.carga : null};
   c0.agua = aguaPlan(m, R, aguaH, c0.reabast); return c0;
@@ -213,7 +214,7 @@ if(typeof globalThis!=='undefined'){ globalThis.MATERIAL = MATERIAL; globalThis.
    · 'c' = colectivo (se reparte entre todos) · 'x' = no se carga (personas, planes, agua de reabastecimiento, totales). */
 const PESOS = {fusil:[4, 'i'], cargad:[0.5, 'i'], granada:[0.4, 'i'], casco:[1.4, 'i'], chaleco:[8, 'i'], portaf:[1.2, 'i'], agua:[1.1, 'h'], aguaT:[0, 'x'], reabast:[0, 'x'],
   radio:[1.5, 'c'], batRad:[0.5, 'c'], mochTr:[6, 'c'], camilla:[7, 'c'], ametr:[10, 'c'], muniAm:[3, 'c'], lanzac:[7, 'c'], cuerda:[3.5, 'c'], otroEq:[1, 'c'],
-  pistola:[0.8, 'i'], cargPis:[0.3, 'i'], baqueta:[0.1, 'i'], granHumo:[0.5, 'i'], arnes:[1.5, 'i'], barras:[0.05, 'i'], torniq1:[0.1, 'i'], vendaje:[0.1, 'i'], suero:[0.6, 'i'],
+  portaPl:[9, 'i'], pistola:[0.8, 'i'], cargPis:[0.3, 'i'], baqueta:[0.1, 'i'], granHumo:[0.5, 'i'], arnes:[1.5, 'i'], barras:[0.05, 'i'], torniq1:[0.1, 'i'], vendaje:[0.1, 'i'], suero:[0.6, 'i'],
   tenida:[1.5, 'i'], botas:[1.8, 'i'], guantesT:[0.15, 'i'], rodill:[0.4, 'i'], quepi:[0.1, 'i'], coipa:[0.1, 'i'], capa1:[0.5, 'i'], goretex:[1, 'i'], muda:[0.3, 'i'], cubreSaco:[0.6, 'i'],
   estrobo:[0.05, 'i'], extracto:[0.02, 'i'], pesca:[0.03, 'i'], libreta:[0.1, 'i'], linCarta:[0.05, 'i'], espejo:[0.05, 'i'], vs17:[0.1, 'i'], baliza:[0.12, 'i'], multi:[0.25, 'i'],
   bengala:[0.15, 'i'], bolsaPl:[0.05, 'i'], cordin:[0.3, 'i'], mosqueton:[0.08, 'i'], mimet:[0.1, 'i'], tapones:[0.01, 'i'], kitSuperv:[0.5, 'i'], panelReg:[0.3, 'i'],
@@ -235,7 +236,7 @@ const ORDEN_LINEAS = [1, 2, 5, 3, 4];
 // límites de referencia (manual de marchas a pie de EE.UU.): carga de combate ≈ 22 kg (48 lb), carga de marcha de aproximación ≈ 33 kg (72 lb)
 const LIMITES_CARGA = {combate:22, marcha:33};
 const LINEA_DE = {pistola:1, cargPis:1, torniq1:1, vendaje:1, barras:1, tenida:1, botas:1, guantesT:1, rodill:1, quepi:1, estrobo:1, extracto:1, pesca:1, libreta:1, linCarta:1, espejo:1, vs17:1, baliza:1, multi:1,
-  baqueta:2, granHumo:2, arnes:2, suero:2, coipa:2, bengala:2, bolsaPl:2, cordin:2, mosqueton:2, mimet:2, tapones:2, kitSuperv:2, kitExpl:2,
+  baqueta:2, granHumo:2, arnes:2, portaPl:2, suero:2, coipa:2, bengala:2, bolsaPl:2, cordin:2, mosqueton:2, mimet:2, tapones:2, kitSuperv:2, kitExpl:2,
   panelReg:5, c4:5, mecha:5, claymore:3, alambreT:3, capa1:3, goretex:3, muda:3, cubreSaco:3, portaf:1, cuchillo:1, manta:1, radioH:2, abrigo3:3, ifak:1, sales:1, carta:1, brujula:1, gps:1, cuadro:1, marcador:1, claves:1, silbato:1, lentes:1, sombrero:1, gorro:1, linterna:1, polainas:1, bastones:1,
   casco:2, chaleco:2, fusil:2, cargad:2, granada:2, agua:2, radio:2, luzquim:2, vision:2,
   muniExtra:5, mochAs:5, racion24:5, racion12:5, poncho:5, abrigo:5, pilas:5, batRad:5, bateria:5, potab:5, botPA:5};   // el resto: 3.ª B (sostenimiento)
