@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.75', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.76', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -805,8 +805,17 @@
   function unidadHtml(m, R){
     const pm = R.carga || pesoMaterial(m, R); if(!pm || !pm.unidad) return '';
     if(!pm.hay) return '<div class="tarjeta vacio">Indica el efectivo (Datos → Unidad y columna) para tener una fila por integrante.</div>';
-    const U = m.pesoUnidad || [], Ls = [1, 2, 5, 3];
-    return `<div class="tarjeta"><p class="nota">Escribe cuánto pesa <b>cada línea de cada integrante</b>, ya con todo lo que lleva (agua, munición, equipo especial). La app no agrega nada:
+    const U = m.pesoUnidad || [], Ls = [1, 2, 5, 3], forma = formaUnidad(m);
+    const seg = `<div class="seg" style="margin-bottom:8px"><button data-uforma="balanza" class="${forma==='balanza' ? 'on' : ''}">En la balanza (total de cada uno)</button><button data-uforma="lineas" class="${forma==='lineas' ? 'on' : ''}">Por líneas</button></div>`;
+    if(forma==='balanza') return `<div class="tarjeta">${seg}<p class="nota">Cada integrante se sube a la balanza <b>con todo su equipo</b> (agua, munición, mochilas) y luego <b>sin equipo</b>:
+        la diferencia es su carga. Si pesas solo el equipo, escríbelo en «Con todo» y deja «Sin equipo» vacío. El tiempo se calcula con <b>el más cargado</b>.
+        Carga promedio de la unidad: <b>${f(pm.promedio, 1)} kg</b>.</p>
+      <div class="tabla-env"><table class="t sop"><thead><tr><th class="tx">Integrante</th><th>Con todo (kg)</th><th>Sin equipo (kg)</th><th>Carga</th></tr></thead><tbody>
+      ${pm.integrantes.map(x=>`<tr class="${pm.mas===x ? 'mas' : ''}"><td class="tx"><input data-pun="${x.i}" value="${esc((U[x.i] || {}).nombre || '')}" placeholder="Integrante ${x.i + 1}" aria-label="Nombre o puesto" style="width:100%;min-width:110px">${pm.mas===x ? ' <b class="mas-tag">más cargado</b>' : ''}</td>
+        <td><input class="num" data-pu="${x.i}|con" value="${esc((U[x.i] || {}).con || '')}" placeholder="100" inputmode="decimal" aria-label="Peso con todo el equipo"></td>
+        <td><input class="num" data-pu="${x.i}|sin" value="${esc((U[x.i] || {}).sin || '')}" placeholder="75" inputmode="decimal" aria-label="Peso sin equipo"></td><td><b>${f(x.total, 1)} kg</b></td></tr>`).join('')}
+      </tbody></table></div></div>`;
+    return `<div class="tarjeta">${seg}<p class="nota">Escribe cuánto pesa <b>cada línea de cada integrante</b>, ya con todo lo que lleva (agua, munición, equipo especial). La app no agrega nada:
         el tiempo se calcula con <b>el más cargado</b>. Promedio de la unidad: <b>${f(pm.promedio, 1)} kg</b>.</p>
       <div class="btns" style="margin:0 0 8px"><button class="btn mini" id="puCopiar">Copiar la fila 1 a todos los vacíos</button></div>
       <div class="tabla-env"><table class="t sop"><thead><tr><th class="tx">Integrante</th>${Ls.map(l=>`<th>${esc(LINEAS[l].replace(' línea', ''))}</th>`).join('')}<th>Total</th></tr></thead><tbody>
@@ -867,8 +876,8 @@
     const L = LIMITES_CARGA, ref = (v, lim)=>`<div class="s" style="color:var(--${v>lim ? 'rojo' : 'verde'})">${v>lim ? 'sobre' : 'bajo'} la referencia de ${lim} kg</div>`;
     return `<div class="tarjeta carga"><h3>Carga por hombre</h3>
       <div class="kpis">
-        <div class="kpi ocre"><div class="k">${pm.mas ? 'El más cargado al partir' : 'Total por hombre al partir'}</div><div class="v">${f(pm.total, 1)} <small>kg</small></div>${pm.mas ? `<div class="s"><b>${esc(pm.mas.nombre)}</b>: con esta carga se calcula el tiempo</div>` : ''}<div class="s">${pm.sinMochila ? 'sin mochila (se deja la 3.ª línea)' : 'con mochila'}${pm.final!==undefined && Math.abs(pm.final - pm.total)>0.05 ? ' · al llegar ' + f(pm.final, 1) + ' kg' : ''}</div></div>
-        ${[1, 2, 5, 3].map(l=>`<div class="kpi"${(l===3 || l===5) && pm.sinMochila || l===3 && pm.mochilaModo==='solo' ? ' style="opacity:.5"' : ''}><div class="k">${LINEAS[l]}</div><div class="v">${f(pm.lineas[l], 1)} <small>kg</small></div><div class="s">${esc(LINEAS_TXT[l])}${l===3 && pm.sinMochila ? ' · <b>se deja</b>' : ''}</div></div>`).join('')}</div>
+        <div class="kpi ocre"><div class="k">${pm.mas ? 'El más cargado al partir' : 'Total por hombre al partir'}</div><div class="v">${f(pm.total, 1)} <small>kg</small></div>${pm.mas ? `<div class="s"><b>${esc(pm.mas.nombre)}</b>: con esta carga se calcula el tiempo</div>` : ''}<div class="s">${pm.balanza ? 'según la balanza' : pm.sinMochila ? 'sin mochila (se deja la 3.ª línea)' : 'con mochila'}${pm.final!==undefined && Math.abs(pm.final - pm.total)>0.05 ? ' · al llegar ' + f(pm.final, 1) + ' kg' : ''}</div></div>
+        ${pm.balanza ? `<div class="kpi"><div class="k">Carga promedio de la unidad</div><div class="v">${f(pm.promedio, 1)} <small>kg</small></div><div class="s">pesada en la balanza (sin detalle por líneas)</div></div>` : [1, 2, 5, 3].map(l=>`<div class="kpi"${(l===3 || l===5) && pm.sinMochila || l===3 && pm.mochilaModo==='solo' ? ' style="opacity:.5"' : ''}><div class="k">${LINEAS[l]}</div><div class="v">${f(pm.lineas[l], 1)} <small>kg</small></div><div class="s">${esc(LINEAS_TXT[l])}${l===3 && pm.sinMochila ? ' · <b>se deja</b>' : ''}</div></div>`).join('')}</div>
       ${pm.especial.length ? `<h4 class="carga-h">Carga de cada puesto (por línea)</h4><div class="tabla-env"><table class="t puestos"><thead><tr><th class="tx">Puesto</th><th>H.</th>${[1, 2, 5, 3].map(l=>`<th>${LINEAS[l].replace(' línea', '')}</th>`).join('')}<th>Total</th></tr></thead><tbody>
         ${[Object.assign({}, pm.fusilero || {nombre:PUESTOS.fusilero, lineas:pm.lineas, total:pm.comun}, {n:pm.fusileros, fus:true})].concat(pm.especial.slice().sort((a, b)=>b.total - a.total)).map(g=>`<tr class="${pm.mas===g || (g.fus && pm.mas===pm.fusilero) ? 'mas' : ''}"><td class="tx">${esc(g.nombre)}${pm.mas===g || (g.fus && pm.mas===pm.fusilero) ? ' <b class="mas-tag">más cargado</b>' : ''}${g.fus ? '<small>equipo común</small>' : g.reemplaza && g.reemplaza.length ? '<small>sin fusil</small>' : ''}</td>
           <td>${pm.hay ? g.n : '—'}</td>${[1, 2, 5, 3].map(l=>`<td>${f(g.lineas[l] || 0, 1)}</td>`).join('')}<td><b>${f(g.total, 1)} kg</b></td></tr>`).join('')}
@@ -879,7 +888,7 @@
         return `<div class="kpis"><div class="kpi"><div class="k">Porcentaje de tu peso</div><div class="v">${pct===null ? '—' : f(pct, 0) + ' <small>%</small>'}</div>
           <div class="s" style="color:var(--${pct===null ? 'tenue' : pct>25 ? 'rojo' : pct>20 ? 'ocre' : 'verde'})">${pct===null ? 'escribe tu peso corporal' : pct>25 ? 'sobre el 25 %: demasiado pesado' : pct>20 ? 'entre 20 y 25 %: pesado' : 'hasta 20 %: recomendable'}</div></div>
           <div class="kpi"><div class="k">Peso corporal (kg)</div><div class="v"><input class="num" id="mtPeso" inputmode="decimal" value="${esc(m.par.pesoCorp || '')}" placeholder="ej. 70" style="width:90px"></div><div class="s">promedio del grupo</div></div></div>
-        <p class="nota">Referencia habitual en montaña: la mochila no debería pasar del <b>20 %</b> del peso de quien la lleva (hasta un 25 % en travesías de varios días). Es solo una referencia.</p>`; })() : `<div class="kpis">
+        <p class="nota">Referencia habitual en montaña: la mochila no debería pasar del <b>20 %</b> del peso de quien la lleva (hasta un 25 % en travesías de varios días). Es solo una referencia.</p>`; })() : pm.balanza ? `<p class="nota">Referencia: carga de combate hasta unos ${L.combate} kg; carga de marcha de aproximación hasta unos ${L.marcha} kg (manual de marchas a pie de EE.UU.).</p>` : `<div class="kpis">
         <div class="kpi"><div class="k">Carga de combate (1.ª + 2.ª)</div><div class="v">${f(pm.combate, 1)} <small>kg</small></div>${ref(pm.combate, L.combate)}</div>
         <div class="kpi"><div class="k">Carga de marcha (1.ª + 2.ª + 3.ª)</div><div class="v">${f(pm.marcha, 1)} <small>kg</small></div>${pm.marcha>L.marcha + 21 ? '<div class="s" style="color:var(--rojo)">carga de emergencia: marcha lenta, evitar el contacto</div>' : ref(pm.marcha, L.marcha)}</div></div>
       <p class="nota">Límites <b>referenciales</b> (manual de marchas a pie de EE.UU.): carga de combate hasta unos ${L.combate} kg; carga de marcha de aproximación hasta unos ${L.marcha} kg.
@@ -970,6 +979,7 @@
     vista.querySelectorAll('[data-ll]').forEach(x=>x.oninput = ()=>{ const o = Mt()[x.dataset.ll] || (Mt()[x.dataset.ll] = {}); o.llevan = x.value; guardar(); recarga(); });
     vista.querySelectorAll('[data-pl]').forEach(x=>x.oninput = ()=>{ const o = m.par.pesoLinea || (m.par.pesoLinea = {}); o[x.dataset.pl] = x.value; guardar(); recarga(); });
     vista.querySelectorAll('[data-modo-carga]').forEach(b=>b.onclick = ()=>{ m.par.modoCarga = b.dataset.modoCarga; guardar(); pintar(); });
+    vista.querySelectorAll('[data-uforma]').forEach(b=>b.onclick = ()=>{ m.par.unidadForma = b.dataset.uforma; guardar(); const y = window.scrollY; pintar(); window.scrollTo(0, y); });
     const fila = i=>{ const U = m.pesoUnidad || (m.pesoUnidad = []); return U[i] || (U[i] = {}); };
     vista.querySelectorAll('[data-pu]').forEach(x=>x.oninput = ()=>{ const [i, l] = x.dataset.pu.split('|'); fila(+i)[l] = x.value; guardar(); recarga(); });
     vista.querySelectorAll('[data-pun]').forEach(x=>x.oninput = ()=>{ fila(+x.dataset.pun).nombre = x.value; guardar(); });

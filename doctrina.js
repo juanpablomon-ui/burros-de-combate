@@ -358,12 +358,20 @@ function pesoMaterial(m, R){
     comun, especial, portadores, fusileros:Math.max(0, c.n - portadores), fusilero, mas:mas && mas.total>comun ? mas : null, total:mas && mas.total>comun ? mas.total : comun,   // el tiempo se calcula con el más cargado
     n:c.n, hay:c.hay, items:items.sort((a, b)=>b.porHombre - a.porHombre)};
 }
+// forma del peso de la unidad: 'balanza' (cada uno se pesa con todo y sin equipo; v0.76, pedido del usuario) o 'lineas' (kg de cada línea).
+// Sin elegir: 'lineas' si ya hay kg por línea escritos (marchas antiguas), si no 'balanza'
+const formaUnidad = m=>(m.par || {}).unidadForma || ((m.pesoUnidad || []).some(f=>f && [1, 2, 5, 3].some(l=>numCant(f[l])>0)) ? 'lineas' : 'balanza');
 function pesoUnidad(m, c, llevaL, sinMochila, modoMo){
-  const U = m.pesoUnidad || [], n = Math.max(1, c.n), L0 = ()=>({1:0, 2:0, 5:0, 3:0, 4:0});
-  const integrantes = Array.from({length:n}, (_, i)=>{ const f = U[i] || {}, li = L0(); [1, 2, 5, 3].forEach(l=>{ li[l] = numCant(f[l]); });
-    const total = Math.round([1, 2, 5, 3].reduce((a, l)=>a + (llevaL(l) ? li[l] : 0), 0)*10)/10;
-    return {i, nombre:String(f.nombre || '').trim() || 'Integrante ' + (i + 1), lineas:li, total}; });
+  const U = m.pesoUnidad || [], n = Math.max(1, c.n), L0 = ()=>({1:0, 2:0, 5:0, 3:0, 4:0}), bal = formaUnidad(m)==='balanza';
+  const integrantes = Array.from({length:n}, (_, i)=>{ const f = U[i] || {}, li = L0(); if(!bal) [1, 2, 5, 3].forEach(l=>{ li[l] = numCant(f[l]); });
+    // balanza: carga = peso con todo el equipo − peso sin equipo (si no se escribe el peso sin equipo, lo escrito es solo el equipo)
+    const con = numCant(f.con), sin = numCant(f.sin);
+    const total = Math.round((bal ? Math.max(0, con - (sin>0 && con>0 ? sin : 0)) : [1, 2, 5, 3].reduce((a, l)=>a + (llevaL(l) ? li[l] : 0), 0))*10)/10;
+    return {i, nombre:String(f.nombre || '').trim() || 'Integrante ' + (i + 1), lineas:li, total, con, sin}; });
   const mas = integrantes.reduce((a, x)=>!a || x.total>a.total ? x : a, null), prom = Math.round(integrantes.reduce((a, x)=>a + x.total, 0)/n*10)/10, L = mas.lineas;
+  if(bal) return {unidad:true, balanza:true, integrantes, base:0, indiv:prom, colect:0, lineas:L, lineasCalc:Object.assign({}, L), pesoLinea:{}, sinMochila:false, mochilaModo:modoMo,
+    puestos:[], especial:[], portadores:0, fusileros:n, fusilero:null, combate:mas.total, marcha:mas.total, comun:prom, promedio:prom, mas:mas.total>0 ? mas : null, total:mas.total,
+    n:c.n, hay:c.hay, items:[]};
   return {unidad:true, integrantes, base:0, indiv:prom, colect:0, lineas:L, lineasCalc:Object.assign({}, L), pesoLinea:{}, sinMochila, mochilaModo:modoMo, puestos:[], especial:[], portadores:0,
     fusileros:n, fusilero:null, combate:L[1] + L[2], marcha:L[1] + L[2] + L[5] + L[3], comun:prom, promedio:prom, mas:mas.total>0 ? mas : null, total:mas.total,
     n:c.n, hay:c.hay, items:[]};   // sin elementos: no se suma agua ni se descuenta lo bebido
