@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.79', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.80', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -755,13 +755,14 @@
       const grupos = Object.entries(CONTENEDORES).map(([k, C])=>({k, C, cont:its.find(i=>i.id===C.id), dentro:its.filter(i=>enDe(m, i.id)===k)})).filter(g=>g.cont);
       const fuera = new Set(grupos.flatMap(g=>g.dentro));
       return its.filter(i=>!fuera.has(i)).map(i=>{ const g = grupos.find(x=>x.cont===i); if(!g) return ficha(i);
-        const kg = [g.cont, ...g.dentro].reduce((t, x)=>t + ((porId[x.id] || {}).porHombre || 0), 0), cin = g.k==='cinturon';
-        return `<div class="mf-grupo"><div class="mf-grupo-t">${cin ? 'Cinturón de carga completo' : 'SPB completo'}: <b>${f(kg, 1)} kg por hombre</b> <small>(${cin ? 'el cinturón y lo que lleva en las baleras y el morral' : 'porta placas, placas y lo que lleva en las baleras y bolsillos'})</small></div>
-          ${ficha(g.cont)}${g.dentro.length ? `<details class="mf-dentro-d"><summary class="mf-dentro-t">Va en ${cin ? 'el cinturón' : 'el SPB'} (${g.dentro.length}): ${esc(g.dentro.map(x=>x.n.split(/[:(]/)[0].trim()).join(', '))}</summary><div class="mf-dentro">${g.dentro.map(ficha).join('')}</div></details>` : ''}</div>`; }).join('');
+        const kg = [g.cont, ...g.dentro].reduce((t, x)=>t + ((porId[x.id] || {}).porHombre || 0), 0), T = {cinturon:['Cinturón de carga completo', 'el cinturón y lo que lleva en las baleras y el morral', 'el cinturón'],
+          spb:['SPB completo', 'porta placas, placas y lo que lleva en las baleras y bolsillos', 'el SPB'], arnes:['Arnés o sistema de carga completo', 'el arnés y lo que lleva', 'el arnés']}[g.k];
+        return `<div class="mf-grupo"><div class="mf-grupo-t">${T[0]}: <b>${f(kg, 1)} kg por hombre</b> <small>(${T[1]})</small></div>
+          ${ficha(g.cont)}${g.dentro.length ? `<details class="mf-dentro-d"><summary class="mf-dentro-t">Va en ${T[2]} (${g.dentro.length}): ${esc(g.dentro.map(x=>x.n.split(/[:(]/)[0].trim()).join(', '))}</summary><div class="mf-dentro">${g.dentro.map(ficha).join('')}</div></details>` : ''}</div>`; }).join('');
     };
     // dónde va un elemento individual (uso militar): en el SPB, en el cinturón o suelto (con su línea)
-    const vaEn = (it, x)=>Uso.civil() || !x || (x.modo!=='i' && x.modo!=='h') || CONTENEDORES.spb.id===it.id || CONTENEDORES.cinturon.id===it.id ? '' : (()=>{ const e = enDe(m, it.id);
-      return `<select data-men="${it.id}" aria-label="Va en"><option value="spb"${e==='spb' ? ' selected' : ''}${sinSPBde(m) ? ' disabled' : ''}>Va en el SPB</option><option value="cinturon"${e==='cinturon' ? ' selected' : ''}>Va en el cinturón</option><option value="-"${!e ? ' selected' : ''}>Suelto (elige la línea)</option></select>`; })();
+    const vaEn = (it, x)=>Uso.civil() || !x || (x.modo!=='i' && x.modo!=='h') || Object.values(CONTENEDORES).some(C=>C.id===it.id) ? '' : (()=>{ const e = enDe(m, it.id);
+      return `<select data-men="${it.id}" aria-label="Va en"><option value="spb"${e==='spb' ? ' selected' : ''}${sinSPBde(m) ? ' disabled' : ''}>Va en el SPB</option><option value="arnes"${e==='arnes' ? ' selected' : ''}${conArnesDe(m) ? '' : ' disabled'}>Va en el arnés</option><option value="cinturon"${e==='cinturon' ? ' selected' : ''}>Va en el cinturón</option><option value="-"${!e ? ' selected' : ''}>Suelto (elige la línea)</option></select>`; })();
     return filas.map(({g, its, linea})=>`<h3 class="mat-g">${esc(g)}${linea && pm ? ` <span class="mat-kg">${f(pm.lineas[linea], 1)} kg por hombre${linea===4 ? ' (no se suma)' : (linea===3 || linea===5) && pm.sinMochila ? ' (se deja)' : linea===3 && pm.mochilaModo==='solo' ? ' (no se lleva)' : ''}</span>` : ''}</h3>
       ${linea && linea!==4 && pm ? `<div class="mat-pl"><label>Peso de la línea sin detallar los elementos <span class="mf-c"><input class="num" data-pl="${linea}" value="${esc((m.par.pesoLinea || {})[linea] || '')}" placeholder="${f(pm.lineasCalc[linea], 1)}" inputmode="decimal" aria-label="kg por hombre"><em>kg por hombre</em></span></label>
         <small>${(m.par.pesoLinea || {})[linea] ? '<b>reemplaza</b> la suma de los elementos (' + f(pm.lineasCalc[linea], 1) + ' kg)' + (linea===2 ? '; incluye el agua' : '') : 'vacío = la suma de los elementos de abajo'}</small></div>` : ''}

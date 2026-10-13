@@ -55,7 +55,7 @@ const MATERIAL = [
     ['cargPis', 'Cargadores de pistola', c=>c.civil ? null : c.n*2, c=>'2 por hombre, en el cinturón del pantalón'],
     ['baqueta', 'Baqueta para el fusil', c=>c.civil ? null : c.n, c=>''],
     ['granHumo', 'Granada de humo', c=>c.civil ? null : c.n, c=>'en las baleras del cinturón'],
-    ['arnes', 'Arnés o sistema de carga (LBE, chest rig u otro)', c=>c.civil ? null : c.sinSPB ? c.n : 0, c=>c.sinSPB ? 'sin SPB, el cinturón va con sus tirantes' : 'con SPB normalmente no se usa (escribe la cantidad si la misión lo pide)'],
+    ['arnes', 'Arnés o sistema de carga (LBE, chest rig u otro)', c=>c.civil ? null : c.sinSPB ? c.n : 0, c=>'2.ª línea: con el SPB, en vez de él o los dos, según la misión (escribe 1 por hombre si se usa); lo que lleva se elige en «Va en»'],
     ['portaf', 'Cinturón de carga o de combate: baleras, tacho y morral', c=>c.civil ? null : c.n, c=>'con los cargadores, granadas, IFAK, cuchillo y lo que va en el morral'],
     ['radioH', 'Radio portátil de mano con batería', c=>c.civil ? null : c.n, c=>'puede que no todos la lleven: indica cuántos en «Lo llevan»']]},
   // equipo que sirve a toda la unidad para la misión o la marcha: se escribe el total y su peso se reparte entre todos
@@ -237,14 +237,19 @@ const ORDEN_LINEAS = [1, 2, 5, 3, 4];
 // protección balística (SPB: porta placas con 3 baleras dobles, 2.ª línea). Lo que va en uno toma su línea y en Material se muestra
 // dentro de él, con el peso del conjunto. Cada elemento individual elige dónde va (`m.material[id].en` 'spb' | 'cinturon' | '-' suelto);
 // por defecto `EN_DEF`. Sin SPB (cantidad 0), lo del SPB pasa al cinturón.
-const CONTENEDORES = {spb:{id:'chaleco', n:'SPB'}, cinturon:{id:'portaf', n:'Cinturón de carga'}};
+const CONTENEDORES = {spb:{id:'chaleco', n:'SPB'}, arnes:{id:'arnes', n:'Arnés o sistema de carga'}, cinturon:{id:'portaf', n:'Cinturón de carga'}};
 const EN_DEF = {cargad:'spb', placasLat:'spb', torniq1:'spb', torniqC:'cinturon', radioH:'spb', agua:'spb', cargPis:'cinturon', granada:'cinturon', granHumo:'cinturon', ifak:'cinturon', cuchillo:'cinturon',
   coipa:'cinturon', bengala:'cinturon', bolsaPl:'cinturon', cordin:'cinturon', mosqueton:'cinturon', mimet:'cinturon', tapones:'cinturon', kitSuperv:'cinturon', kitExpl:'cinturon'};
 const sinSPBde = m=>{ const st = (m.material || {}).chaleco || {}; return !!st.no || ['cant', 'cantH'].some(k=>st[k]!==undefined && String(st[k]).trim()!=='' && numCant(st[k])===0); };
+// el arnés o sistema de carga (2.ª línea, v0.80: puede ir con el SPB, en vez de él o los dos) se usa si se lleva y su cantidad no es 0
+// (sin escribirla: 1 por hombre solo si no hay SPB)
+const conArnesDe = m=>{ const st = (m.material || {}).arnes || {}; if(st.no) return false;
+  const k = ['cantH', 'cant'].find(k=>st[k]!==undefined && String(st[k]).trim()!==''); return k ? numCant(st[k])>0 : sinSPBde(m); };
 const enDe = (m, id)=>{
-  if(CONTENEDORES.spb.id===id || CONTENEDORES.cinturon.id===id || (typeof Uso!=='undefined' && Uso.civil())) return '';
+  if(Object.values(CONTENEDORES).some(C=>C.id===id) || (typeof Uso!=='undefined' && Uso.civil())) return '';
   const v = ((m.material || {})[id] || {}).en, e = v==='-' ? '' : v || EN_DEF[id] || '';
-  const f = e==='spb' && sinSPBde(m) ? 'cinturon' : e;
+  // lo que va en un contenedor que no se lleva pasa al otro de la 2.ª línea o al cinturón
+  const f = e==='arnes' && !conArnesDe(m) ? (sinSPBde(m) ? 'cinturon' : 'spb') : e==='spb' && sinSPBde(m) ? (conArnesDe(m) ? 'arnes' : 'cinturon') : e;
   return f==='cinturon' && ((m.material || {}).portaf || {}).no ? '' : f; };   // sin cinturón, lo suyo queda suelto (en su línea)
 // todo es configurable (pedido del usuario, v0.78): `m.material[id].no` = no se lleva (cantidad 0, se ve tachado); `.nombre` = otro nombre;
 // `m.par.verTodo` = mostrar también lo que no corresponde a esta marcha (noche, montaña, nieve…), en 0, para poder llevarlo
@@ -256,7 +261,7 @@ const cantMat = (m, c, cant)=>{ const v = cant(c); if(v!==null && v!==undefined)
 // límites de referencia (manual de marchas a pie de EE.UU.): carga de combate ≈ 22 kg (48 lb), carga de marcha de aproximación ≈ 33 kg (72 lb)
 const LIMITES_CARGA = {combate:22, marcha:33};
 const LINEA_DE = {pistola:1, cargPis:1, torniq1:1, torniqC:1, torniqB:1, barras:1, tenida:1, botas:1, guantesT:1, rodill:1, quepi:1, estrobo:1, extracto:1, libreta:1, linCarta:1, espejo:1, baliza:1, multi:1,
-  agua3a:5, agua3b:3, racion24:3, abrigo:3, botPA:3, vs17:5, placasLat:2, baqueta:2, granHumo:1, arnes:1, suero:3, coipa:1, bengala:1, bolsaPl:1, cordin:1, mosqueton:1, mimet:1, tapones:1, kitSuperv:1, kitExpl:1,
+  agua3a:5, agua3b:3, racion24:3, abrigo:3, botPA:3, vs17:5, placasLat:2, baqueta:2, granHumo:1, arnes:2, suero:3, coipa:1, bengala:1, bolsaPl:1, cordin:1, mosqueton:1, mimet:1, tapones:1, kitSuperv:1, kitExpl:1,
   panelReg:5, c4:5, mecha:5, claymore:3, alambreT:3, capa1:3, goretex:3, muda:3, cubreSaco:3, portaf:1, cuchillo:1, manta:1, radioH:2, abrigo3:3, ifak:1, sales:1, carta:1, brujula:1, gps:1, cuadro:1, marcador:1, claves:1, silbato:1, lentes:1, sombrero:1, gorro:1, linterna:1, polainas:1, bastones:1,
   casco:2, chaleco:2, fusil:2, cargad:1, granada:1, agua:2, radio:2, luzquim:2, vision:2,
   muniExtra:5, mochAs:5, racion12:5, poncho:5, pilas:5, batRad:5, bateria:5};   // el resto: 3.ª B (sostenimiento)
@@ -461,3 +466,4 @@ const GLOSARIO = [
   ['GPX / KML / GeoJSON', 'Formatos de archivo de rutas y puntos (GPS, Google Earth, sistemas de mapas).'], ['CSV', 'Tabla de texto que abre Excel.'],
   ['QR', 'Código de cuadros que se lee con la cámara para pasar el plan de un teléfono a otro.']];
 if(typeof globalThis!=='undefined') globalThis.GLOSARIO = GLOSARIO;
+if(typeof globalThis!=='undefined') globalThis.enDe = enDe;
