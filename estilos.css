@@ -594,3 +594,9 @@ table.sop td.sop-x{color:var(--suave);font-family:var(--mono)}
 .s-hud .hud-g b{display:block;font-family:var(--mono);font-size:16px;white-space:nowrap}.s-hud .hud-g small{display:block;font-family:var(--mono);font-size:11px;color:var(--suave);white-space:nowrap}
 .s-hud .hud-g .bien{color:var(--verde)}.s-hud .hud-g .ojo{color:var(--ocre)}.s-hud .hud-g .mal{color:var(--rojo)}
 .s-hud .hud3{margin-top:3px}
+.s-hud .hud-g p.vr{margin:0;font-family:var(--mono);font-size:14px;white-space:nowrap}.s-hud .hud-g p.vr i,.s-vel b i{font-style:normal;font-family:var(--sans,inherit);font-size:10.5px;color:var(--suave);display:inline-block;min-width:58px}
+.s-hud .hud-g p.vr.bien{color:var(--verde)}.s-hud .hud-g p.vr.ojo{color:var(--ocre)}.s-hud .hud-g p.vr.mal{color:var(--rojo)}
+.s-hud .hud-g p.vr{font-size:13px;overflow:hidden;text-overflow:ellipsis}.s-hud .hud-g p.vr i{min-width:50px}
+.s-vel b{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.s-vel b i{min-width:58px}
+.s-hud .hud-g p.vr small,.s-vel b small{display:inline;font-size:9.5px;color:var(--suave)}.s-hud .hud-g p.vr i{min-width:54px}.s-vel b i{min-width:56px}
+.s-vel>div{padding:7px 8px}.s-vel b{font-size:13px}.s-vel b i{min-width:50px;font-size:10px}
