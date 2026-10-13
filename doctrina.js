@@ -118,7 +118,7 @@ const MATERIAL = [
     ['botas', 'Botas (puestas)', c=>c.civil ? null : c.n, c=>'se llevan puestas'],
     ['guantesT', 'Guantes tácticos', c=>c.civil ? null : c.n, c=>''],
     ['rodill', 'Rodilleras', c=>c.civil ? null : c.n, c=>''],
-    ['quepi', 'Quepí o bunny hat con panel cosido en el interior', c=>c.civil ? null : c.n, c=>''],
+    ['quepi', 'Quepí o boonie hat con panel cosido en el interior', c=>c.civil ? null : c.n, c=>''],
     ['coipa', 'Coipa y guantes de abrigo', c=>c.civil ? null : c.n, c=>'en el morral del cinturón'],
     ['capa1', 'Primera capa de abrigo (pantalón y blusa)', c=>c.civil ? null : c.n, c=>'una sola: puesta o en la mochila de sostenimiento (si va puesta, pon su peso en 0)'],
     ['goretex', 'Tenida Gore-Tex (blusa y pantalón)', c=>c.civil ? null : c.n, c=>''],
