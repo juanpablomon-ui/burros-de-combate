@@ -296,9 +296,17 @@ const Seguir = (function(){
     const gps = pos ? 'GPS ±' + Math.round(pos.acc||0) + ' m · ' + utmTxt(pos) : (navigator.geolocation ? 'Esperando señal GPS…' : 'Este equipo no tiene GPS: marca las llegadas a mano');
     const enAlto = (ultAlto ? `<div class="info">⏸ En alto (${A.esc(ultAlto.motivo)}) desde ${hh(ultAlto.ini)} — ${dur(t - ultAlto.ini)}</div>` : '') + (intervalo(m, P) || '');
     if(modo==='carta'){
-      c.innerHTML = `<div class="hud1"><span>PRÓXIMO <b class="clave-tx">${p ? A.esc(rotulo(p)) : '—'}</b>${p ? ' <small>' + A.esc(p.clave ? p.nombre + (p.obs ? ' · ' + p.obs : '') : p.obs || '') + '</small>' : ''}</span><span class="${cls}">${at===null ? '' : dif(at)}</span></div>
-        <div class="hud2"><b>${dist}</b><b class="ocre">${rumbo}</b><small>${mils}</small><div class="s-flecha mini" id="sFlecha">↑</div></div>
-        <div class="hud3 mono">⏱ ${dur(t - E.inicio)}${eta ? ' · ' + eta : ''}</div>${velHtml(velocidades(m, P, k, ke), true)}${quiebre ? `<div class="hud3 mono">↪ ${quiebre}</div>` : ''}${enAlto}${fuera}<div class="hud3 mono" id="sGps">${gps}</div>`;
+      // carta: arriba el próximo evento y el estado; luego distancia y rumbo grandes; después cuadros con rótulo (llegada y velocidades); abajo lo secundario
+      const V = velocidades(m, P, k, ke), pr = v=>v>0 && isFinite(v) ? M.verRitmo(v) : '';
+      const cel = (rot, val, sub, cl)=>`<div><span>${rot}</span><b class="${cl || ''}">${val}</b>${sub ? `<small>${sub}</small>` : ''}</div>`;
+      const vk = v=>v>0 && isFinite(v) ? A.f(v, 1) + ' km/h' : '—';
+      c.innerHTML = `<div class="hud1"><span>PRÓXIMO <b class="clave-tx">${p ? A.esc(rotulo(p)) : '—'}</b>${p ? ' <small>' + A.esc(p.clave ? p.nombre + (p.obs ? ' · ' + p.obs : '') : p.obs || '') + '</small>' : ''}</span>${at===null ? '' : `<span class="hud-est ${cls}">${dif(at)}</span>`}</div>
+        <div class="hud2"><div class="hd"><span>Distancia</span><b>${dist}</b></div><div class="hd"><span>Rumbo mag.</span><b class="ocre">${rumbo}</b><small>${mils}</small></div><div class="s-flecha mini" id="sFlecha">↑</div></div>
+        <div class="hud-g">${p ? cel('Llegada plan', hh(E.inicio + p.lleg*3600000), at!==null ? 'estimada ' + hh(E.inicio + p.lleg*3600000 + at*60000) : '') : ''}
+          ${cel('Velocidad ahora', V.enAlto ? 'en alto' : vk(V.ahora), pr(V.ahora), claseVel(V.ahora, V.plan))}
+          ${cel('Plan del tramo', vk(V.plan), pr(V.plan))}
+          ${p && V.nec ? cel('Para llegar a la hora', V.nec===Infinity ? 'no alcanza' : vk(V.nec), V.nec===Infinity ? '' : pr(V.nec), V.nec===Infinity ? 'mal' : '') : ''}</div>
+        ${quiebre ? `<div class="hud3">↪ ${quiebre}</div>` : ''}${enAlto}${fuera}<div class="hud3 mono" id="sGps">⏱ ${dur(t - E.inicio)} de marcha · ${gps}</div>`;
     } else {
       c.innerHTML = `<div class="s-estado"><span>⏱ ${dur(t - E.inicio)} de marcha</span><span class="${cls}">${at===null ? '' : dif(at)}</span></div>${enAlto}
         ${p ? `<div class="s-prox">PRÓXIMO <b class="clave-tx">${A.esc(rotulo(p))}</b><small>${A.esc(p.clave ? p.nombre + (p.obs ? ' · ' + p.obs : '') : p.obs || '')}</small></div>
