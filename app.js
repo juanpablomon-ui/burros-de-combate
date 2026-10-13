@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.81', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.82', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -538,6 +538,7 @@
       <div class="kpi ocre"><div class="k">Término estimado</div><div class="v">${M.verHora(r.termino)}</div></div>
     </div>
     <div class="desglose"><span>marcha <b>${M.verDur(r.marcha)}</b></span><span>+ altos <b>${M.verDur(r.altos)}</b></span>${r.det ? `<span>+ detenciones <b>${M.verDur(r.det)}</b></span>` : ''}<span>+ imprevistos <b>${M.verDur(r.imprev)}</b></span>
+      ${r.vMov ? `<span>velocidad en movimiento <b>${M.verVel(r.vMov)} · ${M.verRitmo(r.vMov)}</b></span><span>con altos <b>${M.verVel(r.vAltos)} · ${M.verRitmo(r.vAltos)}</b></span>` : ''}
       <span>punto más alto <b>${r.alto ? esc(r.alto.nombre) + ' ' + f(r.alto.cota) + ' m' : '—'}</b></span>${R.carga && R.carga.final!==undefined ? `<span>carga <b>${f(R.carga.inicial, 1)} kg</b> al partir → <b>${f(R.carga.final, 1)} kg</b> al llegar</span>` : ''}</div>
     ${['battle', 'forzada'].includes(R.par.metodo) ? `<div class="desglose"><span><b>${esc(M.tipoMarcha(R.par))}</b></span>${R.meta ? `<span>meta ${f(R.meta.km, 1)} km en ${f(R.meta.min)} min: <b style="color:var(--${R.meta.cumple ? 'verde' : 'rojo'})">${R.meta.cumple ? 'cumple (' + Math.round(-R.meta.dif) + ' min de margen)' : 'faltan ' + Math.round(R.meta.dif) + ' min'}</b></span>` : ''}</div>` : ''}`;
   }
@@ -563,6 +564,9 @@
   }
   // texto del evento para la radio: «PASANDO ALFA» (palabra elegida en Nombres clave)
   function evento(clave){ const m = actual(); return clave ? `<span class="clave-ev">${esc(((m.par && m.par.verbo) || 'PASANDO').toUpperCase())} <b>${esc(clave)}</b></span>` : ''; }
+  // velocidad y ritmo de un tramo (en movimiento); al tocarla se escribe otra (m.puntos[iB].vel, km/h). En montaña, también la vertical
+  const ritmoC = v=>M.verRitmo(v).replace(' min/km', '');
+  const velCelda = t=>t.v ? `<span class="velb${t.velPropia ? ' propia' : ''}" data-vel="${t.iB}" title="Tocar para escribir otra velocidad o ritmo">${f(t.v, 1)} · ${ritmoC(t.v)}${t.velPropia ? ' ✎' : ''}</span>${Math.abs(t.dv)>=20 && Math.abs(t.pte)>0.05 ? `<span class="s">${t.dv>0 ? '↗' : '↘'} ${f(t.vVert)} m/h</span>` : ''}` : '—';
   // tabla del cuadro de marcha y navegación (se usa en la pestaña Cuadro y en el documento)
   function tablaCuadro(m, R){
     const T = R.tramos, como = {subida:'↗', bajada:'↘', llano:'→', MIDE:'', general:''}, pteC = p=>Math.abs(p)>=0.3 ? 'fuerte' : '';
@@ -577,16 +581,16 @@
     return `
       <div class="tabla-env solo-ancho"><table class="t cmn">
         <thead><tr><th class="tx">Punto</th><th class="tx">Evento<br>(radio)</th><th>Hora<br>llegada</th><th>Hora<br>salida</th><th>Altitud<br>(m)</th>
-          <th class="sig">Rumbo al siguiente<br>(° / ‰)</th><th class="sig">Distancia<br>(m)</th><th class="sig">Desnivel<br>(m)</th><th class="sig">Pendiente</th><th class="sig">Tiempo</th>
+          <th class="sig">Rumbo al siguiente<br>(° / ‰)</th><th class="sig">Distancia<br>(m)</th><th class="sig">Desnivel<br>(m)</th><th class="sig">Pendiente</th><th class="sig">Tiempo</th><th class="sig">Velocidad<br>(km/h · min/km)</th>
           <th>Dist. acum.<br>(km)</th><th>Tiempo<br>acum.</th><th class="tx">Observaciones</th></tr></thead>
         <tbody>${filas.map(({p, ll, sig, sal, acum, tac})=>`<tr class="${p.ev ? '' : 'sub'}"><td class="tx">${nombre(p)}</td><td class="tx">${p.ev ? evento(p.clave) : ''}</td>
           <td>${ll ? '<b>' + M.verHora(ll.llegada) + '</b>' + icoLuz(ll.llegada) : '—'}</td><td>${sig ? M.verHora(sal) : '—'}</td><td>${f(p.cota)}</td>
           ${sig ? `<td class="sig"><b>${f(sig.azM, 0)}°</b> / ${sig.mils}<span class="s">cuad. ${f(sig.azC, 1)} · geo. ${f(sig.azG, 1)}</span></td><td class="sig">${f(sig.dist)}</td>
-            <td class="sig ${sig.dv>0 ? 'sube' : sig.dv<0 ? 'baja' : ''}">${sig.dv>0 ? '+' : ''}${f(sig.dv)}</td><td class="sig ${pteC(sig.pte)}">${f(sig.pte*100, 1)} %</td><td class="sig">${como[sig.como]||''} ${M.verDur(sig.t)}</td>`
-            : '<td class="sig">—</td><td class="sig"></td><td class="sig"></td><td class="sig"></td><td class="sig"></td>'}
+            <td class="sig ${sig.dv>0 ? 'sube' : sig.dv<0 ? 'baja' : ''}">${sig.dv>0 ? '+' : ''}${f(sig.dv)}</td><td class="sig ${pteC(sig.pte)}">${f(sig.pte*100, 1)} %</td><td class="sig">${como[sig.como]||''} ${M.verDur(sig.t)}</td><td class="sig">${velCelda(sig)}</td>`
+            : '<td class="sig">—</td><td class="sig"></td><td class="sig"></td><td class="sig"></td><td class="sig"></td><td class="sig"></td>'}
           <td>${f(acum/1000, 2)}</td><td>${ll ? M.verDur(tac) : '—'}</td><td class="obs tx">${obs(p, ll)}</td></tr>`).join('')}
           <tr class="tot"><td class="tx">Total</td><td></td><td></td><td>${M.verHora(R.res.termino)}<span class="s">término</span></td><td></td><td class="sig"></td><td class="sig">${f(R.res.dist)}</td>
-            <td class="sig">+${f(R.res.sube)} / −${f(R.res.baja)}</td><td class="sig"></td><td class="sig">${M.verDur(R.res.marcha)}</td><td>${f(R.res.dist/1000, 2)}</td><td></td><td class="tx obs">término con altos, detenciones e imprevistos</td></tr>
+            <td class="sig">+${f(R.res.sube)} / −${f(R.res.baja)}</td><td class="sig"></td><td class="sig">${M.verDur(R.res.marcha)}</td><td class="sig">${R.res.vMov ? f(R.res.vMov, 1) + ' · ' + ritmoC(R.res.vMov) + '<span class="s">media en movimiento</span>' : ''}</td><td>${f(R.res.dist/1000, 2)}</td><td></td><td class="tx obs">término con altos, detenciones e imprevistos</td></tr>
         </tbody></table></div>
 `;
   }
@@ -616,7 +620,7 @@
       <h2>Cuadro de marcha y navegación</h2>
       ${tablaCuadro(m, R)}
       <div class="tramos-cel">${filas.map(({p, ll, sig, acum, tac})=>p.ev ? `<div class="tc"><div class="cab"><b>${esc(p.nombre)}</b><span class="hora">${ll ? M.verHora(ll.llegada) : 'sale ' + M.verHora(R.res.partida)}</span></div>
-          ${sig ? `<div class="datos"><div><span>Rumbo al sig.</span><b class="rumbo">${f(sig.azM, 0)}°</b> <small>${sig.mils} ‰</small></div><div><span>Distancia</span>${f(sig.dist)} m</div><div><span>Tiempo</span>${M.verDur(sig.t)}</div>
+          ${sig ? `<div class="datos"><div><span>Rumbo al sig.</span><b class="rumbo">${f(sig.azM, 0)}°</b> <small>${sig.mils} ‰</small></div><div><span>Distancia</span>${f(sig.dist)} m</div><div><span>Tiempo</span>${M.verDur(sig.t)}</div><div><span>Velocidad · ritmo</span>${velCelda(sig)}</div>
             <div><span>Desnivel</span>${sig.dv>0 ? '+' : ''}${f(sig.dv)} m</div><div><span>Pendiente</span>${f(sig.pte*100, 1)} %</div><div><span>Acumulado</span>${f(acum/1000, 2)} km · ${M.verDur(tac)}</div></div>` : `<div class="nota">Término · ${f(acum/1000, 2)} km · ${M.verDur(tac)} de marcha</div>`}
           ${ll && p.clave ? `<div class="tc-ev">${evento(p.clave)}</div>` : ''}${obs(p, ll) ? `<div class="nota" style="margin-top:6px">${obs(p, ll)}</div>` : ''}</div>`
         : `<div class="tc quiebre">↳ quiebre · ${ll ? M.verHora(ll.llegada) : ''} · ${f(p.cota)} m${sig ? ` · rumbo <b>${f(sig.azM, 0)}°</b> / ${sig.mils} ‰ · ${f(sig.dist)} m` : ''}</div>`).join('')}</div>
@@ -624,9 +628,15 @@
       ${apoyo(R)}
       <p class="nota">Rumbos magnéticos con declinación ${f(R.decl.valor, 2)}° (${esc(R.decl.fuente)}) a la fecha de la marcha. Horas con ${Math.round(R.par.altos*100)} % de altos; los imprevistos (${M.verDur(R.res.imprev)}) quedan como reserva al final.
         Los quiebres (puntos de ruta) van en gris; los datos «al siguiente» son del tramo que sale de ese punto.
+        Velocidad y ritmo del tramo en movimiento (sin altos); toca uno para escribir otro (✎ = escrito a mano).
         ${R.conLuz ? 'Luz al llegar: ☀ día · ◐ crepúsculo · ☾ noche con luna · ● noche sin luna' + (R.tramos.some(t=>t.noche) ? '; los tramos de noche (☾/●) se calcularon con velocidad de noche' : '') + '. Detalle en la pestaña <b>Luz</b>.' : ''}</p>
       <div class="btns no-imp"><button class="btn pri" id="bImp">📄 Documento / orden gráfica</button><button class="btn" id="bPerf">Ver perfil ›</button><button class="btn" id="bEnv">Enviar ›</button></div>`;
     $('#bImp').onclick = ()=>documento(); $('#bPerf').onclick = ()=>ir('perfil'); $('#bEnv').onclick = ()=>ir('enviar');
+    // escribir la velocidad o el ritmo de un tramo (vacío = volver al cálculo)
+    vista.querySelectorAll('[data-vel]').forEach(x=>x.onclick = ()=>{ const i = +x.dataset.vel, P = m.puntos[i], t = T.find(z=>z.iB===i); if(!P || !t) return;
+      const v = prompt(`Velocidad del tramo ${t.de} → ${t.a} (ahora ${M.verVel(t.v)} · ${M.verRitmo(t.v)}).\nEscribe km/h (p. ej. 3,5) o ritmo en min/km (p. ej. 18:30 o «18 min»).\nVacío = volver al cálculo.`, P.vel ? f(+P.vel, 2) : '');
+      if(v===null) return; const k = M.leerVel(v); if(String(v).trim() && !k) return aviso('No entendí la velocidad');
+      if(k) P.vel = Math.round(k*1000)/1000; else delete P.vel; guardar(); const y = window.scrollY; vCuadro(); window.scrollTo(0, y); aviso(k ? 'Tramo a ' + M.verVel(k) + ' · ' + M.verRitmo(k) : 'Tramo con la velocidad calculada'); });
   }
 
   /* =====================================================================  PERFIL (ficha de itinerario)  */

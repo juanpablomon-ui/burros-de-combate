@@ -33,6 +33,34 @@ const Seguir = (function(){
   function distRuta(P, desde, k0, k){ let d = M.rumboEntre(desde, P.pts[k0], P.R.zona, 0).dist; for(let j=k0 + 1; j<=k; j++) d += P.pts[j].tramo.dist; return d; }
   function siguiente(m, P){ const E = m.ejec; for(let k=1; k<P.pts.length; k++) if(!E.llegadas[k]) return k; return null; }
 
+  /* ---------- velocidad y ritmo (pedido del usuario, v0.82) ----------
+     Ahora: los últimos 2 min del GPS (suavizado). Media en movimiento: lo recorrido por la ruta ÷ el tiempo sin altos; con altos: ÷ todo el
+     tiempo. Plan: la del tramo en curso. Para llegar a la hora: lo que falta al próximo evento ÷ el tiempo hasta su hora planificada. */
+  const hist = [];
+  function velAhora(){ const t = ahora(), H = hist.filter(h=>t - h.t<=120000 && (h.acc || 0)<=50); if(H.length>=2 && H[H.length - 1].t - H[0].t>=20000){
+      let d = 0; for(let i=1; i<H.length; i++) d += M.sobreTramo(H[i], H[i - 1], H[i - 1]).d; return d/1000/((H[H.length - 1].t - H[0].t)/36e5); }
+    return pos && pos.vel>=0 && pos.vel!==null ? pos.vel*3.6 : null; }
+  function vertAhora(){ const t = ahora(), H = hist.filter(h=>t - h.t<=300000 && h.alt!==null && h.alt!==undefined); if(H.length<2 || H[H.length - 1].t - H[0].t<60000) return null;
+    return (H[H.length - 1].alt - H[0].alt)/((H[H.length - 1].t - H[0].t)/36e5); }
+  function velocidades(m, P, k, ke){
+    const E = m.ejec, t = ahora(), rec = recorrido(m, P), mov = enMarcha(E)/60, tot = (t - E.inicio)/36e5;
+    const q = k!==null ? P.pts[k] : null, p = ke!==null ? P.pts[ke] : null, plan = q && q.tramo ? q.tramo.v : null;
+    let nec = null, horaP = null; if(p && pos){ const dr = distRuta(P, pos, k, ke); horaP = E.inicio + p.lleg*36e5; const h = (horaP - t)/36e5; nec = h>0 ? dr/1000/h : Infinity; }
+    return {ahora:E.estado==='alto' ? null : velAhora(), mov:mov>0.02 && rec>30 ? rec/1000/mov : null, altos:tot>0.02 && rec>30 ? rec/1000/tot : null, plan, nec, horaP, p,
+      vert:E.estado==='alto' ? null : vertAhora(), vertPlan:q && q.tramo && Math.abs(q.tramo.pte)>0.05 ? q.tramo.vVert*Math.sign(q.tramo.dv) : null, enAlto:E.estado==='alto'}; }
+  const vr = v=>v>0 && isFinite(v) ? A.f(v, 1) + ' <small>km/h</small> · ' + M.verRitmo(v).replace(' min/km', '') + ' <small>min/km</small>' : '—';
+  const claseVel = (v, plan)=>!(v>0) || !(plan>0) ? '' : v/plan<0.85 ? 'mal' : v/plan<0.95 ? 'ojo' : 'bien';
+  const vr2 = v=>v>0 && isFinite(v) ? A.f(v, 1) + ' <small>km/h</small><br>' + M.verRitmo(v).replace(' min/km', '') + ' <small>min/km</small>' : '—';
+  function velHtml(V, corto){
+    const nec = V.nec===Infinity ? '<b class="mal">ya no se llega a la hora</b>' : V.nec ? (corto ? vr : vr2)(V.nec) : '—';
+    if(corto) return `<div class="hud3 mono">🚶 <span class="${claseVel(V.ahora, V.plan)}">${V.enAlto ? 'en alto' : vr(V.ahora)}</span> · plan ${vr(V.plan)}${V.p && V.nec ? ' · para ' + A.esc(rotulo(V.p)) + ' a las ' + hh(V.horaP) + ': ' + nec : ''}</div>`;
+    return `<div class="s-vel">
+      <div><span>Ahora</span><b class="${claseVel(V.ahora, V.plan)}">${V.enAlto ? 'en alto' : vr2(V.ahora)}</b>${V.vert!==null ? `<small>${V.vert>=0 ? '↗' : '↘'} ${A.f(Math.abs(V.vert))} m/h</small>` : ''}</div>
+      <div><span>Plan del tramo</span><b>${vr2(V.plan)}</b>${V.vertPlan ? `<small>${V.vertPlan>0 ? '↗' : '↘'} ${A.f(Math.abs(V.vertPlan))} m/h</small>` : ''}</div>
+      <div><span>Media en movimiento</span><b class="${claseVel(V.mov, V.plan)}">${vr2(V.mov)}</b><small>con altos ${vr2(V.altos)}</small></div>
+      <div><span>${V.p ? 'Para llegar a ' + A.esc(rotulo(V.p)) + ' a las ' + hh(V.horaP) : 'Para llegar a la hora'}</span><b>${nec}</b></div></div>`;
+  }
+
   /* ---------- adelanto / atraso ---------- */
   // minutos de atraso (+) o adelanto (−): tiempo real transcurrido − tiempo planificado para llegar a esta parte de la ruta
   function atraso(m, P){
@@ -82,7 +110,8 @@ const Seguir = (function(){
   function iniciarGps(){
     if(watch!==null || !navigator.geolocation) return;
     watch = navigator.geolocation.watchPosition(p=>{
-      pos = {lat:p.coords.latitude, lon:p.coords.longitude, acc:p.coords.accuracy, t:ahora(), vel:p.coords.speed};
+      pos = {lat:p.coords.latitude, lon:p.coords.longitude, acc:p.coords.accuracy, t:ahora(), vel:p.coords.speed, alt:p.coords.altitude};
+      hist.push({t:pos.t, lat:pos.lat, lon:pos.lon, alt:pos.alt, acc:pos.acc}); while(hist.length && pos.t - hist[0].t>6*60000) hist.shift();
       const m = A.actual(), E = m && m.ejec;
       if(!E){ pintarPrevio(); return; }   // antes de partir: solo se muestra la posición y la distancia al PIM
       if(E.estado==='fin') return;
@@ -269,13 +298,13 @@ const Seguir = (function(){
     if(modo==='carta'){
       c.innerHTML = `<div class="hud1"><span>PRÓXIMO <b class="clave-tx">${p ? A.esc(rotulo(p)) : '—'}</b>${p ? ' <small>' + A.esc(p.clave ? p.nombre + (p.obs ? ' · ' + p.obs : '') : p.obs || '') + '</small>' : ''}</span><span class="${cls}">${at===null ? '' : dif(at)}</span></div>
         <div class="hud2"><b>${dist}</b><b class="ocre">${rumbo}</b><small>${mils}</small><div class="s-flecha mini" id="sFlecha">↑</div></div>
-        <div class="hud3 mono">⏱ ${dur(t - E.inicio)}${eta ? ' · ' + eta : ''}</div>${quiebre ? `<div class="hud3 mono">↪ ${quiebre}</div>` : ''}${enAlto}${fuera}<div class="hud3 mono" id="sGps">${gps}</div>`;
+        <div class="hud3 mono">⏱ ${dur(t - E.inicio)}${eta ? ' · ' + eta : ''}</div>${velHtml(velocidades(m, P, k, ke), true)}${quiebre ? `<div class="hud3 mono">↪ ${quiebre}</div>` : ''}${enAlto}${fuera}<div class="hud3 mono" id="sGps">${gps}</div>`;
     } else {
       c.innerHTML = `<div class="s-estado"><span>⏱ ${dur(t - E.inicio)} de marcha</span><span class="${cls}">${at===null ? '' : dif(at)}</span></div>${enAlto}
         ${p ? `<div class="s-prox">PRÓXIMO <b class="clave-tx">${A.esc(rotulo(p))}</b><small>${A.esc(p.clave ? p.nombre + (p.obs ? ' · ' + p.obs : '') : p.obs || '')}</small></div>
         <div class="s-grande"><div><span>Distancia</span><b>${dist}</b></div><div><span>Rumbo mag.</span><b class="ocre">${rumbo}</b><small>${mils}</small></div>
           <div class="s-flecha" id="sFlecha" title="Dirección al punto según la brújula del teléfono">↑</div></div>
-        <div class="nota mono">${eta}${quiebre ? '<br>↪ ' + quiebre : ''}</div>` : ''}${fuera}<div class="nota mono" id="sGps">${gps}</div>`;
+        <div class="nota mono">${eta}${quiebre ? '<br>↪ ' + quiebre : ''}</div>` : ''}${velHtml(velocidades(m, P, k, ke))}${fuera}<div class="nota mono" id="sGps">${gps}</div>`;
     }
     flecha();
   }

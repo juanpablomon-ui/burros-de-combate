@@ -430,12 +430,17 @@ const MARCHA = (function(){
       // primero con velocidad de día; si la mitad del tramo cae de noche, se recalcula con la de noche
       const cMed = (A.cota + B.cota)/2, tec = TECNICAS[m.puntos[B.i].tecnica || par.tecnica] ? (m.puntos[B.i].tecnica || par.tecnica) : 'desplazamiento';
       if(tec!=='desplazamiento') parT = Object.assign({}, parT, {_fTec:TECNICAS[tec].f});
-      let tt = tiempoTramo(dh, dv, parT, vv, false, cMed), mitad = hIni===null ? null : hIni + tt.t*fAl/2;
-      if(esNoche(mitad)){ tt = tiempoTramo(dh, dv, parT, vv, true, cMed); mitad = hIni===null ? null : hIni + tt.t*fAl/2; tNoche += tt.t; }
+      // velocidad escrita a mano para este tramo (km/h, `m.puntos[i].vel`, v0.82): manda sobre el cálculo (sin ajustes de noche, altura ni técnica)
+      const vP = num(m.puntos[B.i].vel);
+      let tt, mitad;
+      if(vP>0){ tt = {t:dh/1000/vP, como:'propia'}; mitad = hIni===null ? null : hIni + tt.t*fAl/2; tt.noche = esNoche(mitad); if(tt.noche) tNoche += tt.t; }
+      else { tt = tiempoTramo(dh, dv, parT, vv, false, cMed); mitad = hIni===null ? null : hIni + tt.t*fAl/2;
+        if(esNoche(mitad)){ tt = tiempoTramo(dh, dv, parT, vv, true, cMed); mitad = hIni===null ? null : hIni + tt.t*fAl/2; tNoche += tt.t; } }
       const luz = luzEn(mitad);
       acum += tt.t; dist += dh; if(dv>0) sube += dv; else baja -= dv; detL += B.det;
       tramos.push({de:A.nombre, a:B.nombre, evA:A.ev, evB:B.ev, claveA:A.clave, claveB:B.clave, iA:A.i, iB:B.i, dist:dh, distAcum:dist, cotaIni:A.cota, cotaFin:B.cota, dv,
-        pte:dh ? dv/dh : 0, via, azC, azG, azM, mils:Math.round(azM*6400/360)%6400, t:tt.t, como:tt.como, noche:tt.noche, luz, tAcum:acum, obs:B.obs, carga:num(parT.carga), fAlt:tt.fAlt || 1, tecnica:tec, formacion:m.puntos[B.i].formacion || ''});
+        pte:dh ? dv/dh : 0, via, azC, azG, azM, mils:Math.round(azM*6400/360)%6400, t:tt.t, como:tt.como, noche:tt.noche, luz, tAcum:acum, obs:B.obs, carga:num(parT.carga), fAlt:tt.fAlt || 1, tecnica:tec, formacion:m.puntos[B.i].formacion || '',
+        v:tt.t>0 ? dh/1000/tt.t : null, vVert:tt.t>0 ? Math.abs(dv)/tt.t : null, velPropia:vP>0});   // velocidad en movimiento (km/h) y vertical (m/h)
     }
     // detenciones planificadas en los puntos intermedios (comida, descanso, reorganización); no cuenta el último punto
     const det = pts.slice(0, -1).reduce((a, p)=>a + p.det, 0);
@@ -453,7 +458,7 @@ const MARCHA = (function(){
       if(Math.abs(t.pte)>Math.abs(cur.pteMax)) cur.pteMax = t.pte;
       if(t.evB){ Object.assign(cur, {a:t.a, iB:t.iB, claveB:t.claveB, cotaFin:t.cotaFin, dv:t.cotaFin - cur.cotaIni, distAcum:t.distAcum, tAcum:t.tAcum,
         llegada:t.llegada, salida:t.salida, det:t.det, obs:t.obs, quiebres:cur.subs.length - 1, como:cur.subs.length===1 ? t.como : ''});
-        cur.pte = cur.dist ? cur.dv/cur.dist : 0; tramosEv.push(cur); cur = null; }
+        cur.pte = cur.dist ? cur.dv/cur.dist : 0; cur.v = cur.t>0 ? cur.dist/1000/cur.t : null; tramosEv.push(cur); cur = null; }
     });
     const eventos = pts.filter(p=>p.ok && p.ev).map(p=>p.i);
     const alto = val.reduce((x, p)=>!x || p.cota>x.cota ? p : x, null);
@@ -485,7 +490,7 @@ const MARCHA = (function(){
     if(sinAltos && fCal>0) avisos.push('Con este calor (WBGT ' + fmt(cal0.wbgt) + ' °C, categoría ' + cal0.n + ') el calor exige descanso: ' + Math.round(60 - cal0.trabajo) + ' min por cada ' + cal0.trabajo + ' min de esfuerzo. Se agregaron altos por seguridad.');
     const regimen = reg && !sinAltos ? {cada:cada*60, dur:durA*60, primero:prim*60, primeroDur:durP*60, n:altos>0 ? 1 + Math.round((altos - durP)/durA) : 0} : null;
     return {meta, regimen, par, vel, zona, decl:dec, puntos:pts, tramos, tramosEv, eventos, columna:col, fracNoche, conLuz, calor:(c=>c ? Object.assign(c, {altosCalor}) : null)(calor(par, total)), avisos,
-      res:{dist, sube, baja, marcha:acum, altos, det, imprev, total, partida:h0, termino:ter, terminoCola:ter===null || !col ? null : ter + col.paso, alto,
+      res:{dist, sube, baja, marcha:acum, altos, det, imprev, total, vMov:acum>0 ? dist/1000/acum : null, vAltos:acum>0 ? dist/1000/(acum + altos) : null, partida:h0, termino:ter, terminoCola:ter===null || !col ? null : ter + col.paso, alto,
         conv:ref ? ref.utm.conv : null, lejos:val.some(p=>Math.abs(p.lon - (zona*6 - 183))>4)}};
   }
 
@@ -505,6 +510,13 @@ const MARCHA = (function(){
 
   /* ---------- formatos ---------- */
   function horaAHoras(s){ const r = /^(\d{1,2}):?(\d{2})$/.exec(String(s||'').trim()); return r ? +r[1] + r[2]/60 : null; }
+  // velocidad (km/h) y ritmo (min/km, el inverso: 60 ÷ km/h), pedido del usuario (v0.82)
+  const verVel = v=>v>0 && isFinite(v) ? String(Math.round(v*10)/10).replace('.', ',') + ' km/h' : '—';
+  const verRitmo = v=>{ if(!(v>0) || !isFinite(v)) return '—'; const s = Math.round(3600/v), mm = Math.floor(s/60); return mm>=600 ? '—' : mm + ':' + String(s%60).padStart(2, '0') + ' min/km'; };
+  // texto escrito → km/h: «3,5» o «3,5 km/h» = velocidad; «18:30», «18 min» o «18,5 min/km» = ritmo
+  function leerVel(txt){ const t = String(txt || '').trim().toLowerCase().replace(',', '.'); if(!t) return null;
+    const mm = t.match(/^(\d+):(\d{1,2})/); if(mm) return 60/(+mm[1] + +mm[2]/60);
+    const n = parseFloat(t); if(!(n>0)) return null; return /min/.test(t) ? 60/n : n; }
   function verDur(h){ if(h===null || h===undefined || isNaN(h)) return '—'; const m = Math.round(h*60); return m<60 ? m + ' min' : Math.floor(m/60) + ' h ' + String(m%60).padStart(2, '0') + ' min'; }
   function verHora(h){ if(h===null || h===undefined || isNaN(h)) return '—'; const m = Math.round(h*60), d = Math.floor(m/1440), r = ((m%1440) + 1440)%1440;
     return String(Math.floor(r/60)).padStart(2, '0') + ':' + String(r%60).padStart(2, '0') + (d>0 ? ' (+' + d + 'd)' : ''); }
@@ -513,7 +525,7 @@ const MARCHA = (function(){
   const MGRS_LAT = 'CDEFGHJKLMNPQRSTUVWX';
   const banda = lat=>MGRS_LAT[Math.max(0, Math.min(19, Math.floor((lat + 80)/8)))];
 
-  return {FORMACIONES, DISTANCIAS, TECNICAS, formacionDe, TROPAS, tropaDe, factorAltura, tipoMarcha, velBattle, cicloBattle, PATRONES, PRESETS_BR, wbgt, trabajoDe, CLAVES, listaPropia, rumboEntre, sobreTramo, deWgs84, camposDesde, VIAS, UNIDADES, VEL_GENERAL, JORNADA, velGeneral, columna, CALOR, TRABAJOS, calor, DATUMS, TERRENOS, TABLA_VERTICAL, METODOS, llAUtm, utmALl, aWgs84, puntoWgs, velVertical, porDefecto, declinacion,
+  return {verVel, verRitmo, leerVel, FORMACIONES, DISTANCIAS, TECNICAS, formacionDe, TROPAS, tropaDe, factorAltura, tipoMarcha, velBattle, cicloBattle, PATRONES, PRESETS_BR, wbgt, trabajoDe, CLAVES, listaPropia, rumboEntre, sobreTramo, deWgs84, camposDesde, VIAS, UNIDADES, VEL_GENERAL, JORNADA, velGeneral, columna, CALOR, TRABAJOS, calor, DATUMS, TERRENOS, TABLA_VERTICAL, METODOS, llAUtm, utmALl, aWgs84, puntoWgs, velVertical, porDefecto, declinacion,
     leerAng, tiempoTramo, calcular, horaAHoras, verDur, verHora, verGms, banda};
 })();
 if(typeof globalThis!=='undefined') globalThis.MARCHA = MARCHA;
