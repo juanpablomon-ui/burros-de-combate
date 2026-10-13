@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.73', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.74', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -750,10 +750,18 @@
   // en pantalla: una ficha por elemento, del ancho del teléfono: cantidad con su unidad × kg por unidad = kg (total y por hombre)
   function fichasMaterial(m, R, filas){
     const Mt = m.material || {}, pm = R.carga || pesoMaterial(m, R), porId = {}; (pm ? pm.items : []).forEach(x=>porId[x.id] = x);
+    // el cinturón de carga con lo que lleva dentro (baleras y morral): una sola ficha con su peso total; el contenido va adentro
+    const agrupar = (its, ficha)=>{
+      const cin = its.find(i=>i.id==='portaf'), dentro = cin ? its.filter(i=>EN_CINTURON.has(i.id)) : [];
+      if(!cin) return its.map(ficha).join('');
+      const kg = [cin, ...dentro].reduce((t, i)=>t + ((porId[i.id] || {}).porHombre || 0), 0);
+      return its.filter(i=>!dentro.includes(i)).map(i=>i!==cin ? ficha(i) : `<div class="mf-grupo"><div class="mf-grupo-t">Cinturón de carga completo: <b>${f(kg, 1)} kg por hombre</b> <small>(el cinturón y lo que lleva en las baleras y el morral)</small></div>
+        ${ficha(cin)}<details class="mf-dentro-d"><summary class="mf-dentro-t">Va en el cinturón (${dentro.length}): ${esc(dentro.map(i=>i.n.split(/[:(]/)[0].trim()).join(', '))}</summary><div class="mf-dentro">${dentro.map(ficha).join('')}</div></details></div>`).join('');
+    };
     return filas.map(({g, its, linea})=>`<h3 class="mat-g">${esc(g)}${linea && pm ? ` <span class="mat-kg">${f(pm.lineas[linea], 1)} kg por hombre${linea===4 ? ' (no se suma)' : (linea===3 || linea===5) && pm.sinMochila ? ' (se deja)' : linea===3 && pm.mochilaModo==='solo' ? ' (no se lleva)' : ''}</span>` : ''}</h3>
       ${linea && linea!==4 && pm ? `<div class="mat-pl"><label>Peso de la línea sin detallar los elementos <span class="mf-c"><input class="num" data-pl="${linea}" value="${esc((m.par.pesoLinea || {})[linea] || '')}" placeholder="${f(pm.lineasCalc[linea], 1)}" inputmode="decimal" aria-label="kg por hombre"><em>kg por hombre</em></span></label>
         <small>${(m.par.pesoLinea || {})[linea] ? '<b>reemplaza</b> la suma de los elementos (' + f(pm.lineasCalc[linea], 1) + ' kg)' + (linea===2 ? '; incluye el agua' : '') : 'vacío = la suma de los elementos de abajo'}</small></div>` : ''}
-      <div class="mat-lista">${its.length ? '' : '<p class="nota">Sin elementos en esta línea.</p>'}${its.map(it=>{
+      <div class="mat-lista">${its.length ? '' : '<p class="nota">Sin elementos en esta línea.</p>'}${agrupar(its, it=>{
       const st = Mt[it.id] || {}, pz = PESOS[it.id] || [0, 'c'], noCarga = pz[1]==='x', kg0 = it.propio!==undefined ? '' : pz[0];
       const u = unidadDe(st.cant || it.auto), u1 = UNI1[u] || u.replace(/s$/, ''), x = porId[it.id], n = pm ? pm.n : 1;
       const total = x ? x.q*x.kg : 0, num0 = String(it.auto).replace(/[^\d.,+].*$/, '').trim() || it.auto;
@@ -776,7 +784,7 @@
         ${x && x.modo==='h' ? '<div class="mf-s">litros al partir (1 kg por litro + envase); se bebe en el camino' + (m.par.reabast==='si' ? ' y se repone en los puntos de agua' : '') + '</div>' : g ? `<div class="mf-s">${f(total, 1)} kg que lleva${g.n===1 ? ' 1 portador' : 'n ' + g.n + ' portadores'} (${esc(g.nombre.toLowerCase())})${g.n===1 ? '' : ', repartido'}: ${f(x.porPortador, 1)} kg cada uno</div>`
           : x && x.modo==='c' && n>1 ? `<div class="mf-s">rota entre todos: ${f(total, 1)} kg repartidos entre ${n} hombres = ${f(x.porHombre, 2)} kg por hombre</div>`
           : indiv && n>1 ? `<div class="mf2 mf-port"><label>Lo llevan <span class="mf-c"><input class="num" data-ll="${it.id}" value="${esc(st.llevan || '')}" placeholder="${n}" inputmode="numeric" aria-label="Cuántos lo llevan"><em>de ${n}</em></span></label></div>
-          <div class="mf-s">en la unidad: ${fq(x.q)} ${esc(u==='u' ? 'unid.' : u)} · ${f(total, 1)} kg${x.llevan<n ? ' — lo llevan ' + x.llevan + ' de ' + n + ' (cuenta entero para ellos)' : ' (' + n + ' hombres)'}</div>` : ''}</div>`; }).join('')}
+          <div class="mf-s">en la unidad: ${fq(x.q)} ${esc(u==='u' ? 'unid.' : u)} · ${f(total, 1)} kg${x.llevan<n ? ' — lo llevan ' + x.llevan + ' de ' + n + ' (cuenta entero para ellos)' : ' (' + n + ' hombres)'}</div>` : ''}</div>`; })}
       ${linea ? `<div class="mf mf-nuevo"><div class="mf2" style="margin-left:0"><input data-an="${linea}" placeholder="Agregar a la ${LINEAS[linea]}: nombre" aria-label="Nombre">
         <span class="mf-c"><input class="num" data-ac="${linea}" placeholder="1" inputmode="decimal" aria-label="Cantidad"><em>cant.</em></span><span class="mf-c"><input class="num" data-ak="${linea}" placeholder="kg" inputmode="decimal" aria-label="kg c/u"><em>kg c/u</em></span>
         <select data-am="${linea}" aria-label="Cómo se lleva"><option value="i">por hombre</option><option value="c"${linea===4 ? ' selected' : ''}>de la unidad</option></select><button class="btn mini pri" data-aa="${linea}">＋ Agregar</button></div></div>` : ''}</div>`).join('');

@@ -45,7 +45,7 @@ if(typeof globalThis!=='undefined') globalThis.LISTA = LISTA;
 const MATERIAL = [
   {g:'Armamento y protección', items:[
     ['fusil', 'Fusil (con correa y accesorios)', c=>c.civil ? null : c.n, c=>'1 por hombre; las armas de apoyo van en los puestos (OME)'],
-    ['cargad', 'Cargadores con munición', c=>c.civil ? null : c.n*6, c=>'6 por hombre (dotación sugerida: ajústala)'],
+    ['cargad', 'Cargadores con munición', c=>c.civil ? null : c.n*6, c=>'6 por hombre, en las baleras (dotación sugerida: ajústala)'],
     ['muniExtra', 'Cargadores adicionales (mochila de asalto)', c=>c.civil ? null : 0, c=>'munición extra para la tarea: cuántos por hombre'],
     ['granada', 'Granadas de mano', c=>c.civil ? null : c.n*2, c=>'2 por hombre, en las baleras del cinturón'],
     ['casco', 'Casco', c=>c.civil ? null : c.n, c=>'1 por hombre'],
@@ -76,8 +76,8 @@ const MATERIAL = [
     ['racion12', 'Ración de combate de 12 h (tipo MRE)', c=>c.civil ? (c.racion==='12' && c.horas>=6 ? c.n*Math.ceil(c.horas/12) : null) : c.n, c=>c.civil ? '1 por hombre cada 12 h (2 comidas, ≈ 0,9 kg)' : '1 por hombre, en la mochila de asalto'],
 ]},
   {g:'Sanidad', items:[
-    ['torniq1', 'Torniquete (bolsillo del brazo derecho)', c=>c.civil ? null : c.n, c=>'además del IFAK'],
-    ['suero', 'Suero Ringer lactato con bajada y aguja', c=>c.civil ? null : c.n, c=>'en el morral'],
+    ['torniq1', 'Torniquete', c=>c.civil ? null : c.n, c=>'además del que trae el IFAK'],
+    ['suero', 'Suero Ringer lactato con bajada y aguja', c=>c.civil ? null : c.n, c=>'en la mochila de sostenimiento'],
     ['ifak', 'IFAK: botiquín individual de combate', c=>c.n, c=>'torniquete, vendaje compresivo, gasa hemostática, sello de tórax, cánula, guantes y manta térmica'],
     ['botPA', 'Botiquín de primeros auxilios pequeño', c=>c.n, c=>'heridas menores, ampollas y cuidado de pies, medicamentos básicos'],
     ['socorr', 'Enfermero u operador de trauma (personas)', c=>Math.max(1, Math.ceil(c.n/30)), c=>'1 cada 30 hombres como mínimo; su equipo va en Puestos (OME)'],
@@ -138,11 +138,11 @@ const MATERIAL = [
     ['cordin', 'Cordín estático', c=>c.civil ? null : c.n, c=>'sobre el morral'],
     ['mosqueton', 'Mosquetón con seguro', c=>c.civil ? null : c.n, c=>'en el exterior del morral'],
     ['mimet', 'Juego de mimetismo', c=>c.civil ? null : c.n, c=>'en el morral'],
-    ['tapones', 'Tapones auditivos', c=>c.civil ? null : c.n, c=>'2.ª balera izquierda'],
+    ['tapones', 'Tapones auditivos', c=>c.civil ? null : c.n, c=>'en una balera'],
     ['kitSuperv', 'Kit de supervivencia en tarro (manta, bisturí, hilo y agujas, linterna, fósforos, pesca, alambre, cordel, brújula de botón)', c=>c.civil ? null : c.n, c=>'en el morral'],
     ['panelReg', 'Panel reglamentario', c=>c.civil ? null : c.n, c=>'en la mochila de asalto']]},
   {g:'Explosivos y trampas', items:[
-    ['kitExpl', 'Kit de explosivista (fósforos, cinta eléctrica, encendedor de mecha tipo soplete)', c=>c.civil ? null : c.n, c=>'2.ª balera derecha'],
+    ['kitExpl', 'Kit de explosivista (fósforos, cinta eléctrica, encendedor de mecha tipo soplete)', c=>c.civil ? null : c.n, c=>'en una balera'],
     ['c4', 'Explosivo C-4 (libras)', c=>c.civil ? null : 0, c=>'cuando corresponda: escribe cuántas libras por hombre (p. ej. 2)'],
     ['mecha', 'Mecha para explosivos (pies)', c=>c.civil ? null : 0, c=>'cuando corresponda: escribe cuántos pies por hombre (p. ej. 10)'],
     ['claymore', 'Mina Claymore', c=>c.civil ? null : 0, c=>'cuando corresponda: escribe cuántas por hombre'],
@@ -230,10 +230,13 @@ const PESOS = {fusil:[4, 'i'], cargad:[0.5, 'i'], granada:[0.4, 'i'], casco:[1.4
 const LINEAS = {1:'1.ª línea', 2:'2.ª línea', 5:'3.ª línea A', 3:'3.ª línea B', 4:'4.ª línea'};
 const LINEAS_TXT = {1:'en el cuerpo y cinturón de carga o de combate: supervivencia y munición', 2:'arma, casco y protección balística: combate', 5:'mochila de asalto o de misión: la tarea', 3:'mochila de sostenimiento: varios días', 4:'vehículo o apoyo logístico: no la carga el hombre'};
 const ORDEN_LINEAS = [1, 2, 5, 3, 4];
+// lo que va en el cinturón de carga o de combate (baleras y morral; pedido del usuario, v0.74): en Material se muestra dentro del cinturón
+// y se cuenta en su peso (si está en la misma línea que el cinturón); si se cambia de línea, vuelve a ser un elemento aparte
+const EN_CINTURON = new Set(['cargad', 'granada', 'granHumo', 'ifak', 'cuchillo', 'coipa', 'bengala', 'bolsaPl', 'cordin', 'mosqueton', 'mimet', 'tapones', 'kitSuperv', 'kitExpl']);
 // límites de referencia (manual de marchas a pie de EE.UU.): carga de combate ≈ 22 kg (48 lb), carga de marcha de aproximación ≈ 33 kg (72 lb)
 const LIMITES_CARGA = {combate:22, marcha:33};
 const LINEA_DE = {pistola:1, cargPis:1, torniq1:1, barras:1, tenida:1, botas:1, guantesT:1, rodill:1, quepi:1, estrobo:1, extracto:1, libreta:1, linCarta:1, espejo:1, baliza:1, multi:1,
-  agua3a:5, agua3b:3, racion24:3, abrigo:3, botPA:3, vs17:5, baqueta:2, granHumo:1, arnes:1, suero:1, coipa:1, bengala:1, bolsaPl:1, cordin:1, mosqueton:1, mimet:1, tapones:1, kitSuperv:1, kitExpl:1,
+  agua3a:5, agua3b:3, racion24:3, abrigo:3, botPA:3, vs17:5, baqueta:2, granHumo:1, arnes:1, suero:3, coipa:1, bengala:1, bolsaPl:1, cordin:1, mosqueton:1, mimet:1, tapones:1, kitSuperv:1, kitExpl:1,
   panelReg:5, c4:5, mecha:5, claymore:3, alambreT:3, capa1:3, goretex:3, muda:3, cubreSaco:3, portaf:1, cuchillo:1, manta:1, radioH:2, abrigo3:3, ifak:1, sales:1, carta:1, brujula:1, gps:1, cuadro:1, marcador:1, claves:1, silbato:1, lentes:1, sombrero:1, gorro:1, linterna:1, polainas:1, bastones:1,
   casco:2, chaleco:2, fusil:2, cargad:1, granada:1, agua:2, radio:2, luzquim:2, vision:2,
   muniExtra:5, mochAs:5, racion12:5, poncho:5, pilas:5, batRad:5, bateria:5};   // el resto: 3.ª B (sostenimiento)

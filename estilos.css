@@ -496,6 +496,10 @@ table.mat td.lin{width:64px} table.mat td.lin select{padding:5px 6px;font-size:1
 .kpi .s{font-size:11px;color:var(--tenue);margin-top:3px;line-height:1.3}
 /* material en pantalla: una ficha por elemento, del ancho del teléfono */
 .mat-lista{display:flex;flex-direction:column;gap:8px;margin-bottom:6px}
+.mf-grupo{border:1px solid var(--ocre);border-radius:12px;padding:8px;display:flex;flex-direction:column;gap:8px}
+.mf-grupo-t{font-size:13px}.mf-grupo-t small{color:var(--tenue)}
+.mf-dentro{display:flex;flex-direction:column;gap:8px;margin-left:10px;padding-left:10px;border-left:3px solid var(--ocre)}
+.mf-dentro-t{font-size:12.5px;color:var(--tenue);cursor:pointer;padding:4px 0}.mf-dentro-d[open] .mf-dentro{margin-top:8px}
 .mf{border:1px solid var(--linea);border-radius:10px;padding:9px 10px;background:var(--panel2,#1d1f17);min-width:0}
 .mf1{display:flex;align-items:flex-start;gap:10px;cursor:pointer}
 .mf1 input{width:22px;height:22px;flex:0 0 auto;margin-top:1px;accent-color:var(--ocre)}
