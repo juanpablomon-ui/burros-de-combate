@@ -250,7 +250,9 @@ const enDe = (m, id)=>{
 // `m.par.verTodo` = mostrar también lo que no corresponde a esta marcha (noche, montaña, nieve…), en 0, para poder llevarlo
 const cantMat = (m, c, cant)=>{ const v = cant(c); if(v!==null && v!==undefined) return v;
   if(!(m.par || {}).verTodo) return null;
-  const v2 = cant(Object.assign({}, c, {noche:1, montana:true, nieve:true, pernocta:true, horas:Math.max(24, c.horas || 0)})); return v2===null || v2===undefined ? null : 0; };
+  // con «mostrar todo», también lo que depende del terreno (raquetas, esquíes): se prueba con cada terreno de nieve
+  const amplio = {noche:1, montana:true, nieve:true, pernocta:true, horas:Math.max(24, c.horas || 0)};
+  return [c.terreno, 'raquetas', 'esquies', 'nieve'].some(t=>{ const v2 = cant(Object.assign({}, c, amplio, {terreno:t})); return v2!==null && v2!==undefined; }) ? 0 : null; };
 // límites de referencia (manual de marchas a pie de EE.UU.): carga de combate ≈ 22 kg (48 lb), carga de marcha de aproximación ≈ 33 kg (72 lb)
 const LIMITES_CARGA = {combate:22, marcha:33};
 const LINEA_DE = {pistola:1, cargPis:1, torniq1:1, torniqC:1, torniqB:1, barras:1, tenida:1, botas:1, guantesT:1, rodill:1, quepi:1, estrobo:1, extracto:1, libreta:1, linCarta:1, espejo:1, baliza:1, multi:1,
