@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.80', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.81', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -862,14 +862,14 @@
             ${o.pareja ? `<p class="nota">Trabaja en pareja con el <b>${esc(o.pareja.toLowerCase())}</b>: por defecto, tantos hombres como ese puesto.</p>` : ''}
             ${o.reemplaza.length ? `<p class="nota">En reemplazo de: <b>${esc(o.reemplaza.map(nomComun).join(' y '))}</b> del equipo común.</p>` : ''}
             ${Object.keys(o.quita).length ? `<p class="nota">Lleva menos: ${esc(Object.entries(o.quita).map(([id, k])=>k + ' ' + nomComun(id)).join(', '))}.</p>` : ''}
-            <div class="mat-lista">${o.kit.map(k=>`<div class="mf${k.quitar ? ' hecho' : ''}"><div class="mf-n"><b>${esc(k.n)}</b>${k.quitar ? '<small>no lo lleva</small>' : ''}</div><div class="mf2" style="margin-left:0">
+            <div class="mat-lista">${o.kit.map(k=>`<div class="mf${k.quitar ? ' hecho' : ''}"><div class="mf-n"><b>${esc(k.n)}</b>${k.quitar ? '<small>no se lleva en esta marcha</small>' : ''}</div><div class="mf2" style="margin-left:0">
               ${k.propio ? `<span class="mf-t">${f(k.cant, k.cant%1 ? 1 : 0)} × ${f(k.kg, 2)} kg</span>` : `<span class="mf-c"><input class="num" data-okc="${o.key}|${k.id}" value="${esc(((st.kit || {})[k.id] || {}).cant || '')}" placeholder="${k.cant0}" inputmode="decimal" aria-label="Cantidad"><em>unid.</em></span>
               <span class="mf-x">×</span><span class="mf-c"><input class="num" data-okk="${o.key}|${k.id}" value="${esc(((st.kit || {})[k.id] || {}).kg || '')}" placeholder="${String(k.kg0).replace('.', ',')}" inputmode="decimal" aria-label="kg c/u"><em>kg c/u</em></span>`}
               <span class="mf-x">=</span><span class="mf-t">${f(k.cant*k.kg, 1)} kg</span>
               ${k.propio ? '' : selL(`data-okl="${o.key}|${k.id}"`, k.linea)}
               ${k.propio || k.quitar ? '' : `<select data-oka="${o.key}|${k.id}" aria-label="Lo lleva"><option value="">Lo lleva este puesto</option><option value="fusilero"${k.a==='fusilero' ? ' selected' : ''}>Lo llevan los fusileros (se lo reparten)</option>${lista.filter(x=>!x.base && x.key!==o.key).map(x=>`<option value="${x.key}"${k.a===x.key ? ' selected' : ''}>Lo lleva: ${esc(x.nombre.toLowerCase())}</option>`).join('')}<option value="rota"${k.a==='rota' ? ' selected' : ''}>Se reparte entre todos</option></select>`}
               ${k.a && !k.quitar ? `<div class="mf-s" style="flex-basis:100%;margin:0">→ ${k.a==='rota' ? 'se reparte entre todos los hombres' : k.a==='fusilero' ? 'lo llevan los fusileros (' + (pm.fusileros || 0) + ')' : 'lo lleva ' + esc((lista.find(x=>x.key===k.a) || {nombre:'otro puesto'}).nombre.toLowerCase())}: ${f(k.cant*k.kg*o.n, 1)} kg en total${k.a!=='rota' && (lista.find(x=>x.key===k.a) || {}).n===0 && k.a!=='fusilero' ? ' <b style="color:var(--rojo)">(ese puesto no tiene hombres)</b>' : ''}</div>` : ''}
-              <button class="btn mini${k.quitar ? '' : ' peligro'}" data-okq="${o.key}|${k.id}"${k.propio ? ` data-okprop="${k.id.slice(1)}"` : ''}>${k.propio ? '✕' : k.quitar ? 'Volver a llevar' : 'No lo lleva'}</button></div></div>`).join('')}
+              <button class="btn mini${k.quitar ? '' : ' peligro'}" data-okq="${o.key}|${k.id}"${k.propio ? ` data-okprop="${k.id.slice(1)}"` : ''}>${k.propio ? '✕' : k.quitar ? '↺ Se lleva' : 'No se lleva'}</button></div></div>`).join('')}
               <div class="mf mf-nuevo"><div class="mf2" style="margin-left:0"><input data-oan="${o.key}" placeholder="Agregar al equipo de ${esc(o.nombre.toLowerCase())}" aria-label="Nombre">
                 <span class="mf-c"><input class="num" data-oac="${o.key}" placeholder="1" inputmode="decimal" aria-label="Cantidad"><em>unid.</em></span><span class="mf-c"><input class="num" data-oak="${o.key}" placeholder="kg" inputmode="decimal" aria-label="kg c/u"><em>kg c/u</em></span>
                 ${selL(`data-oal="${o.key}"`, 2)}<button class="btn mini pri" data-oaa="${o.key}">＋ Agregar</button></div></div></div>`}
