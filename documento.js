@@ -8,7 +8,7 @@ const Documento = (function(){
   let A = null, mapaDoc = null;
   const $ = s=>document.querySelector(s);
   const SECCIONES = [['mapa', 'Mapa de la ruta (orden gráfica)'], ['perfil', 'Perfil del itinerario'], ['cuadro', 'Cuadro de marcha y navegación'],
-    ['matriz', 'Matriz de eventos'], ['luz', 'Luz y visibilidad (sol, crepúsculos, luna)'], ['claves', 'Nombres clave y eventos para la radio'], ['horiz', 'Vuelta al horizonte (puntos de referencia)'],
+    ['matriz', 'Matriz de eventos'], ['luz', 'Luz y visibilidad (sol, crepúsculos, luna)'], ['claves', 'Nombres clave y eventos para la radio'], ['horiz', 'Vuelta al horizonte (puntos de referencia)'], ['resultado', 'Resultado de la marcha (plan / real) y reseña'],
     ['apoyo', 'Columna, calor y agua'], ['carga', 'Carga por hombre'], ['material', 'Material para la marcha'], ['lista', 'Lista de verificación']];
   // colores del documento: paleta (títulos, tarjetas, líneas), color de la ruta en el mapa
   const PALETAS = {oliva:'Verde oliva', azul:'Azul', gris:'Gris (blanco y negro)', arena:'Arena'};
@@ -26,7 +26,7 @@ const Documento = (function(){
     return {formato:cv ? 'civil' : 'militar', clasif:cv ? '' : 'RESERVADO', ejemplar:'1', ejemplares:'3', sup:'', propio:m.unidad || '', lugar:'', gdh:'',
       anexo:'', titulo:cv ? 'PLAN DE RUTA' : 'ORDEN GRÁFICA DE MARCHA', sub:m.nombre || '', carta:'', elab:'', firmas:'', distrib:'', autor:'', org:m.unidad || '',
       hoja:'A4', orient:'v', escala:'auto', capa:'topo', curvas:true, grilla:true, paleta:'oliva', figuras:'claras', ruta:'azul',
-      sec:{mapa:true, perfil:true, cuadro:true, matriz:!cv, luz:true, claves:!cv, horiz:true, apoyo:false, carga:true, material:true, lista:false}};
+      sec:{mapa:true, perfil:true, cuadro:true, matriz:!cv, luz:true, claves:!cv, horiz:true, resultado:true, apoyo:false, carga:true, material:true, lista:false}};
   }
 
   /* ---------- formulario ---------- */
@@ -140,6 +140,7 @@ const Documento = (function(){
     if(S.matriz) partes.push(sec('Matriz de eventos', matriz(m, R), partes.length>0));
     if(S.luz) partes.push(sec('Luz y visibilidad', luz(m, R, fig), partes.length>0));
     if(S.claves) partes.push(sec('Nombres clave y eventos para la radio', claves(m, R), partes.length>0));
+    if(S.resultado && m.ejec && m.ejec.inicio) partes.push(sec('Resultado de la marcha', A.resultado(m), partes.length>0));
     if(S.horiz && (m.horizontes || []).length) partes.push(sec('Vuelta al horizonte', horizontes(m, R, d.figuras==='oscuras'), partes.length>0));
     if(S.apoyo) partes.push(sec('Columna, calor y agua', A.apoyo(R) || '<p>Sin datos de columna ni de calor (pestaña Datos).</p>', partes.length>0));
     if(S.carga) partes.push(sec('Carga por hombre', carga(m, R), partes.length>0));

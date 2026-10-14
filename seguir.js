@@ -11,7 +11,7 @@ const Seguir = (function(){
   /* ---------- plan de referencia ---------- */
   // lista de puntos válidos con la hora planificada (horas desde la partida) de llegada y salida
   function plan(m){
-    const R = A.calcular(m), r = R.res, pts = [];
+    const R = A ? A.calcular(m) : M.calcular(m), r = R.res, pts = [];
     if(!R.tramos.length) return null;
     const p0 = R.puntos[R.tramos[0].iA];
     pts.push({i:p0.i, ev:true, nombre:p0.nombre, clave:p0.clave, obs:p0.obs, mochila:p0.mochila, lat:p0.lat, lon:p0.lon, cota:p0.cota, lleg:0, sal:p0.det});
@@ -382,8 +382,8 @@ const Seguir = (function(){
         <div class="kpi"><div class="k">Recorrido GPS</div><div class="v">${E.track.length>1 ? A.f(km/1000, 2) + ' <small>km</small>' : '—'}</div></div></div>
       <div class="desglose"><span>partida <b>${hh(E.inicio)}</b></span><span>término <b>${hh(E.fin)}</b></span><span>altos <b>${dur(altos)}</b> (${E.altos.length})</span><span>novedades <b>${E.nov.length}</b></span></div>
       <h2>Matriz de eventos</h2><div id="sFicha"></div>
-      <div class="btns"><button class="btn pri" id="fMsg">📡 Mensaje de fin al C2</button><button class="btn" id="fGpx">⬇ Recorrido (GPX)</button><button class="btn" id="fImp">🖨 Imprimir</button><button class="btn peligro" id="fRe">↺ Borrar registro</button></div>
-      <p class="nota">Con la matriz de eventos y el recorrido real se hace la reseña del itinerario y el croquis de lo ejecutado.</p>`;
+      <div class="btns"><button class="btn pri" id="fMsg">📡 Mensaje de fin al C2</button><button class="btn" id="fRes">📊 Resultado y reseña</button><button class="btn" id="fGpx">⬇ Recorrido (GPX)</button><button class="btn" id="fImp">🖨 Imprimir</button><button class="btn peligro" id="fRe">↺ Borrar registro</button></div>
+      <p class="nota">En <b>Cuadro → Resultado</b> está la comparación de lo planificado con lo ejecutado (horas, velocidades, altos) y la reseña.</p>`;
     ficha();
     $('#fMsg').onclick = ()=>verMensaje((E.msgs || []).filter(x=>x.k==='FIN').pop()?.msg || mensaje('FIN', {}));
     $('#fGpx').onclick = ()=>{ if(E.track.length<2) return A.aviso('No hay recorrido GPS registrado');
@@ -393,6 +393,7 @@ ${E.track.map(t=>`<trkpt lat="${t[0]}" lon="${t[1]}"><time>${new Date(t[2]).toIS
 </trkseg></trk></gpx>
 `, 'application/gpx+xml'); };
     $('#fImp').onclick = ()=>window.print();
+    $('#fRes').onclick = ()=>A.ir('resultado');
     $('#fRe').onclick = ()=>A.confirmar('¿Borrar el registro de esta marcha (horas reales, altos, recorrido)?', ()=>{ delete m.ejec; A.guardar(); pintar(); });
   }
 

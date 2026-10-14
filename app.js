@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.89', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.90', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -62,20 +62,20 @@
   $('#pestanas').addEventListener('click', e=>{ const b = e.target.closest('button[data-v]'); if(b) ir(b.dataset.v); });
   // Perfil y Lista van dentro de la pestaña Cuadro
   // Perfil y Lista van dentro de Cuadro; Material va dentro de Datos de la marcha (pedido del usuario)
-  const PESTANA = {perfil:'cuadro', lista:'cuadro', material:'ruta'};
+  const PESTANA = {perfil:'cuadro', lista:'cuadro', resultado:'cuadro', material:'ruta'};
   const subDatos = ()=>`<div class="seg subv no-imp">${[['ruta', 'Ruta y cálculo'], ['material', 'Material y carga']].map(([k, n])=>`<button data-sv="${k}" class="${S.v===k ? 'on' : ''}">${n}</button>`).join('')}</div>`;
-  const subCuadro = ()=>`<div class="seg subv no-imp">${[['cuadro', 'Cuadro de marcha y navegación'], ['perfil', 'Perfil'], ['lista', 'Lista']].map(([k, n])=>`<button data-sv="${k}" class="${S.v===k ? 'on' : ''}">${n}</button>`).join('')}</div>`;
+  const subCuadro = ()=>`<div class="seg subv no-imp">${[['cuadro', 'Cuadro de marcha y navegación'], ['perfil', 'Perfil'], ['lista', 'Lista'], ['resultado', 'Resultado']].map(([k, n])=>`<button data-sv="${k}" class="${S.v===k ? 'on' : ''}">${n}</button>`).join('')}</div>`;
   vista.addEventListener('click', e=>{ const b = e.target.closest('[data-sv]'); if(b) ir(b.dataset.sv); });
   function pintar(){
     const m = actual(); if(!m && S.v!=='marchas') S.v = 'marchas';
     if(S.v==='ficha') S.v = 'cuadro';   // la ficha de navegación ahora está dentro del cuadro
-    if(!({marchas:1, mapa:1, ruta:1, cuadro:1, perfil:1, lista:1, material:1, luz:1, seguir:1, enviar:1})[S.v]) S.v = 'marchas';
+    if(!({marchas:1, mapa:1, ruta:1, cuadro:1, perfil:1, lista:1, resultado:1, material:1, luz:1, seguir:1, enviar:1})[S.v]) S.v = 'marchas';
     if(S.v!=='mapa') Mapa.cerrar();
     if(S.v!=='seguir') Seguir.cerrar();
     document.body.classList.toggle('con-mapa', S.v==='mapa');
     document.querySelectorAll('#pestanas button').forEach(b=>{ b.classList.toggle('on', b.dataset.v===(PESTANA[S.v] || S.v)); b.disabled = !m && b.dataset.v!=='marchas'; b.style.opacity = b.disabled ? .35 : 1; });
     $('#subtitulo').textContent = m ? m.nombre + (m.unidad ? ' · ' + m.unidad : '') : 'Planificación de marchas';
-    ({marchas:vMarchas, mapa:vMapa, ruta:vRuta, cuadro:vCuadro, perfil:vPerfil, material:vMaterial, luz:vLuz, lista:vLista, seguir:vSeguir, enviar:vEnviar})[S.v]();
+    ({marchas:vMarchas, mapa:vMapa, ruta:vRuta, cuadro:vCuadro, perfil:vPerfil, material:vMaterial, luz:vLuz, lista:vLista, resultado:vResultado, seguir:vSeguir, enviar:vEnviar})[S.v]();
     if(S.v==='ruta' || S.v==='material') vista.insertAdjacentHTML('afterbegin', subDatos());
     else if(PESTANA[S.v] || S.v==='cuadro') vista.insertAdjacentHTML('afterbegin', subCuadro());
   }
@@ -189,10 +189,10 @@
   const apiMapa = {actual, guardar, punto, aviso, dialogo, cerrarDialogo, confirmar, copiar, descargar, esc, f, calcular:m=>M.calcular(m), vistaMapa:null,
     M, evento:c=>evento(c), tablaCuadro:(m, R)=>tablaCuadro(m, R), apoyo:R=>apoyo(R), material:(m, R)=>{ const pm = R.carga || pesoMaterial(m, R);
       return (pm ? `<p class="doc-nota"><b>Carga por hombre: ${f(pm.total, 1)} kg</b> (1.ª línea ${f(pm.lineas[1], 1)} + 2.ª línea ${f(pm.lineas[2], 1)} + 3.ª línea ${f(pm.lineas[3], 1)}${pm.sinMochila ? ', <b>se deja</b>' : ''}${pm.base ? ' + otro peso ' + f(pm.base, 1) : ''}).</p>` : '') + htmlMaterial(m, R, true).html; },
-    svgPerfil:(R, T, c)=>svgPerfil(R, T, c), terrenoDe:R=>terrenoDe(R), ir:v=>ir(v)};
+    resultado:m=>resultadoHtml(m, true), svgPerfil:(R, T, c)=>svgPerfil(R, T, c), terrenoDe:R=>terrenoDe(R), ir:v=>ir(v)};
   // documento para imprimir o PDF (orden gráfica militar o civil); se abre desde cada pantalla con la sección que corresponde
   function documento(secUnica){ const m = actual(); if(!m) return;
-    if(secUnica){ m.doc = m.doc || {}; m.doc.sec = Object.assign({mapa:false, perfil:false, cuadro:false, matriz:false, luz:false, claves:false, apoyo:false, carga:false, material:false, lista:false}, {[secUnica]:true}); }
+    if(secUnica){ m.doc = m.doc || {}; m.doc.sec = Object.assign({mapa:false, perfil:false, cuadro:false, matriz:false, luz:false, claves:false, apoyo:false, carga:false, material:false, lista:false, horiz:false, resultado:false}, {[secUnica]:true}); }
     Documento.abrir(apiMapa); }
   function vLuz(){ PantallaLuz.pintar(vista, Object.assign({}, apiMapa, {M, evento}));
     vista.insertAdjacentHTML('beforeend', '<div class="btns no-imp"><button class="btn pri" id="bImpL">📄 Documento con la luz y visibilidad</button></div>');
@@ -1020,6 +1020,75 @@
   }
 
   /* =====================================================================  LISTA  */
+  /* =====================================================================  RESULTADO (plan / real y reseña)  */
+  // horas reales: del registro de Seguir o anotadas a mano (sin GPS ni app en la marcha); la reseña la escribe el comandante
+  const hhmm = ms=>{ const d = new Date(ms); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
+  const vr = v=>v>0 && isFinite(v) ? f(v, 1) + ' · ' + M.verRitmo(v).replace(' min/km', '') : '—';
+  const difTxt = d=>d===null || d===undefined ? '—' : Math.abs(d)<1 ? 'a la hora' : (d>0 ? '+' : '−') + Math.round(Math.abs(d)) + ' min';
+  const RESULTADOS = {cumplida:'Cumplida', parcial:'Cumplida parcialmente', no:'No cumplida'};
+  function resultadoHtml(m, doc){
+    const P = Seguir.plan(m), C = P && Resultado.calcular(m, P); if(!C) return doc ? '<p>La marcha aún no tiene horas reales.</p>' : '';
+    const E = m.ejec, rs = m.resena || {}, cl = d=>d===null || d===undefined ? '' : d>5 ? 'sube' : d< -5 ? 'baja' : '';
+    const kp = (k, v, s, c)=>`<div class="kpi${c ? ' ' + c : ''}"><div class="k">${k}</div><div class="v">${v}</div>${s ? `<div class="s">${s}</div>` : ''}</div>`;
+    const dT = (C.durReal - C.durPlan)*60;
+    let h = `<div class="kpis">${kp('Duración', M.verDur(C.durReal), 'plan ' + M.verDur(C.durPlan) + ' · ' + difTxt(dT), Math.abs(dT)>15 ? 'ocre' : '')}
+        ${kp('En movimiento', M.verDur(C.movReal), 'plan ' + M.verDur(C.movPlan) + ' (tramos con hora real)')}
+        ${kp('Altos y detenciones', M.verDur(C.altosReal), C.nAltos + ' alto(s) · plan ' + M.verDur(C.altosPlan))}
+        ${kp('Velocidad en movimiento', C.vReal ? f(C.vReal, 1) + ' <small>km/h</small>' : '—', (C.vReal ? M.verRitmo(C.vReal) + ' · ' : '') + 'plan ' + vr(C.vPlan))}
+        ${C.kmGps>50 ? kp('Recorrido GPS', f(C.kmGps/1000, 2) + ' <small>km</small>', 'ruta planificada ' + f(C.distRuta/1000, 2) + ' km') : ''}</div>
+      ${Resultado.consejo(C) ? `<div class="info">${Resultado.consejo(C)}</div>` : ''}
+      <div class="tabla-env"><table class="t res"><thead><tr><th class="tx">Evento</th><th>Hora plan</th><th>Hora real</th><th>Diferencia</th><th>Tramo plan / real</th><th>Velocidad plan<br>(km/h · min/km)</th><th>Velocidad real<br>(km/h · min/km)</th><th>Altos en el tramo</th></tr></thead><tbody>
+      ${C.filas.map(r=>`<tr><td class="tx"><b>${esc(r.p.nombre)}</b>${r.p.clave ? ' <small>' + esc(r.p.clave) + '</small>' : ''}</td><td>${hhmm(r.plan)}</td>
+        <td>${doc ? (r.real ? hhmm(r.real) : r.salta ? 'no marcado' : '—') : `<input type="time" class="num" data-hreal="${r.k}" value="${r.real ? hhmm(r.real) : ''}" style="width:118px">`}</td>
+        <td class="${cl(r.dif)}">${r.k ? difTxt(r.dif) : 'partida'}</td><td>${r.dist ? M.verDur(r.tPlan) + ' / ' + M.verDur(r.tReal) : ''}</td><td>${r.dist ? vr(r.vPlan) : ''}</td>
+        <td class="${r.vReal && r.vPlan ? (r.vReal/r.vPlan<0.85 ? 'sube' : r.vReal/r.vPlan>1.05 ? 'baja' : '') : ''}">${r.dist ? vr(r.vReal) : ''}</td><td>${r.altosReal>0.01 ? Math.round(r.altosReal*60) + ' min' : ''}</td></tr>`).join('')}
+      </tbody></table></div>
+      ${Object.keys(C.motivos).length ? `<p class="nota"><b>Altos por motivo:</b> ${Object.entries(C.motivos).map(([k, v])=>esc(k) + ' ' + Math.round(v) + ' min').join(' · ')}.</p>` : ''}
+      ${C.nov.length ? `<p class="nota"><b>Novedades:</b> ${C.nov.map(n=>hhmm(n.t) + ' ' + esc(n.txt)).join(' · ')}.</p>` : ''}`;
+    if(doc) h += `<h3 class="doc-h3">Reseña</h3><table class="t"><tbody>
+        <tr><td class="tx"><b>Resultado</b></td><td class="tx">${esc(RESULTADOS[rs.resultado] || '—')}</td></tr>
+        ${[['texto', 'Qué pasó'], ['personal', 'Personal'], ['material', 'Material'], ['lecciones', 'Lecciones y recomendaciones']].map(([k, n])=>rs[k] ? `<tr><td class="tx"><b>${n}</b></td><td class="tx">${esc(rs[k]).replace(/\n/g, '<br>')}</td></tr>` : '').join('')}
+        ${rs.autor ? `<tr><td class="tx"><b>Elaborado por</b></td><td class="tx">${esc(rs.autor)}</td></tr>` : ''}</tbody></table>
+        ${E.manual ? '<p class="doc-nota">Horas reales anotadas a mano.</p>' : ''}`;
+    return h;
+  }
+  function vResultado(){
+    const m = actual(), P = Seguir.plan(m);
+    if(!P){ vista.innerHTML = '<div class="tarjeta vacio">Faltan datos: la marcha necesita al menos dos puntos con coordenadas y cota.</div>'; return; }
+    if(!m.ejec || !m.ejec.inicio){
+      vista.innerHTML = `<h2>Resultado de la marcha</h2><div class="tarjeta"><p class="nota">Aquí se compara lo planificado con lo ejecutado y se escribe la reseña.
+          Se llena solo al usar la pestaña <b>Seguir</b> durante la marcha. Si la marcha se hizo sin la app, anota las horas reales a mano.</p>
+        <div class="campos"><label class="c">Hora real de partida<input type="time" id="rPart" value="${esc(m.hora || '')}"></label></div>
+        <div class="btns"><button class="btn pri" id="rManual">✎ Anotar las horas reales a mano</button><button class="btn" id="rSeguir">Ir a Seguir</button></div></div>`;
+      $('#rSeguir').onclick = ()=>ir('seguir');
+      $('#rManual').onclick = ()=>{ const v = $('#rPart').value || m.hora || '08:00', d = new Date((m.fecha || new Date().toISOString().slice(0, 10)) + 'T' + v + ':00');
+        m.ejec = {estado:'fin', manual:true, inicio:d.getTime(), fin:null, llegadas:{}, altos:[], nov:[], track:[], msgs:[]}; guardar(); pintar(); };
+      return;
+    }
+    const rs = m.resena || (m.resena = {}), E = m.ejec;
+    vista.innerHTML = `<h2>Resultado de la marcha</h2>
+      <p class="nota">${E.manual ? 'Horas reales anotadas a mano' : 'Del registro de Seguir'}: partida real ${hhmm(E.inicio)}${E.fin ? ' · término ' + hhmm(E.fin) : E.manual ? '' : ' · marcha en curso'}.
+        Puedes corregir o completar cualquier hora real. La velocidad es en movimiento (sin los altos).</p>
+      ${resultadoHtml(m, false)}
+      <h2>Reseña</h2><div class="tarjeta"><div class="campos">
+        <label class="c">Resultado<select data-rs="resultado"><option value="">—</option>${Object.entries(RESULTADOS).map(([k, n])=>`<option value="${k}"${rs.resultado===k ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
+        <label class="c">Elaborado por<input data-rs="autor" value="${esc(rs.autor || '')}" placeholder="grado y nombre"></label>
+        ${[['texto', 'Qué pasó (desarrollo de la marcha)', 'hechos principales, cambios de ruta, clima…'], ['personal', 'Personal', 'lesionados, ampollas, agotamiento, rezagados'],
+           ['material', 'Material', 'fallas, pérdidas, lo que sobró o faltó'], ['lecciones', 'Lecciones y recomendaciones', 'qué cambiar en la próxima marcha']].map(([k, n, ph])=>
+          `<label class="c ancho">${n}<textarea data-rs="${k}" rows="3" placeholder="${ph}">${esc(rs[k] || '')}</textarea></label>`).join('')}</div></div>
+      <div class="btns"><button class="btn pri" id="rDoc">📄 Documento con el resultado</button>${(E.track || []).length>1 ? '<button class="btn" id="rMapa">🗺 Ver el recorrido en el mapa</button>' : ''}
+        ${E.manual ? '<button class="btn peligro" id="rBorrar">Borrar las horas anotadas</button>' : ''}</div>`;
+    vista.querySelectorAll('[data-rs]').forEach(x=>x.oninput = ()=>{ rs[x.dataset.rs] = x.value; guardar(); });
+    vista.querySelectorAll('[data-hreal]').forEach(x=>x.onchange = ()=>{ const k = +x.dataset.hreal;
+      if(!x.value){ if(k) delete E.llegadas[k]; } else { const [hh, mm] = x.value.split(':').map(Number), d = new Date(E.inicio); d.setHours(hh, mm, 0, 0);
+        let t = d.getTime(); if(k && t<E.inicio - 36e5) t += 864e5;   // pasó la medianoche
+        if(k===0) E.inicio = t; else E.llegadas[k] = t;
+        if(E.manual){ const ult = Math.max(0, ...Object.values(E.llegadas).filter(v=>v>0)); E.fin = ult || null; } }
+      guardar(); const y = window.scrollY; pintar(); window.scrollTo(0, y); });
+    $('#rDoc').onclick = ()=>documento('resultado');
+    const mp = $('#rMapa'); if(mp) mp.onclick = ()=>ir('mapa');
+    const bo = $('#rBorrar'); if(bo) bo.onclick = ()=>confirmar('¿Borrar las horas reales anotadas?', ()=>{ delete m.ejec; guardar(); pintar(); });
+  }
   function vLista(){
     const LS = Uso.civil() ? Uso.LISTA : LISTA, ids = new Set(LS.flatMap(g=>g.items.map(x=>x[0])));
     const m = actual(), L = m.lista || (m.lista = {}), tot = LS.reduce((a, g)=>a + g.items.length, 0), hechos = ()=>Object.entries(L).filter(([k, v])=>v && ids.has(k)).length;

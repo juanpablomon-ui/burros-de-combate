@@ -159,6 +159,8 @@ const Mapa = (function(){
     if(!map) return; capaRuta.clearLayers();
     const m = A.actual(), R = A.calcular(m), ok = R.puntos;
     const llega = {}; R.tramos.forEach(t=>{ llega[t.iB] = t; });
+    // recorrido real del GPS (Seguir), debajo de la ruta planificada
+    const T = (m.ejec && m.ejec.track) || []; if(T.length>1) L.polyline(T.map(t=>[t[0], t[1]]), {color:'#6fb3d9', weight:4, opacity:.85, dashArray:'6 5', interactive:false}).addTo(capaRuta);
     // tramos coloreados por pendiente (tocar para insertar un punto)
     R.tramos.forEach(t=>{ const a = ok[t.iA], b = ok[t.iB];
       const ln = L.polyline([[a.lat, a.lon], [b.lat, b.lon]], {color:'#14150f', weight:9, opacity:.55}).addTo(capaRuta);

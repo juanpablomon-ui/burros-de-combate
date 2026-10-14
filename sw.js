@@ -1,6 +1,6 @@
 /* Guarda la app en el equipo para que funcione sin internet. Subir VERSION en cada cambio. */
-const VERSION = 'burros-0.89';
-const ARCHIVOS = ['./', 'index.html', 'estilos.css', 'luz.js', 'calculo.js', 'dem.js', 'curvas.js', 'zonas.js', 'horizonte.js', 'mapa.js', 'seguir.js', 'pantalla-luz.js', 'documento.js', 'lib/html2canvas-1.4.1.js', 'lib/jspdf.umd.min.js', 'lib/pdfjs-3.11.174/pdf.min.js', 'lib/pdfjs-3.11.174/pdf.worker.min.js', 'intercambio.js', 'doctrina.js', 'civil.js', 'app.js', 'manifest.webmanifest',
+const VERSION = 'burros-0.90';
+const ARCHIVOS = ['./', 'index.html', 'estilos.css', 'luz.js', 'calculo.js', 'dem.js', 'curvas.js', 'zonas.js', 'horizonte.js', 'resultado.js', 'mapa.js', 'seguir.js', 'pantalla-luz.js', 'documento.js', 'lib/html2canvas-1.4.1.js', 'lib/jspdf.umd.min.js', 'lib/pdfjs-3.11.174/pdf.min.js', 'lib/pdfjs-3.11.174/pdf.worker.min.js', 'intercambio.js', 'doctrina.js', 'civil.js', 'app.js', 'manifest.webmanifest',
   'lib/wmm.js', 'lib/leaflet-1.9.4.js', 'lib/leaflet-1.9.4.css', 'lib/qrcode-generator-2.0.4.js', 'lib/jsQR-1.4.0.js', 'iconos/icono.svg', 'iconos/icono-180.png', 'iconos/icono-192.png', 'iconos/icono-512.png'];
 self.addEventListener('install', e=>{ e.waitUntil(caches.open(VERSION).then(c=>c.addAll(ARCHIVOS))); self.skipWaiting(); });
 // los mapas guardados (zonas sin señal y teselas ya vistas) no se borran al cambiar de versión
