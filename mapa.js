@@ -469,27 +469,68 @@ const Mapa = (function(){
   async function dialogoCartas(){
     let cs = []; try { cs = await BD.todas(); } catch(e){}
     A.dialogo(`<h3>🗺 Cartas propias</h3>
-      <p class="nota">Carga una imagen (JPG o PNG) de tu carta IGM o de un croquis y cálzala con dos puntos de coordenadas conocidas (cruces de cuadrícula lejanos entre sí).
-        Si tienes la carta en PDF, sácale una captura o expórtala como imagen.</p>
+      <p class="nota">Carga tu carta IGM o un croquis en <b>PDF</b> o como imagen (JPG o PNG) y cálzala con dos puntos de coordenadas conocidas (cruces de cuadrícula lejanos entre sí).
+        Queda guardada en este equipo y se ve sin señal.</p>
       ${cs.map(c=>`<div class="tarjeta" style="padding:10px"><b>${A.esc(c.nombre)}</b>
         <div class="campos" style="margin-top:6px"><label class="c">Transparencia<input type="range" min="0.2" max="1" step="0.05" value="${c.opacidad || .8}" data-op="${c.id}"></label>
         <label class="c"><span><input type="checkbox" data-vis="${c.id}" ${c.visible!==false ? 'checked' : ''} style="width:auto"> Mostrar</span></label></div>
         <div class="btns"><button class="btn mini" data-ir="${c.id}">Ir a la carta</button><button class="btn mini peligro" data-del="${c.id}">Quitar</button></div></div>`).join('') || '<p class="nota">Aún no hay cartas cargadas.</p>'}
-      <div class="btns"><button class="btn pri" id="cNueva">＋ Cargar carta (imagen)</button><button class="btn" data-cerrar>Cerrar</button></div>`, d=>{
-      d.querySelector('#cNueva').onclick = ()=>{ const i = document.createElement('input'); i.type = 'file'; i.accept = 'image/*';
-        i.onchange = ()=>{ const f = i.files[0]; if(!f) return; const r = new FileReader(); r.onload = ()=>calzar(String(r.result), f.name.replace(/\.\w+$/, '')); r.readAsDataURL(f); }; i.click(); };
+      <div class="btns"><button class="btn pri" id="cNueva">＋ Cargar carta (PDF o imagen)</button><button class="btn" data-cerrar>Cerrar</button></div>`, d=>{
+      d.querySelector('#cNueva').onclick = ()=>{ const i = document.createElement('input'); i.type = 'file'; i.accept = 'image/*,application/pdf,.pdf';
+        i.onchange = ()=>{ const f = i.files[0]; if(!f) return; const nombre = f.name.replace(/\.\w+$/, '');
+          if(/pdf$/i.test(f.type) || /\.pdf$/i.test(f.name)) return abrirPdf(f, nombre);
+          const r = new FileReader(); r.onload = ()=>calzar(String(r.result), nombre); r.readAsDataURL(f); }; i.click(); };
       d.querySelectorAll('[data-op]').forEach(x=>x.oninput = async()=>{ const c = cs.find(c=>c.id===x.dataset.op); c.opacidad = +x.value; if(cartasCapa[c.id]) cartasCapa[c.id].setOpacity(c.opacidad); await BD.poner(c); });
       d.querySelectorAll('[data-vis]').forEach(x=>x.onchange = async()=>{ const c = cs.find(c=>c.id===x.dataset.vis); c.visible = x.checked; await BD.poner(c); cargarCartas(); });
       d.querySelectorAll('[data-ir]').forEach(x=>x.onclick = ()=>{ const c = cs.find(c=>c.id===x.dataset.ir); A.cerrarDialogo(); map.fitBounds(c.bounds); });
       d.querySelectorAll('[data-del]').forEach(x=>x.onclick = async()=>{ await BD.borrar(x.dataset.del); await cargarCartas(); dialogoCartas(); });
     });
   }
-  // calce con dos puntos: se marca cada punto en la imagen y se escribe su coordenada UTM (datum de la carta)
+  /* ---------- cartas en PDF (pdf.js 3.11.174 de Mozilla, Apache-2.0, el mismo del graficador; se carga solo al usarlo) ----------
+     Se elige la página y se convierte en imagen de buena resolución (hasta 6.000 px de lado y 16 millones de píxeles, el límite del iPhone);
+     luego se calza igual que una imagen. */
+  let pdfjs = null;
+  function cargarPdfjs(){
+    if(pdfjs) return pdfjs;
+    return pdfjs = new Promise((res, rej)=>{ const s = document.createElement('script'); s.src = 'lib/pdfjs-3.11.174/pdf.min.js';
+      s.onload = ()=>{ try { pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdfjs-3.11.174/pdf.worker.min.js'; res(pdfjsLib); } catch(e){ rej(e); } };
+      s.onerror = ()=>{ pdfjs = null; rej(new Error('no se pudo cargar el lector de PDF')); }; document.head.appendChild(s); });
+  }
+  async function abrirPdf(f, nombre){
+    A.aviso('Leyendo el PDF…');
+    let doc; try { const lib = await cargarPdfjs(); doc = await lib.getDocument({data:new Uint8Array(await f.arrayBuffer())}).promise; }
+    catch(e){ return A.aviso('No se pudo leer el PDF: ' + (e.message || e)); }
+    if(doc.numPages===1) return pdfAImagen(doc, 1, nombre);
+    // varias páginas: elegir cuál (con vista previa)
+    A.dialogo(`<h3>Elige la página de «${A.esc(nombre)}»</h3><p class="nota">El PDF tiene ${doc.numPages} páginas.</p>
+      <div class="campos"><label class="c">Página<select id="pPag">${Array.from({length:doc.numPages}, (_, i)=>`<option value="${i + 1}">${i + 1}</option>`).join('')}</select></label></div>
+      <div class="calce" style="text-align:center"><canvas id="pVista" style="max-width:100%"></canvas></div>
+      <div class="btns"><button class="btn pri" id="pOk">Usar esta página</button><button class="btn" data-cerrar>Cancelar</button></div>`, async d=>{
+      const vista = async n=>{ const pg = await doc.getPage(n), v0 = pg.getViewport({scale:1}), v = pg.getViewport({scale:Math.min(1.2, 700/Math.max(v0.width, v0.height))}), c = d.querySelector('#pVista');
+        c.width = v.width; c.height = v.height; await pg.render({canvasContext:c.getContext('2d'), viewport:v}).promise; };
+      d.querySelector('#pPag').onchange = e=>vista(+e.target.value);
+      d.querySelector('#pOk').onclick = ()=>pdfAImagen(doc, +d.querySelector('#pPag').value, nombre + (doc.numPages>1 ? ' (p. ' + d.querySelector('#pPag').value + ')' : ''));
+      vista(1); });
+  }
+  async function pdfAImagen(doc, n, nombre){
+    A.aviso('Convirtiendo la carta en imagen…');
+    try {
+      const pg = await doc.getPage(n), v0 = pg.getViewport({scale:1}), k = Math.min(6000/Math.max(v0.width, v0.height), Math.sqrt(16e6/(v0.width*v0.height)), 8);
+      const v = pg.getViewport({scale:k}), c = document.createElement('canvas'); c.width = Math.floor(v.width); c.height = Math.floor(v.height);
+      const cx = c.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, c.width, c.height);
+      await pg.render({canvasContext:cx, viewport:v}).promise;
+      const img = c.toDataURL('image/jpeg', 0.85); c.width = c.height = 0;
+      calzar(img, nombre);
+    } catch(e){ A.aviso('No se pudo convertir la página: ' + (e.message || e)); }
+  }
+  // calce con dos puntos: se marca cada punto en la imagen y se escribe su coordenada UTM (datum de la carta).
+  // La imagen se puede acercar (＋ / −) para marcar los cruces con precisión (cartas grandes, como las que vienen en PDF).
   function calzar(img, nombre){
     const m = A.actual(), pts = [{}, {}]; let cual = 0;
     A.dialogo(`<h3>Calzar «${A.esc(nombre)}»</h3>
       <p class="nota">1) Toca el <b>punto 1</b> en la imagen (un cruce de cuadrícula) y escribe su coordenada. 2) Lo mismo con el <b>punto 2</b>, lo más lejos posible del primero.</p>
-      <div class="calce"><img src="${img}" alt=""><span class="mk" id="k0" hidden>1</span><span class="mk" id="k1" hidden>2</span></div>
+      <div class="btns" style="margin:4px 0"><button class="btn mini" id="cMenos">−</button><button class="btn mini" id="cMas">＋ Acercar</button><button class="btn mini" id="cAjus">Ver entera</button></div>
+      <div class="calce"><div class="calce-in"><img src="${img}" alt=""><span class="mk" id="k0" hidden>1</span><span class="mk" id="k1" hidden>2</span></div></div>
       <div class="campos">
         <label class="c ancho">Datum de la carta<select id="cDat">${Object.entries(M.DATUMS).map(([k, v])=>`<option value="${k}"${k===m.datum ? ' selected' : ''}>${A.esc(v.n)}</option>`).join('')}</select></label>
         <label class="c">Zona<input class="num" id="cZona" value="${A.esc(m.zona || 19)}" inputmode="numeric"></label></div>
@@ -500,9 +541,17 @@ const Mapa = (function(){
       const marca = k=>{ cual = k; d.querySelectorAll('[data-cual]').forEach(b=>b.classList.toggle('pri', +b.dataset.cual===k)); };
       marca(0);
       d.querySelectorAll('[data-cual]').forEach(b=>b.onclick = ()=>marca(+b.dataset.cual));
+      // marcas: se guardan en píxeles de la imagen y se dibujan según el acercamiento
+      const ponerMarcas = ()=>[0, 1].forEach(k=>{ const p = pts[k], el = d.querySelector('#k' + k); if(p.px===undefined || !im.naturalWidth) return;
+        const f = im.clientWidth/im.naturalWidth; el.hidden = false; el.style.left = p.px*f + 'px'; el.style.top = p.py*f + 'px'; });
+      let zoom = 1; const caja = d.querySelector('.calce');
+      const acercar = z=>{ const cw = caja.clientWidth, cx = (caja.scrollLeft + cw/2)/(im.clientWidth || 1), cy = (caja.scrollTop + caja.clientHeight/2)/(im.clientHeight || 1);
+        zoom = Math.max(1, Math.min(z, 16)); im.style.maxWidth = 'none'; im.style.width = (cw*zoom) + 'px';
+        caja.scrollLeft = cx*im.clientWidth - cw/2; caja.scrollTop = cy*im.clientHeight - caja.clientHeight/2; ponerMarcas(); };
+      d.querySelector('#cMas').onclick = ()=>acercar(zoom*2); d.querySelector('#cMenos').onclick = ()=>acercar(zoom/2); d.querySelector('#cAjus').onclick = ()=>acercar(1);
+      im.onload = ()=>acercar(1);
       im.onclick = e=>{ const r = im.getBoundingClientRect(), sx = im.naturalWidth/r.width, sy = im.naturalHeight/r.height;
-        pts[cual] = {px:(e.clientX - r.left)*sx, py:(e.clientY - r.top)*sy};
-        const k = d.querySelector('#k' + cual); k.hidden = false; k.style.left = (e.clientX - r.left) + 'px'; k.style.top = (e.clientY - r.top) + 'px';
+        pts[cual] = {px:(e.clientX - r.left)*sx, py:(e.clientY - r.top)*sy}; ponerMarcas();
         d.querySelector('#cEst' + cual).textContent = 'marcado'; if(cual===0) marca(1); };
       d.querySelector('#cOk').onclick = async()=>{
         const dat = d.querySelector('#cDat').value, zona = +d.querySelector('#cZona').value || 19, el = M.DATUMS[dat];

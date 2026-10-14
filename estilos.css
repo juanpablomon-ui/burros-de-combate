@@ -219,6 +219,7 @@ body.con-mapa .m-lectura{top:auto;bottom:118px;right:10px}
 .leaflet-container{font-family:var(--sans)}
 .leaflet-tooltip{font-size:12px}
 .calce{position:relative;max-height:50vh;overflow:auto;border:1px solid var(--linea);border-radius:8px;margin:8px 0}
+.calce-in{position:relative;display:inline-block;min-width:100%}
 .calce img{display:block;max-width:100%;cursor:crosshair}
 .calce .mk{position:absolute;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;background:var(--rojo);color:#fff;font:700 12px var(--mono);display:flex;align-items:center;justify-content:center;pointer-events:none}
 .m-pto.multi .n{border-radius:13px;width:auto;min-width:26px;padding:0 6px;right:auto;font-size:11px}
