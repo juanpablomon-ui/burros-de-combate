@@ -101,7 +101,7 @@ const MATERIAL = [
     ['silbato', 'Silbato / señales', c=>Math.max(1, Math.ceil(c.n/10)), c=>'jefes de grupo']]},
   {g:'Equipo individual', items:[
     ['cuchillo', 'Cuchillo o bayoneta', c=>c.n, c=>'en el cinturón de carga'],
-    ['mochAs', 'Mochila de asalto o de misión', c=>c.mochilaModo==='dentro' ? null : c.n, c=>'munición, agua y elementos para la tarea'],
+    ['mochAs', 'Mochila de asalto o de misión', c=>c.civil && c.mochilaModo==='dentro' ? null : c.n, c=>'munición, agua y elementos para la tarea' + (c.mochilaModo==='dentro' ? '; va dentro de la de sostenimiento' : '')],
     ['mochila', 'Mochila de sostenimiento', c=>c.mochilaModo==='solo' ? null : c.n, c=>'para varios días' + (c.mochilaModo==='dentro' ? '; la de asalto va dentro' : '')],
     ['poncho', 'Poncho o chaqueta impermeable', c=>c.n, c=>''],
     ['abrigo', 'Segunda capa de abrigo (polar)', c=>c.n, c=>'en la mochila de sostenimiento'],
@@ -114,7 +114,7 @@ const MATERIAL = [
     ['cocina', 'Cocinilla y gas', c=>c.pernocta || !c.civil ? Math.max(1, Math.ceil(c.n/4)) : null, c=>'1 cada 4 (repartida)'],
     ['olla', 'Olla y utensilios', c=>c.pernocta || !c.civil ? Math.max(1, Math.ceil(c.n/4)) : null, c=>'1 juego cada 4 (repartido)'],
     ['aseo', 'Útiles de aseo', c=>c.pernocta || !c.civil ? c.n : null, c=>c.civil ? 'marcha con pernocta' : ''],
-    ['sombrero', 'Gorro', c=>c.calorCat>=2 || (c.noche<0.5 && !c.nieve) ? c.n : null, c=>'sol y calor']]},
+    ['sombrero', 'Gorro', c=>c.civil && (c.calorCat>=2 || (c.noche<0.5 && !c.nieve)) ? c.n : null, c=>'sol y calor']]},
   // equipo de la UTB (documento del usuario «Líneas de equipamiento para el combate de una UTB»): lo que la app no tenía
   {g:'Vestuario', items:[
     ['tenida', 'Tenida de combate (puesta)', c=>c.civil ? null : c.n, c=>'se lleva puesta'],
@@ -155,7 +155,7 @@ const MATERIAL = [
     ['palaZ', 'Pala de campaña', c=>c.civil ? null : c.n, c=>'1 por hombre (escribe 0 si no se lleva)'],
     ['zapaOtro', 'Otro elemento de zapa (hacha, sierra, chuzo…)', c=>c.civil ? null : 0, c=>'escribe cuántos y su peso']]},
   {g:'Marcha de noche', items:[
-    ['linterna', 'Linterna con filtro rojo (o frontal)', c=>c.noche>0 || c.civil ? c.n : null, c=>c.noche>0 ? 'parte de la marcha es de noche' : 'siempre, por si la ruta se alarga'],
+    ['linterna', 'Linterna con filtro rojo (o frontal)', c=>c.n, c=>c.noche>0 ? 'parte de la marcha es de noche' : 'siempre, por si la ruta se alarga'],
     ['luzquim', 'Luces químicas', c=>c.civil ? null : c.n*2, c=>'2 por hombre'],
     ['pilas', 'Pilas de repuesto', c=>c.n + ' juegos', c=>'siempre; la cantidad depende de lo que lleve cada hombre (linterna, visor, GPS…)'],
     ['vision', 'Visor nocturno (si se dispone)', c=>c.civil ? null : c.noche>0 ? c.n : null, c=>'puede ser uno por hombre (escribe 0 si no hay)']]},
