@@ -588,7 +588,7 @@ table.sop td.sop-x{color:var(--suave);font-family:var(--mono)}
 .s-hud .hud2 .hd span,.s-hud .hud-g span{display:block;font-size:10.5px;color:var(--suave);text-transform:uppercase;letter-spacing:.04em}
 .s-hud .hud2 .hd small{margin-left:6px}
 .s-hud .hud-g{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:6px 0}
-@media (min-width:600px){.s-hud .hud-g{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media (min-width:900px){.s-hud{max-width:720px}.s-hud .hud-g{grid-template-columns:repeat(4,minmax(0,1fr))}}
 .s-hud .hud1>span:first-child small{display:block;margin-top:1px}
 .s-hud .hud-g>div{background:#ffffff0a;border:1px solid var(--linea);border-radius:8px;padding:5px 8px;min-width:0}
 .s-hud .hud-g b{display:block;font-family:var(--mono);font-size:16px;white-space:nowrap}.s-hud .hud-g small{display:block;font-family:var(--mono);font-size:11px;color:var(--suave);white-space:nowrap}
@@ -600,3 +600,10 @@ table.sop td.sop-x{color:var(--suave);font-family:var(--mono)}
 .s-vel b{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.s-vel b i{min-width:58px}
 .s-hud .hud-g p.vr small,.s-vel b small{display:inline;font-size:9.5px;color:var(--suave)}.s-hud .hud-g p.vr i{min-width:54px}.s-vel b i{min-width:56px}
 .s-vel>div{padding:7px 8px}.s-vel b{font-size:13px}.s-vel b i{min-width:50px;font-size:10px}
+.s-vel span{text-transform:uppercase;letter-spacing:.04em;font-size:10.5px}.s-vel b.hora{font-size:20px}.s-vel>div{background:#ffffff08}
+.s-estado .hud-est{font-weight:700}.s-estado .hud-est.mal{color:var(--rojo)}.s-estado .hud-est.bien{color:var(--verde)}
+.s-vel b i{min-width:62px}.s-hud .hud-g p.vr i{min-width:60px}
+.vg{display:grid;grid-template-columns:auto 1fr;column-gap:8px;align-items:baseline}.vg i{font-style:normal;font-size:10.5px;color:var(--suave)}
+.vg b{font-family:var(--mono);font-size:14px;white-space:nowrap;display:block}.vg b small{display:inline;font-size:10px;color:var(--suave)}
+.vg.bien b{color:var(--verde)}.vg.ojo b{color:var(--ocre)}.vg.mal b{color:var(--rojo)}
+.s-hud .hud-g .vg b,.s-vel .vg b{display:block;font-size:14px;white-space:nowrap;overflow:visible;line-height:1.3}.s-hud .hud-g .vg b small,.s-vel .vg b small{display:inline;font-size:10px;color:var(--suave)}.s-hud .hud-g .vg i,.s-vel .vg i{min-width:0;display:inline}

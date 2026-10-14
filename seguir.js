@@ -50,15 +50,17 @@ const Seguir = (function(){
       vert:E.estado==='alto' ? null : vertAhora(), vertPlan:q && q.tramo && Math.abs(q.tramo.pte)>0.05 ? q.tramo.vVert*Math.sign(q.tramo.dv) : null, enAlto:E.estado==='alto'}; }
   const vr = v=>v>0 && isFinite(v) ? A.f(v, 1) + ' <small>km/h</small> · ' + M.verRitmo(v).replace(' min/km', '') + ' <small>min/km</small>' : '—';
   const claseVel = (v, plan)=>!(v>0) || !(plan>0) ? '' : v/plan<0.85 ? 'mal' : v/plan<0.95 ? 'ojo' : 'bien';
-  const vr2 = v=>`<i>Velocidad</i> ${v>0 && isFinite(v) ? A.f(v, 1) + ' <small>km/h</small>' : '—'}<br><i>Ritmo</i> ${v>0 && isFinite(v) ? M.verRitmo(v).replace(' min/km', '') + ' <small>min/km</small>' : '—'}`;
-  function velHtml(V, corto){
-    const nec = V.nec===Infinity ? '<b class="mal">ya no se llega a la hora</b>' : V.nec ? (corto ? vr : vr2)(V.nec) : '—';
-    if(corto) return `<div class="hud3 mono">🚶 <span class="${claseVel(V.ahora, V.plan)}">${V.enAlto ? 'en alto' : vr(V.ahora)}</span> · plan ${vr(V.plan)}${V.p && V.nec ? ' · para ' + A.esc(rotulo(V.p)) + ' a las ' + hh(V.horaP) + ': ' + nec : ''}</div>`;
+  const vg = (v, cl)=>{ const ok = v>0 && isFinite(v); return `<div class="vg ${cl || ''}"><i>Velocidad</i><b>${ok ? A.f(v, 1) + ' <small>km/h</small>' : '—'}</b><i>Ritmo</i><b>${ok ? M.verRitmo(v).replace(' min/km', '') + ' <small>min/km</small>' : '—'}</b></div>`; };
+  // vista Navegación: los mismos cuadros que la carta (llegada, ahora, plan del tramo, para llegar a la hora) más las medias de la marcha
+  function velHtml(V, lleg){
+    const vt = (v, sube)=>v ? `<small>${sube>0 ? '↗' : '↘'} vertical ${A.f(Math.abs(v))} m/h</small>` : '';
     return `<div class="s-vel">
-      <div><span>Ahora</span><b class="${claseVel(V.ahora, V.plan)}">${V.enAlto ? 'en alto' : vr2(V.ahora)}</b>${V.vert!==null ? `<small>${V.vert>=0 ? '↗' : '↘'} ${A.f(Math.abs(V.vert))} m/h</small>` : ''}</div>
-      <div><span>Plan del tramo</span><b>${vr2(V.plan)}</b>${V.vertPlan ? `<small>${V.vertPlan>0 ? '↗' : '↘'} ${A.f(Math.abs(V.vertPlan))} m/h</small>` : ''}</div>
-      <div><span>Media en movimiento</span><b class="${claseVel(V.mov, V.plan)}">${vr2(V.mov)}</b><small>con altos: ${V.altos>0 && isFinite(V.altos) ? A.f(V.altos, 1) + ' km/h · ' + M.verRitmo(V.altos) : '—'}</small></div>
-      <div><span>${V.p ? 'Para llegar a ' + A.esc(rotulo(V.p)) + ' a las ' + hh(V.horaP) : 'Para llegar a la hora'}</span><b>${nec}</b></div></div>`;
+      ${lleg ? `<div><span>Llegada plan</span><b class="hora">${lleg.plan}</b>${lleg.est ? `<small>estimada ${lleg.est}</small>` : ''}</div>` : ''}
+      <div><span>Ahora</span>${V.enAlto ? '<b>en alto</b>' : vg(V.ahora, claseVel(V.ahora, V.plan))}${V.vert!==null && !V.enAlto ? vt(V.vert, V.vert) : ''}</div>
+      <div><span>Plan del tramo</span>${vg(V.plan)}${vt(V.vertPlan, V.vertPlan)}</div>
+      <div><span>Para llegar a la hora</span>${V.nec===Infinity ? '<b class="mal">no alcanza</b>' : vg(V.nec)}${V.p ? `<small>a ${A.esc(rotulo(V.p))} a las ${hh(V.horaP)}</small>` : ''}</div>
+      <div><span>Media en movimiento</span>${vg(V.mov, claseVel(V.mov, V.plan))}<small>sin contar los altos</small></div>
+      <div><span>Media con altos</span>${vg(V.altos)}<small>contando los altos</small></div></div>`;
   }
 
   /* ---------- adelanto / atraso ---------- */
@@ -300,7 +302,7 @@ const Seguir = (function(){
       const V = velocidades(m, P, k, ke), pr = v=>v>0 && isFinite(v) ? M.verRitmo(v) : '';
       const cel = (rot, val, sub, cl)=>`<div><span>${rot}</span><b class="${cl || ''}">${val}</b>${sub ? `<small>${sub}</small>` : ''}</div>`;
       const vk = v=>v>0 && isFinite(v) ? A.f(v, 1) + ' km/h' : '—';
-      const celV = (rot, v, cl, txt)=>`<div><span>${rot}</span>${txt ? `<b class="${cl || ''}">${txt}</b>` : `<p class="vr ${cl || ''}"><i>Velocidad</i> ${v>0 && isFinite(v) ? A.f(v, 1) + ' <small>km/h</small>' : '—'}</p><p class="vr"><i>Ritmo</i> ${v>0 && isFinite(v) ? pr(v).replace(' min/km', '') + ' <small>min/km</small>' : '—'}</p>`}</div>`;
+      const celV = (rot, v, cl, txt)=>`<div><span>${rot}</span>${txt ? `<b class="${cl || ''}">${txt}</b>` : vg(v, cl)}</div>`;
       c.innerHTML = `<div class="hud1"><span>PRÓXIMO <b class="clave-tx">${p ? A.esc(rotulo(p)) : '—'}</b>${p ? ' <small>' + A.esc(p.clave ? p.nombre + (p.obs ? ' · ' + p.obs : '') : p.obs || '') + '</small>' : ''}</span>${at===null ? '' : `<span class="hud-est ${cls}">${dif(at)}</span>`}</div>
         <div class="hud2"><div class="hd"><span>Distancia</span><b>${dist}</b></div><div class="hd"><span>Rumbo mag.</span><b class="ocre">${rumbo}</b><small>${mils}</small></div><div class="s-flecha mini" id="sFlecha">↑</div></div>
         <div class="hud-g">${p ? cel('Llegada plan', hh(E.inicio + p.lleg*3600000), at!==null ? 'estimada ' + hh(E.inicio + p.lleg*3600000 + at*60000) : '') : ''}
@@ -309,11 +311,11 @@ const Seguir = (function(){
           ${p && V.nec ? celV('Para llegar a la hora', V.nec, V.nec===Infinity ? 'mal' : '', V.nec===Infinity ? 'no alcanza' : '') : ''}</div>
         ${quiebre ? `<div class="hud3">↪ ${quiebre}</div>` : ''}${enAlto}${fuera}<div class="hud3 mono" id="sGps">⏱ ${dur(t - E.inicio)} de marcha · ${gps}</div>`;
     } else {
-      c.innerHTML = `<div class="s-estado"><span>⏱ ${dur(t - E.inicio)} de marcha</span><span class="${cls}">${at===null ? '' : dif(at)}</span></div>${enAlto}
+      c.innerHTML = `<div class="s-estado"><span>⏱ ${dur(t - E.inicio)} de marcha</span><span class="hud-est ${cls}">${at===null ? '' : dif(at)}</span></div>${enAlto}
         ${p ? `<div class="s-prox">PRÓXIMO <b class="clave-tx">${A.esc(rotulo(p))}</b><small>${A.esc(p.clave ? p.nombre + (p.obs ? ' · ' + p.obs : '') : p.obs || '')}</small></div>
         <div class="s-grande"><div><span>Distancia</span><b>${dist}</b></div><div><span>Rumbo mag.</span><b class="ocre">${rumbo}</b><small>${mils}</small></div>
           <div class="s-flecha" id="sFlecha" title="Dirección al punto según la brújula del teléfono">↑</div></div>
-        <div class="nota mono">${eta}${quiebre ? '<br>↪ ' + quiebre : ''}</div>` : ''}${velHtml(velocidades(m, P, k, ke))}${fuera}<div class="nota mono" id="sGps">${gps}</div>`;
+        ${quiebre ? `<div class="nota">↪ ${quiebre}</div>` : ''}` : ''}${velHtml(velocidades(m, P, k, ke), p ? {plan:hh(E.inicio + p.lleg*3600000), est:at!==null ? hh(E.inicio + p.lleg*3600000 + at*60000) : ''} : null)}${fuera}<div class="nota mono" id="sGps">${gps}</div>`;
     }
     flecha();
   }
