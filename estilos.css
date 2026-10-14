@@ -607,3 +607,5 @@ table.sop td.sop-x{color:var(--suave);font-family:var(--mono)}
 .vg b{font-family:var(--mono);font-size:14px;white-space:nowrap;display:block}.vg b small{display:inline;font-size:10px;color:var(--suave)}
 .vg.bien b{color:var(--verde)}.vg.ojo b{color:var(--ocre)}.vg.mal b{color:var(--rojo)}
 .s-hud .hud-g .vg b,.s-vel .vg b{display:block;font-size:14px;white-space:nowrap;overflow:visible;line-height:1.3}.s-hud .hud-g .vg b small,.s-vel .vg b small{display:inline;font-size:10px;color:var(--suave)}.s-hud .hud-g .vg i,.s-vel .vg i{min-width:0;display:inline}
+.barra{height:10px;border-radius:6px;background:var(--linea);overflow:hidden;margin:8px 0 4px}.barra i{display:block;height:100%;background:var(--ocre);transition:width .2s}
+#dialogo .mal{color:var(--rojo)}

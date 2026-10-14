@@ -36,6 +36,7 @@ const Mapa = (function(){
         <button class="btn mini ${pref.grid ? 'on' : ''}" id="mGrid" title="Cuadrícula UTM">▦ UTM</button>
         <button class="btn mini ${pref.curvas ? 'on' : ''}" id="mCurvas" title="Curvas de nivel sobre cualquier capa">〰 Curvas</button>
         <button class="btn mini" id="mCartas" title="Cartas propias">🗺 Cartas</button>
+        <button class="btn mini" id="mZonas" title="Guardar mapas para usar sin señal">⬇ Sin señal</button>
       </div>
       <div class="m-lectura mono" id="mLect"></div>
       <div class="m-cruz"></div>
@@ -78,6 +79,8 @@ const Mapa = (function(){
     $('#mEncuadrar').onclick = encuadrar;
     $('#mYo').onclick = miPosicion;
     $('#mCartas').onclick = dialogoCartas;
+    $('#mZonas').onclick = dialogoZonas;
+    if(navigator.onLine===false) A.aviso('Sin señal: se ven las zonas de mapa guardadas');
     $('#mPerf').onclick = e=>{ pref.perfil = !pref.perfil; guardarPref(); e.currentTarget.classList.toggle('on', pref.perfil); perfil(); };
     cargarCartas(); ruta(); grid(); lectura(map.getCenter()); perfil(); curvas();
     ubicando = null; if(A.ubicar!==undefined && A.ubicar!==null){ const k = A.ubicar; A.ubicar = null; agregar = false; const b = $('#mAgregar'); if(b) b.classList.remove('pri'); modoUbicar(k); }
@@ -407,6 +410,62 @@ const Mapa = (function(){
     cs.filter(c=>c.visible!==false).forEach(c=>{ cartasCapa[c.id] = L.imageOverlay(c.img, c.bounds, {pane:'cartas', opacity:c.opacidad || .8, interactive:false}).addTo(map); });
     return cs;
   }
+  /* ---------- zonas de mapa para usar sin señal (zonas.js; el service worker las entrega sin internet) ---------- */
+  let bajando = null;
+  async function dialogoZonas(){
+    const m = A.actual(), R = A.calcular(m), Z = Zonas.lista(), esp = await Zonas.espacio();
+    const st = Object.assign({area:'ruta', km:'1', zmax:'15', capas:{[BASES[pref.base] && Zonas.CAPAS[pref.base] ? pref.base : 'topo']:true, terreno:true}}, dialogoZonas.st || {}); dialogoZonas.st = st;
+    const zona = ()=>{ const caja = st.area==='ruta' ? Zonas.cajaRuta(R.puntos, +st.km) : (b=>[b.getSouth(), b.getWest(), b.getNorth(), b.getEast()])(map.getBounds());
+      return caja && {caja, capas:Object.keys(st.capas).filter(k=>st.capas[k]), zmax:+st.zmax}; };
+    const fm = x=>A.f(x, x<10 ? 1 : 0), fecha = t=>new Date(t).toLocaleDateString('es-CL', {day:'numeric', month:'short', year:'numeric'});
+    const pintar = ()=>{ const z = zona(), e = z && z.capas.length ? Zonas.estimar(z) : null, el = document.getElementById('zEst'); if(!el) return;
+      el.innerHTML = !z ? '<span class="mal">Esta marcha aún no tiene puntos: elige «Lo que se ve en pantalla».</span>' : !e ? 'Elige al menos una capa.'
+        : `<b>${A.f(e.n)} teselas</b> · cerca de <b>${fm(e.mb)} MB</b>${e.tope ? `<br><span class="mal">Es demasiado para una sola zona (más de ${A.f(Zonas.TOPE)}): achica el área, baja el detalle o elige menos capas.</span>` : ''}`;
+      const b = document.getElementById('zBajar'); if(b) b.disabled = !e || e.tope; };
+    A.dialogo(`<h3>⬇ Mapas para usar sin señal</h3>
+      <p class="nota">Guarda en este equipo el mapa de una zona para verlo en terreno sin internet (en el Mapa y en Seguir), con las curvas de nivel y la cota automática.
+        Hazlo antes de salir, con Wi-Fi. Las cartas propias (🗺 Cartas) ya quedan guardadas siempre.</p>
+      ${Z.length ? `<h4>Zonas guardadas</h4>${Z.map(z=>`<div class="tarjeta" style="padding:8px 10px"><b>${A.esc(z.nombre)}</b> <small class="nota">${fecha(z.fecha)} · ${A.f(z.n)} teselas · ${fm(z.kb/1024)} MB</small>
+        <div class="nota" style="margin:2px 0 6px">${z.capas.map(k=>Zonas.CAPAS[k] ? Zonas.CAPAS[k].n : k).join(' · ')} · detalle hasta ${z.zmax}${z.fallas ? ` · <span class="mal">${z.fallas} sin bajar</span>` : ''}</div>
+        <div class="btns" style="margin:0"><button class="btn mini" data-zver="${z.id}">Ver en el mapa</button><button class="btn mini" data-zact="${z.id}">Completar lo que falta</button><button class="btn mini peligro" data-zbor="${z.id}">Borrar</button></div></div>`).join('')}` : ''}
+      <h4>Guardar una zona nueva</h4>
+      <div class="campos">
+        <label class="c ancho">Área<select id="zArea"><option value="ruta"${st.area==='ruta' ? ' selected' : ''}>La ruta de esta marcha, con un margen</option><option value="vista"${st.area==='vista' ? ' selected' : ''}>Lo que se ve ahora en pantalla</option></select></label>
+        <label class="c" id="zKmL"${st.area==='ruta' ? '' : ' hidden'}>Margen alrededor de la ruta<select id="zKm">${['0.5', '1', '2', '3', '5'].map(k=>`<option value="${k}"${st.km===k ? ' selected' : ''}>${k.replace('.', ',')} km</option>`).join('')}</select></label>
+        <label class="c">Detalle hasta<select id="zZ">${[['13', '13 (≈ 1:50.000)'], ['14', '14 (≈ 1:25.000)'], ['15', '15 (≈ 1:15.000)'], ['16', '16 (≈ 1:8.000)']].map(([v, t])=>`<option value="${v}"${st.zmax===v ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
+      </div>
+      <div class="nota" style="margin:6px 0">Capas:</div>
+      ${Object.entries(Zonas.CAPAS).map(([k, c])=>`<label class="nota" style="display:block;margin:3px 0"><input type="checkbox" data-zcap="${k}" ${st.capas[k] ? 'checked' : ''} style="width:auto;vertical-align:middle"> ${c.n}</label>`).join('')}
+      <p class="nota" style="margin-top:4px">«Calles» (OpenStreetMap) no se puede guardar: su servidor no permite descargar zonas. Los mapas libres piden no bajar áreas grandes: guarda solo la zona de la marcha.</p>
+      <div class="info" id="zEst"></div>
+      <div id="zProg" hidden><div class="barra"><i id="zBarra" style="width:0"></i></div><div class="nota mono" id="zProgT"></div></div>
+      ${esp ? `<p class="nota">Espacio usado por la app en este equipo: ${fm(esp.usado)} MB.</p>` : ''}
+      <div class="btns"><button class="btn pri" id="zBajar">⬇ Guardar la zona</button><button class="btn" id="zParar" style="display:none">Detener</button><button class="btn" data-cerrar>Cerrar</button></div>`, d=>{
+      d.querySelector('#zArea').onchange = e=>{ st.area = e.target.value; d.querySelector('#zKmL').hidden = st.area!=='ruta'; pintar(); };
+      d.querySelector('#zKm').onchange = e=>{ st.km = e.target.value; pintar(); };
+      d.querySelector('#zZ').onchange = e=>{ st.zmax = e.target.value; pintar(); };
+      d.querySelectorAll('[data-zcap]').forEach(x=>x.onchange = ()=>{ st.capas[x.dataset.zcap] = x.checked; pintar(); });
+      d.querySelectorAll('[data-zver]').forEach(b=>b.onclick = ()=>{ const z = Zonas.lista().find(x=>x.id===b.dataset.zver); if(!z) return; d.close();
+        map.fitBounds([[z.caja[0], z.caja[1]], [z.caja[2], z.caja[3]]]); L.rectangle([[z.caja[0], z.caja[1]], [z.caja[2], z.caja[3]]], {color:'#e3a63a', weight:2, dashArray:'6 6', fill:false, interactive:false}).addTo(capaRuta); });
+      d.querySelectorAll('[data-zbor]').forEach(b=>b.onclick = async()=>{ b.disabled = true; await Zonas.borrar(b.dataset.zbor); A.aviso('Zona borrada'); dialogoZonas(); });
+      d.querySelectorAll('[data-zact]').forEach(b=>b.onclick = ()=>{ const z = Zonas.lista().find(x=>x.id===b.dataset.zact); if(z) bajar(d, z); });
+      d.querySelector('#zBajar').onclick = ()=>{ const z = zona(); if(!z) return;
+        bajar(d, Object.assign(z, {id:'z' + Date.now(), nombre:st.area==='ruta' ? (m.nombre || 'Marcha') : 'Zona de ' + (m.nombre || 'la marcha') + ' (pantalla)'})); };
+      d.querySelector('#zParar').onclick = ()=>{ if(bajando) bajando.parar = true; };
+      pintar(); });
+  }
+  async function bajar(d, zona){
+    if(bajando) return; const ctl = bajando = {parar:false}, pr = d.querySelector('#zProg'), br = d.querySelector('#zBarra'), tx = d.querySelector('#zProgT');
+    pr.hidden = false; d.querySelector('#zBajar').disabled = true; d.querySelector('#zParar').style.display = '';
+    try {
+      const r = await Zonas.descargar(zona, (h, t, kb, fa)=>{ br.style.width = (h/t*100).toFixed(1) + '%'; tx.textContent = A.f(h) + ' de ' + A.f(t) + ' teselas · ' + A.f(kb/1024, 1) + ' MB' + (fa ? ' · ' + fa + ' sin bajar' : ''); }, ctl);
+      if(r.parado){ A.aviso('Descarga detenida: lo bajado queda guardado'); }
+      Zonas.anotar(Object.assign({}, zona, {fecha:Date.now(), n:r.total, kb:Math.max(r.kb, zona.kb || 0), fallas:r.fallas}));
+      A.aviso(r.fallas ? 'Zona guardada; ' + r.fallas + ' teselas no se pudieron bajar (toca «Completar lo que falta» con mejor señal)' : 'Zona guardada: el mapa se verá sin señal');
+    } catch(e){ A.aviso('No se pudo guardar: ' + e.message); }
+    bajando = null; if(d.open) dialogoZonas();
+  }
+
   async function dialogoCartas(){
     let cs = []; try { cs = await BD.todas(); } catch(e){}
     A.dialogo(`<h3>🗺 Cartas propias</h3>
