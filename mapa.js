@@ -11,6 +11,7 @@ const Mapa = (function(){
     etopo: {n:'Topo Esri', url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', o:{maxZoom:19, attribution:'Esri World Topo'}},
     calles:{n:'Calles', url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', o:{maxZoom:19, attribution:'© OpenStreetMap'}}
   };
+  let capaHoriz = null; const vistas = new Map();
   let map = null, A = null, capaBase = null, capaRuta = null, capaGrid = null, cartasCapa = {}, agregar = false, sel = null, deshacer = [];
   const pref = {base:'topo', grid:true, perfil:false, curvas:true};
   try { Object.assign(pref, JSON.parse(localStorage.getItem('burros_mapa') || '{}')); } catch(e){}
@@ -60,7 +61,7 @@ const Mapa = (function(){
     ponerBase(pref.base, true);
     map.createPane('cartas').style.zIndex = 250;
     map.createPane('curvas').style.zIndex = 300; map.getPane('curvas').style.pointerEvents = 'none';
-    capaGrid = L.layerGroup().addTo(map); capaRuta = L.layerGroup().addTo(map);
+    capaGrid = L.layerGroup().addTo(map); capaHoriz = L.layerGroup().addTo(map); capaRuta = L.layerGroup().addTo(map);
     map.on('moveend', ()=>{ A.vistaMapa = {c:map.getCenter(), z:map.getZoom()}; grid(); lectura(map.getCenter()); });
     map.on('mousemove', e=>lectura(e.latlng, true));
     map.on('click', e=>{ cerrarMenu(); if(ubicando!==null) return ponerUbicado(e.latlng); if(agregar) agregarPunto(e.latlng); else cerrarHoja(); });
@@ -82,7 +83,7 @@ const Mapa = (function(){
     $('#mZonas').onclick = dialogoZonas;
     if(navigator.onLine===false) A.aviso('Sin señal: se ven las zonas de mapa guardadas');
     $('#mPerf').onclick = e=>{ pref.perfil = !pref.perfil; guardarPref(); e.currentTarget.classList.toggle('on', pref.perfil); perfil(); };
-    cargarCartas(); ruta(); grid(); lectura(map.getCenter()); perfil(); curvas();
+    cargarCartas(); ruta(); grid(); lectura(map.getCenter()); perfil(); curvas(); horizontes();
     ubicando = null; if(A.ubicar!==undefined && A.ubicar!==null){ const k = A.ubicar; A.ubicar = null; agregar = false; const b = $('#mAgregar'); if(b) b.classList.remove('pri'); modoUbicar(k); }
     const este = map; setTimeout(()=>{ if(map===este) map.invalidateSize({animate:false}); }, 50);
     return map;
@@ -379,6 +380,7 @@ const Mapa = (function(){
     if(i>0) items.push({ico:'＋', lbl:'Insertar punto antes', nota:'a mitad del tramo anterior', fn:()=>{ const a = R.puntos[i - 1]; if(a && a.ok) insertar(i, L.latLng((a.lat + g.lat)/2, (a.lon + g.lon)/2)); }});
     if(i<m.puntos.length - 1) items.push({ico:'＋', lbl:'Insertar punto después', nota:'a mitad del tramo siguiente', fn:()=>{ const b = R.puntos[i + 1]; if(b && b.ok) insertar(i + 1, L.latLng((b.lat + g.lat)/2, (b.lon + g.lon)/2)); }});
     items.push({ico:'⤢', lbl:'Centrar el mapa aquí', fn:()=>map.setView([g.lat, g.lon], Math.max(map.getZoom(), 16))});
+    items.push({ico:'👁', lbl:'Vuelta al horizonte desde aquí', nota:'panorama, puntos de referencia y zona vista', fn:()=>vueltaHorizonte(g.lat, g.lon, g.nombre || 'punto de ruta', null, g.cota)});
     items.push({sep:true}, {ico:'🗑', lbl:'Borrar punto', peligro:true, fn:()=>borrarPunto(i)});
     abrirMenu(ev, `${g.ev ? '◉' : '·'} <b>${A.esc(g.nombre || 'Punto de ruta')}</b>${g.clave ? ` <i class="clave">${A.esc(g.clave)}</i>` : ''}<small>${g.ev ? 'evento n.º ' + (R.eventos.indexOf(i) + 1) : 'punto de ruta'}</small>`, items);
   }
@@ -397,10 +399,73 @@ const Mapa = (function(){
     items.push({sep:true}, {ico:'＋', lbl:ok.length ? 'Agregar punto aquí' : 'Poner el PIM aquí', nota:ok.length ? 'al final de la ruta' : 'inicio de la marcha', fn:()=>agregarPunto(ll)});
     if(ok.length) items.push({ico:'◉', lbl:'Agregar evento aquí', nota:'al final, como punto de control', fn:()=>{ agregarPunto(ll); const k = A.actual().puntos.length - 1; ponerEvento(k, true); abrirHoja(k); }});
     items.push({ico:'⤢', lbl:'Centrar el mapa aquí', fn:()=>map.panTo(ll)});
+    items.push({ico:'👁', lbl:'Vuelta al horizonte desde aquí', nota:'panorama, puntos de referencia y zona vista', fn:()=>vueltaHorizonte(ll.lat, ll.lng, '')});
     abrirMenu(ev, '<b>Este lugar</b>', items);
     DEM.cotaPunto(ll.lat, ll.lng).then(r=>{ const x = document.getElementById('mmCota'); if(x) x.textContent = r ? '≈ ' + A.f(Math.round(r.v)) + ' m' : 'sin datos'; }).catch(()=>{});
   }
   function cerrarHoja(){ const h = $('#mHoja'); if(h){ h.hidden = true; h.innerHTML = ''; } if(sel!==null){ sel = null; ruta(); } }
+
+  /* ---------- vuelta al horizonte (horizonte.js) ----------
+     Se guarda en la marcha (`m.horizontes`): desde dónde, alcance, la silueta (ángulo del horizonte cada 0,5°, para el panorama y el
+     documento sin volver a calcular) y los puntos de referencia elegidos y nombrados. En el mapa: el observador, los PR y la zona vista. */
+  const silDe = H=>H.perfil.map(p=>Math.round(p.ang*100)/100);
+  const comoH = h=>({lat:h.lat, lon:h.lon, radio:h.radio, perfil:h.sil.map((a, i)=>({az:i*Horizonte.PASO_AZ, ang:a}))});
+  function horizontes(){
+    if(!capaHoriz) return; capaHoriz.clearLayers(); const m = A.actual(); (m.horizontes || []).forEach(h=>{
+      L.marker([h.lat, h.lon], {icon:L.divIcon({className:'m-obs', html:'👁', iconSize:[22, 22]})}).addTo(capaHoriz).bindTooltip('Vuelta al horizonte ' + (h.nombre ? 'desde ' + h.nombre : ''))
+        .on('click', ()=>vueltaHorizonte(h.lat, h.lon, h.nombre, h.id, h.cotaPunto));
+      h.prs.forEach((p, k)=>{ L.polyline([[h.lat, h.lon], [p.lat, p.lon]], {color:'#e3a63a', weight:1, opacity:.5, dashArray:'2 6', interactive:false}).addTo(capaHoriz);
+        L.marker([p.lat, p.lon], {icon:L.divIcon({className:'m-pr', html:'▲ <b>' + A.esc(p.nombre || 'PR-' + (k + 1)) + '</b>', iconSize:null})}).addTo(capaHoriz); });
+      if(h.vista) zonaVista(h); });
+  }
+  // zona vista: se calcula al abrir el mapa (queda en memoria mientras la app está abierta)
+  async function zonaVista(h){
+    const k = h.lat.toFixed(5) + ',' + h.lon.toFixed(5) + ',' + h.radio; let v = vistas.get(k);
+    if(!v){ try { const H = await Horizonte.calcular(h.lat, h.lon, {radio:h.radio, zs:h.cotaPunto}); if(!H) return; v = Horizonte.imagenVista(H); vistas.set(k, v); } catch(e){ return; } }
+    if(capaHoriz && map) L.imageOverlay(v.url, v.caja, {opacity:1, interactive:false, className:'m-vista'}).addTo(capaHoriz);
+  }
+  async function vueltaHorizonte(lat, lon, nombre, id, cota){
+    const m = A.actual(), R = A.calcular(m), dec = R.decl.valor, guardado = (m.horizontes || []).find(h=>h.id===id || (Math.abs(h.lat - lat)<1e-6 && Math.abs(h.lon - lon)<1e-6));
+    if(guardado && cota===undefined) cota = guardado.cotaPunto;
+    let radio = guardado ? guardado.radio : 5000, H = null, prs = guardado ? guardado.prs.map(p=>Object.assign({usar:true}, p)) : null;
+    const mag = az=>((az - dec)%360 + 360)%360, mils = az=>Math.round(mag(az)*6400/360)%6400;
+    const titulo = nombre ? 'desde ' + A.esc(nombre) : 'desde este lugar';
+    A.dialogo(`<h3>👁 Vuelta al horizonte ${titulo}</h3><p class="nota" id="hEst">Calculando con el modelo de terreno…</p>`);
+    const calc = async()=>{ H = await Horizonte.calcular(lat, lon, {radio, zs:cota}).catch(()=>null);
+      if(!H) return A.dialogo(`<h3>👁 Vuelta al horizonte</h3><p class="nota">No hay datos del terreno aquí. Necesita señal la primera vez (o una zona guardada con «Curvas de nivel y cota»).</p><div class="btns"><button class="btn" data-cerrar>Cerrar</button></div>`);
+      const viejos = prs || []; prs = H.prs.map(p=>{ const v = viejos.find(q=>Math.abs(q.az - p.az)<=2 && Math.abs(q.d - p.d)<300); return Object.assign(p, {nombre:v ? v.nombre : '', usar:v ? v.usar!==false : true}); });
+      // los PR nombrados antes que ya no salgan se conservan
+      viejos.forEach(q=>{ if(q.nombre && !prs.some(p=>p.nombre===q.nombre)) prs.push(q); }); prs.sort((a, b)=>mag(a.az) - mag(b.az));
+      pintar(); };
+    const pintar = ()=>{ const usados = prs.filter(p=>p.usar);
+      A.dialogo(`<h3>👁 Vuelta al horizonte ${titulo}</h3>
+        <p class="nota">Desde ${A.f(Math.round(H.zs))} m (ojo a ${A.f(H.ojo, 1)} m), alcance ${Horizonte.fmtD(radio)}. Rumbos magnéticos (declinación ${A.f(dec, 1)}°). Desliza el panorama hacia los lados.</p>
+        <div class="horiz-env">${Horizonte.svg(H, usados, dec, {ancho:1440, alto:210})}</div>
+        <div class="campos"><label class="c">Alcance<select id="hRad">${[2000, 5000, 10000].map(r=>`<option value="${r}"${r===radio ? ' selected' : ''}>${r/1000} km</option>`).join('')}</select></label></div>
+        <h4>Puntos de referencia</h4>
+        <div class="tabla-env"><table class="t"><thead><tr><th></th><th class="tx">Nombre</th><th>Rumbo mag.</th><th>Distancia</th><th>Cota</th></tr></thead><tbody>
+        ${prs.map((p, k)=>`<tr><td><input type="checkbox" data-hu="${k}" ${p.usar ? 'checked' : ''} style="width:auto"></td><td class="tx"><input data-hn="${k}" value="${A.esc(p.nombre || '')}" placeholder="PR-${usados.indexOf(p) + 1 || '—'}" style="min-width:120px"></td>
+          <td>${A.f(Math.round(mag(p.az)))}° / ${mils(p.az)} ‰</td><td>${Horizonte.fmtD(p.d)}</td><td>${A.f(Math.round(p.z))} m</td></tr>`).join('') || '<tr><td colspan="5" class="nota">No asoman cerros destacados en el horizonte.</td></tr>'}</tbody></table></div>
+        <p class="nota">Los marca la app solos: cerros y puntos que sobresalen en la línea del horizonte. Ponles nombre (o un nombre clave) y quita los que no sirvan.</p>
+        <label class="nota" style="display:block"><input type="checkbox" id="hVista" ${!guardado || guardado.vista ? 'checked' : ''} style="width:auto;vertical-align:middle"> Mostrar en el mapa la <b>zona vista</b> (verde) y la <b>zona muerta</b> (roja) hasta ${Horizonte.fmtD(radio)}</label>
+        <div class="btns"><button class="btn pri" id="hOk">✔ Guardar en la marcha</button><button class="btn" id="hOsm">Traer nombres de cerros (con señal)</button>
+          ${guardado ? '<button class="btn peligro" id="hDel">Quitar</button>' : ''}<button class="btn" data-cerrar>Cerrar</button></div>`, d=>{
+        d.querySelector('#hRad').onchange = e=>{ radio = +e.target.value; d.querySelector('.horiz-env').innerHTML = '<p class="nota">Calculando…</p>'; calc(); };
+        d.querySelectorAll('[data-hu]').forEach(x=>x.onchange = ()=>{ prs[+x.dataset.hu].usar = x.checked; pintar(); });
+        d.querySelectorAll('[data-hn]').forEach(x=>x.onchange = ()=>{ prs[+x.dataset.hn].nombre = x.value.trim(); pintar(); });
+        d.querySelector('#hOsm').onclick = async e=>{ e.target.disabled = true; e.target.textContent = 'Buscando…';
+          try { const n = await Horizonte.nombresOsm(lat, lon, radio, prs); A.aviso(n ? n + ' nombre(s) de OpenStreetMap' : 'No se encontraron nombres cerca de esos puntos'); pintar(); }
+          catch(er){ A.aviso('Sin señal: no se pudieron traer los nombres'); e.target.disabled = false; e.target.textContent = 'Traer nombres de cerros (con señal)'; } };
+        d.querySelector('#hOk').onclick = ()=>{ const L2 = (m.horizontes || (m.horizontes = [])), h = guardado || {id:'h' + Date.now().toString(36)};
+          Object.assign(h, {nombre:nombre || '', lat, lon, radio, cotaPunto:isFinite(cota) ? cota : null, ojo:H.ojo, zs:Math.round(H.zs), sil:silDe(H), vista:d.querySelector('#hVista').checked,
+            prs:prs.filter(p=>p.usar).map((p, k)=>({nombre:p.nombre || 'PR-' + (k + 1), az:p.az, ang:Math.round(p.ang*100)/100, d:Math.round(p.d), z:Math.round(p.z), lat:+p.lat.toFixed(6), lon:+p.lon.toFixed(6)}))});
+          if(!guardado) L2.push(h); A.guardar(); A.cerrarDialogo(); horizontes(); A.aviso('Vuelta al horizonte guardada: ' + h.prs.length + ' punto(s) de referencia'); };
+        const del = d.querySelector('#hDel'); if(del) del.onclick = ()=>{ m.horizontes = m.horizontes.filter(h=>h!==guardado); A.guardar(); A.cerrarDialogo(); horizontes(); A.aviso('Vuelta al horizonte quitada'); };
+        // el panorama parte mostrando el norte al centro
+        const env = d.querySelector('.horiz-env'); env.scrollLeft = 0; });
+    };
+    calc();
+  }
 
   /* ---------- cartas propias ---------- */
   async function cargarCartas(){
@@ -575,6 +640,6 @@ const Mapa = (function(){
   }
 
   function cerrar(){ cerrarMenu(); if(!map) return; const m = map; map = null; capaCursor = null; capaCurvas = null; try { m.stop(); m.off(); m.remove(); } catch(e){} }
-  return {abrir, ruta, cerrar, BASES};
+  return {abrir, ruta, cerrar, BASES, vueltaHorizonte, comoH};
 })();
 if(typeof globalThis!=='undefined') globalThis.Mapa = Mapa;

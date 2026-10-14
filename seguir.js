@@ -260,6 +260,7 @@ const Seguir = (function(){
         <button class="btn ${E.estado==='alto' ? 'pri' : ''}" id="sAlto">${E.estado==='alto' ? '▶ Reanudar' : '⏸ Alto'}</button>
         <button class="btn" id="sNov">⚠ Novedad</button>
         <button class="btn" id="sPos">📡 Posición</button>
+        <button class="btn" id="sHor">👁 Horizonte</button>
         <button class="btn peligro" id="sFin">⏹ Terminar</button>
       </div>`;
     if(modo==='carta'){
@@ -277,6 +278,7 @@ const Seguir = (function(){
     c.querySelectorAll('[data-smodo]').forEach(b=>b.onclick = ()=>{ modo = b.dataset.smodo; try { localStorage.setItem('burros_seguir', modo); } catch(e){} pintar(); });
     $('#sAlto').onclick = alto; $('#sNov').onclick = novedad; $('#sFin').onclick = ()=>terminar(false);
     $('#sPos').onclick = ()=>verMensaje(mensaje('POS', {}));
+    $('#sHor').onclick = horizonte;
     $('#sLleg').onclick = ()=>{ const k = proxEv(m, P); if(k!==null) llegar(k, false); };
     if(modo==='carta'){ hacerMapa(P); $('#sCentrar').onclick = ()=>{ centrar = true; if(pos && mapa) mapa.setView([pos.lat, pos.lon], Math.max(mapa.getZoom(), 16)); else A.aviso('Esperando señal GPS…'); }; }
     pintarVivo();
@@ -319,7 +321,34 @@ const Seguir = (function(){
     }
     flecha();
   }
+  /* ---------- vuelta al horizonte en terreno (v0.89): desde la posición GPS (o el último punto pasado), con la línea de la brújula ---------- */
+  function horizonte(){
+    const m = A.actual(), P = plan(m), E = m.ejec, dec = P.R.decl.valor;
+    let desde = pos ? {lat:pos.lat, lon:pos.lon, nombre:'tu posición'} : null;
+    if(!desde){ const k = siguiente(m, P), q = P.pts[k===null ? P.pts.length - 1 : Math.max(0, k - 1)]; desde = {lat:q.lat, lon:q.lon, nombre:q.nombre, cota:q.cota}; }
+    A.dialogo(`<h3>👁 Vuelta al horizonte desde ${A.esc(desde.nombre)}</h3><p class="nota">Calculando con el modelo de terreno…</p>`);
+    Horizonte.calcular(desde.lat, desde.lon, {radio:5000, zs:desde.cota}).then(H=>{
+      if(!H) return A.dialogo(`<h3>👁 Vuelta al horizonte</h3><p class="nota">No hay datos del terreno aquí: guarda la zona antes de salir (Mapa → ⬇ Sin señal, con «Curvas de nivel y cota»).</p><div class="btns"><button class="btn" data-cerrar>Cerrar</button></div>`);
+      // los puntos de referencia guardados en la marcha que estén al alcance, más los cerros que asoman desde aquí
+      const R = 6371000, rad = Math.PI/180, azDe = q=>{ const y = Math.sin((q.lon - desde.lon)*rad)*Math.cos(q.lat*rad), x = Math.cos(desde.lat*rad)*Math.sin(q.lat*rad) - Math.sin(desde.lat*rad)*Math.cos(q.lat*rad)*Math.cos((q.lon - desde.lon)*rad); return (Math.atan2(y, x)/rad + 360)%360; };
+      const guardados = [].concat(...(m.horizontes || []).map(h=>h.prs)).map(q=>Object.assign({}, q, {az:azDe(q), d:DEM.dist(desde, q)})).filter(q=>q.d<=5000 && q.d>50)
+        .map(q=>Object.assign(q, {ang:H.perfil[Math.round(q.az/Horizonte.PASO_AZ)%H.perfil.length].ang}));
+      const prs = guardados.concat(H.prs.filter(p=>!guardados.some(q=>Math.abs(q.az - p.az)<3)).map((p, i)=>Object.assign({}, p, {nombre:'Cerro ' + A.f(Math.round(p.z)) + ' m'})));
+      const mag = az=>((az - dec)%360 + 360)%360;
+      A.dialogo(`<h3>👁 Vuelta al horizonte desde ${A.esc(desde.nombre)}</h3>
+        <p class="nota">Alcance 5 km. La línea azul es hacia donde miras (brújula del teléfono); el panorama se corre solo. Rumbos magnéticos.</p>
+        <div class="horiz-env" id="sHorEnv">${Horizonte.svg(H, prs, dec, {ancho:1440, alto:210, rumbo:null})}</div>
+        <div class="tabla-env"><table class="t"><thead><tr><th class="tx">Referencia</th><th>Rumbo mag.</th><th>Distancia</th></tr></thead><tbody>
+        ${prs.sort((a, b)=>mag(a.az) - mag(b.az)).map(p=>`<tr><td class="tx"><b>${A.esc(p.nombre)}</b></td><td>${A.f(Math.round(mag(p.az)))}° / ${Math.round(mag(p.az)*6400/360)%6400} ‰</td><td>${Horizonte.fmtD(p.d)}</td></tr>`).join('')}</tbody></table></div>
+        <div class="btns"><button class="btn" data-cerrar>Cerrar</button></div>`);
+      horDec = dec; flecha(); }).catch(()=>A.aviso('No se pudo calcular el horizonte'));
+  }
+  let horDec = 0;
   function flecha(){
+    // panorama del horizonte abierto: mover la línea de la brújula y centrarla
+    const g = document.getElementById('hRumbo'), env = document.getElementById('sHorEnv');
+    if(g && env && rumboDisp){ const h = rumboDisp.mag ? rumboDisp.h : rumboDisp.h - horDec, x = ((h%360) + 360)%360/360*1440;
+      g.setAttribute('transform', 'translate(' + x.toFixed(1) + ',0)'); env.scrollLeft = x - env.clientWidth/2; }
     const f = $('#sFlecha'), c = $('#sCab'); if(!f || !c || c.dataset.az===undefined) return;
     if(!rumboDisp){ f.style.opacity = .25; return; }
     const P = plan(A.actual()), dec = P ? P.R.decl.valor : 0, h = rumboDisp.mag ? rumboDisp.h : rumboDisp.h - dec;

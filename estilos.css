@@ -247,7 +247,7 @@ body.con-mapa .m-lectura{top:auto;bottom:118px;right:10px}
 .s-mapa{height:230px;border-radius:var(--r);overflow:hidden;border:1px solid var(--linea);margin:0 0 12px;background:#d8d4c4}
 .s-acc{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .s-acc #sLleg{grid-column:1/-1;padding:14px;font-size:16px}
-@media (min-width:700px){ .s-acc{grid-template-columns:repeat(4,1fr)} }
+@media (min-width:700px){ .s-acc{grid-template-columns:repeat(5,1fr)} }
 /* perfil bajo el mapa */
 .m-perfil{background:#14150fee;border:1px solid var(--linea);border-radius:10px;padding:4px 6px 2px;max-height:42vh;overflow:hidden}
 .m-perfil svg{display:block;width:100%;height:auto;max-height:200px;touch-action:none;cursor:crosshair}
@@ -610,3 +610,7 @@ table.sop td.sop-x{color:var(--suave);font-family:var(--mono)}
 .s-hud .hud-g .vg b,.s-vel .vg b{display:block;font-size:14px;white-space:nowrap;overflow:visible;line-height:1.3}.s-hud .hud-g .vg b small,.s-vel .vg b small{display:inline;font-size:10px;color:var(--suave)}.s-hud .hud-g .vg i,.s-vel .vg i{min-width:0;display:inline}
 .barra{height:10px;border-radius:6px;background:var(--linea);overflow:hidden;margin:8px 0 4px}.barra i{display:block;height:100%;background:var(--ocre);transition:width .2s}
 #dialogo .mal{color:var(--rojo)}
+.horiz-env{overflow-x:auto;border:1px solid var(--linea);border-radius:8px;margin:8px 0;-webkit-overflow-scrolling:touch}.horiz-env svg{display:block}
+.m-obs{font-size:18px;line-height:22px;text-align:center;filter:drop-shadow(0 0 2px #000)}
+.m-pr{white-space:nowrap;font:600 11px Inter,sans-serif;color:#e3a63a;text-shadow:0 0 3px #000,0 0 3px #000}.m-pr b{color:#fff}
+.doc-horiz svg{display:block;width:100%;height:auto;margin:0 0 4px}

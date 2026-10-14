@@ -8,7 +8,7 @@ const Documento = (function(){
   let A = null, mapaDoc = null;
   const $ = s=>document.querySelector(s);
   const SECCIONES = [['mapa', 'Mapa de la ruta (orden gráfica)'], ['perfil', 'Perfil del itinerario'], ['cuadro', 'Cuadro de marcha y navegación'],
-    ['matriz', 'Matriz de eventos'], ['luz', 'Luz y visibilidad (sol, crepúsculos, luna)'], ['claves', 'Nombres clave y eventos para la radio'],
+    ['matriz', 'Matriz de eventos'], ['luz', 'Luz y visibilidad (sol, crepúsculos, luna)'], ['claves', 'Nombres clave y eventos para la radio'], ['horiz', 'Vuelta al horizonte (puntos de referencia)'],
     ['apoyo', 'Columna, calor y agua'], ['carga', 'Carga por hombre'], ['material', 'Material para la marcha'], ['lista', 'Lista de verificación']];
   // colores del documento: paleta (títulos, tarjetas, líneas), color de la ruta en el mapa
   const PALETAS = {oliva:'Verde oliva', azul:'Azul', gris:'Gris (blanco y negro)', arena:'Arena'};
@@ -26,7 +26,7 @@ const Documento = (function(){
     return {formato:cv ? 'civil' : 'militar', clasif:cv ? '' : 'RESERVADO', ejemplar:'1', ejemplares:'3', sup:'', propio:m.unidad || '', lugar:'', gdh:'',
       anexo:'', titulo:cv ? 'PLAN DE RUTA' : 'ORDEN GRÁFICA DE MARCHA', sub:m.nombre || '', carta:'', elab:'', firmas:'', distrib:'', autor:'', org:m.unidad || '',
       hoja:'A4', orient:'v', escala:'auto', capa:'topo', curvas:true, grilla:true, paleta:'oliva', figuras:'claras', ruta:'azul',
-      sec:{mapa:true, perfil:true, cuadro:true, matriz:!cv, luz:true, claves:!cv, apoyo:false, carga:true, material:true, lista:false}};
+      sec:{mapa:true, perfil:true, cuadro:true, matriz:!cv, luz:true, claves:!cv, horiz:true, apoyo:false, carga:true, material:true, lista:false}};
   }
 
   /* ---------- formulario ---------- */
@@ -140,6 +140,7 @@ const Documento = (function(){
     if(S.matriz) partes.push(sec('Matriz de eventos', matriz(m, R), partes.length>0));
     if(S.luz) partes.push(sec('Luz y visibilidad', luz(m, R, fig), partes.length>0));
     if(S.claves) partes.push(sec('Nombres clave y eventos para la radio', claves(m, R), partes.length>0));
+    if(S.horiz && (m.horizontes || []).length) partes.push(sec('Vuelta al horizonte', horizontes(m, R, d.figuras==='oscuras'), partes.length>0));
     if(S.apoyo) partes.push(sec('Columna, calor y agua', A.apoyo(R) || '<p>Sin datos de columna ni de calor (pestaña Datos).</p>', partes.length>0));
     if(S.carga) partes.push(sec('Carga por hombre', carga(m, R), partes.length>0));
     if(S.material) partes.push(sec('Material para la marcha', A.material(m, R), partes.length>0));
@@ -276,6 +277,18 @@ const Documento = (function(){
         ${pm.base ? `<tr class="tot"><td class="tx">Otro peso por hombre</td><td></td><td></td><td></td><td>${f(pm.base, 2)}</td></tr>` : ''}
         <tr class="tot"><td class="tx"><b>Total por hombre</b>${pm.mas ? ' (sin equipo especial)' : ''}</td><td></td><td></td><td></td><td><b>${f(pm.comun!==undefined ? pm.comun : pm.total, 1)} kg</b></td></tr>
       </tbody></table>`;
+  }
+  // vuelta al horizonte: panorama en dos mitades (0–180° y 180–360° magnéticos) y la tabla de puntos de referencia
+  function horizontes(m, R, oscuro){
+    const esc = A.esc, M = A.M, dat = m.datum || 'WGS84', dec = R.decl.valor, mag = az=>((az - dec)%360 + 360)%360;
+    const utm = (la, lo)=>{ const g = M.deWgs84(la, lo, 0, dat), u = M.llAUtm(g.lat, g.lon, +m.zona || undefined, M.DATUMS[dat]); return u.zona + ' ' + A.f(Math.round(u.e)) + ' E ' + A.f(Math.round(u.n)) + ' N'; };
+    return m.horizontes.map(h=>{ const sv = Horizonte.svg(Mapa.comoH(h), h.prs, dec, {ancho:1440, alto:210, claro:!oscuro}).replace(/ width="\d+" height="\d+"/, '');
+      const mitad = x=>sv.replace('viewBox="0 0 1440 210"', 'viewBox="' + x + ' 0 720 210"');
+      return `<h3 class="doc-h3">Desde ${esc(h.nombre || utm(h.lat, h.lon))} · ${A.f(h.zs || 0)} m · alcance ${Horizonte.fmtD(h.radio)}</h3>
+        <div class="doc-horiz">${mitad(0)}${mitad(720)}</div>
+        <table class="t"><thead><tr><th class="tx">Punto de referencia</th><th>Rumbo magnético</th><th>Distancia</th><th>Cota</th><th class="tx">Coordenada (${esc(dat)})</th></tr></thead><tbody>
+        ${h.prs.map(p=>`<tr><td class="tx"><b>${esc(p.nombre)}</b></td><td>${A.f(Math.round(mag(p.az)))}° / ${Math.round(mag(p.az)*6400/360)%6400} ‰</td><td>${Horizonte.fmtD(p.d)}</td><td>${A.f(p.z)} m</td><td class="tx">${utm(p.lat, p.lon)}</td></tr>`).join('')}
+        </tbody></table>`; }).join('') + `<p class="doc-nota">Línea del horizonte y puntos de referencia calculados con el modelo de terreno (SRTM ~30 m), con la curvatura de la Tierra; rumbos magnéticos con declinación ${A.f(dec, 1)}°.</p>`;
   }
   function claves(m, R){
     const esc = A.esc;

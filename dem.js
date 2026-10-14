@@ -58,6 +58,17 @@ const DEM = (function(){
     pf.forEach(p=>{ const d = p.z - ref; if(d>=umbral){ sube += d; ref = p.z; } else if(d<= -umbral){ baja -= d; ref = p.z; } });
     return {sube, baja};
   }
-  return {cota, cotaPunto, perfil, desniveles, dist};
+  // vuelta al horizonte (v0.89): carga de una vez todas las teselas de un área (radio en m) y entrega una función de cota sin espera
+  // (bilineal; null donde no hay datos). Para miles de muestras por segundo.
+  async function area(lat, lon, radio){
+    const dLa = radio/111320, dLo = radio/(111320*Math.cos(lat*Math.PI/180)), a = px(lat + dLa, lon - dLo), b = px(lat - dLa, lon + dLo);
+    const T = []; for(let tx=Math.floor(a.x/256); tx<=Math.floor(b.x/256); tx++) for(let ty=Math.floor(a.y/256); ty<=Math.floor(b.y/256); ty++) T.push(tesela(tx, ty));
+    await Promise.all(T);
+    const v = (x, y)=>{ const t = teselas.get(Math.floor(x/256) + '/' + Math.floor(y/256)); return t ? t[(y%256)*256 + (x%256)] : null; };
+    return (la, lo)=>{ const p = px(la, lo), x0 = Math.floor(p.x - 0.5), y0 = Math.floor(p.y - 0.5), fx = p.x - 0.5 - x0, fy = p.y - 0.5 - y0;
+      const q = [v(x0, y0), v(x0 + 1, y0), v(x0, y0 + 1), v(x0 + 1, y0 + 1)]; if(q.some(z=>z===null || z===undefined || !isFinite(z))) return null;
+      return q[0]*(1 - fx)*(1 - fy) + q[1]*fx*(1 - fy) + q[2]*(1 - fx)*fy + q[3]*fx*fy; };
+  }
+  return {cota, cotaPunto, perfil, desniveles, dist, area};
 })();
 if(typeof globalThis!=='undefined') globalThis.DEM = DEM;
