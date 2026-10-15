@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.93', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.94', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -144,8 +144,11 @@
       <p class="nota">Para preparar a la unidad sin internet: el comandante arma el paquete (con señal, después de calzar las cartas y guardar las zonas) y lo reparte por AirDrop, Quick Share, Bluetooth o cable. Cada uno toca «Cargar un paquete».</p>
       <h4>Armar</h4>
       <div class="campos"><label class="c ancho">Marchas<select id="pqM"><option value="todas"${st.marchas==='todas' ? ' selected' : ''}>Todas (${S.marchas.length})</option>${m ? `<option value="actual"${st.marchas==='actual' ? ' selected' : ''}>Solo «${esc(m.nombre)}»</option>` : ''}<option value="no"${st.marchas==='no' ? ' selected' : ''}>Ninguna</option></select></label></div>
-      <label class="nota" style="display:block;margin:4px 0"><input type="checkbox" id="pqC" ${st.cartas && inv.cartas ? 'checked' : ''} ${inv.cartas ? '' : 'disabled'} style="width:auto;vertical-align:middle"> Cartas propias calzadas (${inv.cartas}${inv.cartas ? ', ' + fm(inv.mbCartas) + ' MB' : ''})</label>
-      <label class="nota" style="display:block;margin:4px 0"><input type="checkbox" id="pqZ" ${st.zonas && inv.zonas ? 'checked' : ''} ${inv.zonas ? '' : 'disabled'} style="width:auto;vertical-align:middle"> Zonas de mapa sin señal (${inv.zonas}${inv.zonas ? ', ≈ ' + fm(inv.mbZonas) + ' MB' : ''})</label>
+      ${inv.cartas ? `<label class="nota" style="display:block;margin:4px 0"><input type="checkbox" id="pqC" ${st.cartas ? 'checked' : ''} style="width:auto;vertical-align:middle"> Cartas propias calzadas (${inv.cartas}, ${fm(inv.mbCartas)} MB)</label>`
+        : `<p class="nota" style="margin:4px 0">Cartas propias: <b>aún no hay en este equipo</b>. ${m ? '<button class="btn mini" id="pqIrC">🗺 Cargar y calzar una carta</button>' : ''}</p>`}
+      ${inv.zonas ? `<label class="nota" style="display:block;margin:4px 0"><input type="checkbox" id="pqZ" ${st.zonas ? 'checked' : ''} style="width:auto;vertical-align:middle"> Zonas de mapa sin señal (${inv.zonas}, ≈ ${fm(inv.mbZonas)} MB)</label>`
+        : `<p class="nota" style="margin:4px 0">Zonas de mapa sin señal: <b>aún no hay en este equipo</b>. ${m ? '<button class="btn mini" id="pqIrZ">⬇ Guardar una zona</button>' : ''}</p>`}
+      ${!inv.cartas || !inv.zonas ? '<p class="nota" style="margin:4px 0"><small>Lo guardado queda en este navegador y en esta dirección de la app: lo de otro navegador u otra dirección (por ejemplo, la del computador) no aparece aquí.</small></p>' : ''}
       <p class="nota" id="pqTam">Tamaño aproximado: ${fm(tam())} MB.</p>
       <div id="pqProg" hidden><div class="barra"><i id="pqBarra" style="width:0"></i></div><div class="nota mono" id="pqTxt"></div></div>
       <div class="btns"><button class="btn pri" id="pqArmar">📦 Armar el paquete</button></div>
@@ -155,8 +158,12 @@
       <div class="btns"><button class="btn" id="pqCargar">📥 Cargar un paquete</button><button class="btn" data-cerrar>Cerrar</button></div>`, d=>{
       const prog = (t, fr)=>{ d.querySelector('#pqProg').hidden = false; d.querySelector('#pqTxt').textContent = t; d.querySelector('#pqBarra').style.width = Math.round((fr || 0)*100) + '%'; };
       d.querySelector('#pqM').onchange = e=>{ st.marchas = e.target.value; };
-      d.querySelector('#pqC').onchange = e=>{ st.cartas = e.target.checked; d.querySelector('#pqTam').textContent = 'Tamaño aproximado: ' + fm(tam()) + ' MB.'; };
-      d.querySelector('#pqZ').onchange = e=>{ st.zonas = e.target.checked; d.querySelector('#pqTam').textContent = 'Tamaño aproximado: ' + fm(tam()) + ' MB.'; };
+      const qc = d.querySelector('#pqC'), qz = d.querySelector('#pqZ');
+      if(qc) qc.onchange = e=>{ st.cartas = e.target.checked; d.querySelector('#pqTam').textContent = 'Tamaño aproximado: ' + fm(tam()) + ' MB.'; };
+      if(qz) qz.onchange = e=>{ st.zonas = e.target.checked; d.querySelector('#pqTam').textContent = 'Tamaño aproximado: ' + fm(tam()) + ' MB.'; };
+      // ir directo al mapa a cargar una carta o guardar una zona
+      const irA = id=>{ cerrarDialogo(); ir('mapa'); setTimeout(()=>{ const b = document.getElementById(id); if(b) b.click(); }, 700); };
+      const ic = d.querySelector('#pqIrC'), iz = d.querySelector('#pqIrZ'); if(ic) ic.onclick = ()=>irA('mCartas'); if(iz) iz.onclick = ()=>irA('mZonas');
       d.querySelector('#pqArmar').onclick = async e=>{
         const ms = st.marchas==='todas' ? S.marchas : st.marchas==='actual' && m ? [m] : [];
         if(!ms.length && !(st.cartas && inv.cartas) && !(st.zonas && inv.zonas)) return aviso('No hay nada para armar');
