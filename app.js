@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.94', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.95', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -152,7 +152,7 @@
       <p class="nota" id="pqTam">Tamaño aproximado: ${fm(tam())} MB.</p>
       <div id="pqProg" hidden><div class="barra"><i id="pqBarra" style="width:0"></i></div><div class="nota mono" id="pqTxt"></div></div>
       <div class="btns"><button class="btn pri" id="pqArmar">📦 Armar el paquete</button></div>
-      <div class="btns" id="pqListo" hidden><button class="btn pri" id="pqComp">📤 Compartir (AirDrop, Quick Share…)</button><button class="btn" id="pqGuar">⬇ Guardar archivo</button></div>
+      <div class="btns" id="pqListo" style="display:none"><button class="btn pri" id="pqComp">📤 Compartir (AirDrop, Quick Share…)</button><button class="btn" id="pqGuar">⬇ Guardar archivo</button></div>
       <h4>Cargar</h4>
       <p class="nota">Elige el archivo «.burros» que te pasaron (queda en Archivos o Descargas). Si una marcha ya la tienes, se actualiza con la del paquete (se conservan tus horas reales y tu reseña).</p>
       <div class="btns"><button class="btn" id="pqCargar">📥 Cargar un paquete</button><button class="btn" data-cerrar>Cerrar</button></div>`, d=>{
@@ -172,8 +172,8 @@
           // listo: compartir o guardar con un toque nuevo (Safari solo permite compartir justo después de tocar un botón)
           const nombre = 'Paquete_Burros_' + hoy() + '.burros', fl = new File([b], nombre, {type:'application/octet-stream'});
           prog('Listo: paquete de ' + (b.size<1048576 ? f(Math.max(1, b.size/1024)) + ' KB' : fm(b.size/1048576) + ' MB') + '. Ahora compártelo o guárdalo.', 1);
-          const ls = d.querySelector('#pqListo'); ls.hidden = false;
-          const comp = d.querySelector('#pqComp'); comp.hidden = !(navigator.canShare && navigator.canShare({files:[fl]}));
+          const ls = d.querySelector('#pqListo'); ls.style.display = '';
+          const comp = d.querySelector('#pqComp'); comp.style.display = navigator.canShare && navigator.canShare({files:[fl]}) ? '' : 'none';
           comp.onclick = async()=>{ try { await navigator.share({files:[fl], title:'Paquete de Burros de Combate'}); aviso('✔ Paquete compartido'); }
             catch(er){ if(er && er.name==='AbortError') return; aviso('No se pudo compartir (' + (er && er.name || 'error') + '): usa «Guardar archivo»'); } };
           d.querySelector('#pqGuar').onclick = ()=>{ descargar(nombre, b, 'application/octet-stream'); aviso('Guardado en Descargas (en el iPhone: app Archivos → Descargas)'); };
