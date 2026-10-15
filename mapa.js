@@ -507,6 +507,7 @@ const Mapa = (function(){
       <div class="info" id="zEst"></div>
       <div id="zProg" hidden><div class="barra"><i id="zBarra" style="width:0"></i></div><div class="nota mono" id="zProgT"></div></div>
       ${esp ? `<p class="nota">Espacio usado por la app en este equipo: ${fm(esp.usado)} MB.</p>` : ''}
+      <p class="nota">Para pasar las zonas y las cartas a otros teléfonos sin internet: <a href="#" id="zPaq">📦 Paquete para terreno</a>.</p>
       <div class="btns"><button class="btn pri" id="zBajar">⬇ Guardar la zona</button><button class="btn" id="zParar" style="display:none">Detener</button><button class="btn" data-cerrar>Cerrar</button></div>`, d=>{
       d.querySelector('#zArea').onchange = e=>{ st.area = e.target.value; d.querySelector('#zKmL').hidden = st.area!=='ruta'; pintar(); };
       d.querySelector('#zKm').onchange = e=>{ st.km = e.target.value; pintar(); };
@@ -519,6 +520,7 @@ const Mapa = (function(){
       d.querySelector('#zBajar').onclick = ()=>{ const z = zona(); if(!z) return;
         bajar(d, Object.assign(z, {id:'z' + Date.now(), nombre:st.area==='ruta' ? (m.nombre || 'Marcha') : 'Zona de ' + (m.nombre || 'la marcha') + ' (pantalla)'})); };
       d.querySelector('#zParar').onclick = ()=>{ if(bajando) bajando.parar = true; };
+      d.querySelector('#zPaq').onclick = e=>{ e.preventDefault(); A.paquete(); };
       pintar(); });
   }
   async function bajar(d, zona){
@@ -542,11 +544,13 @@ const Mapa = (function(){
         <div class="campos" style="margin-top:6px"><label class="c">Transparencia<input type="range" min="0.2" max="1" step="0.05" value="${c.opacidad || .8}" data-op="${c.id}"></label>
         <label class="c"><span><input type="checkbox" data-vis="${c.id}" ${c.visible!==false ? 'checked' : ''} style="width:auto"> Mostrar</span></label></div>
         <div class="btns"><button class="btn mini" data-ir="${c.id}">Ir a la carta</button><button class="btn mini peligro" data-del="${c.id}">Quitar</button></div></div>`).join('') || '<p class="nota">Aún no hay cartas cargadas.</p>'}
+      <p class="nota">Para pasar las cartas ya calzadas a otros teléfonos sin internet: <a href="#" id="cPaq">📦 Paquete para terreno</a>.</p>
       <div class="btns"><button class="btn pri" id="cNueva">＋ Cargar carta (PDF o imagen)</button><button class="btn" data-cerrar>Cerrar</button></div>`, d=>{
       d.querySelector('#cNueva').onclick = ()=>{ const i = document.createElement('input'); i.type = 'file'; i.accept = 'image/*,application/pdf,.pdf';
         i.onchange = ()=>{ const f = i.files[0]; if(!f) return; const nombre = f.name.replace(/\.\w+$/, '');
           if(/pdf$/i.test(f.type) || /\.pdf$/i.test(f.name)) return abrirPdf(f, nombre);
           const r = new FileReader(); r.onload = ()=>calzar(String(r.result), nombre); r.readAsDataURL(f); }; i.click(); };
+      d.querySelector('#cPaq').onclick = e=>{ e.preventDefault(); A.paquete(); };
       d.querySelectorAll('[data-op]').forEach(x=>x.oninput = async()=>{ const c = cs.find(c=>c.id===x.dataset.op); c.opacidad = +x.value; if(cartasCapa[c.id]) cartasCapa[c.id].setOpacity(c.opacidad); await BD.poner(c); });
       d.querySelectorAll('[data-vis]').forEach(x=>x.onchange = async()=>{ const c = cs.find(c=>c.id===x.dataset.vis); c.visible = x.checked; await BD.poner(c); cargarCartas(); });
       d.querySelectorAll('[data-ir]').forEach(x=>x.onclick = ()=>{ const c = cs.find(c=>c.id===x.dataset.ir); A.cerrarDialogo(); map.fitBounds(c.bounds); });

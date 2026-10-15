@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.90', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.91', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -101,6 +101,9 @@
       <h2>Respaldo</h2>
       <div class="tarjeta nota">Las marchas quedan guardadas solo en este equipo. Guarda un respaldo para pasarlas a otro equipo o no perderlas.
         <div class="btns"><button class="btn" id="bResp">⬇ Guardar respaldo</button><button class="btn" id="bCargar">⬆ Cargar respaldo</button></div></div>
+      <h2>Paquete para terreno</h2>
+      <div class="tarjeta nota">Arma un solo archivo con las marchas, las <b>cartas ya calzadas</b> y las <b>zonas de mapa sin señal</b>, y pásalo a la unidad por AirDrop, Quick Share, Bluetooth o cable, <b>sin internet</b>. Cada teléfono lo carga y queda listo.
+        <div class="btns"><button class="btn pri" id="bPaq">📦 Armar o cargar un paquete</button></div></div>
       <h2>Siglas y términos</h2>
       <details class="tarjeta"><summary>Ver qué significa cada sigla</summary>
         <table class="t glosario"><tbody>${Uso.glosario(GLOSARIO).map(([k, v])=>`<tr><td class="tx"><b>${esc(k)}</b></td><td class="tx">${esc(v)}</td></tr>`).join('')}</tbody></table></details>
@@ -123,6 +126,7 @@
     $('#bNueva').onclick = ()=>{ nueva(); ir('mapa'); };
     $('#bEjemplo').onclick = ()=>{ ejemplo(); ir('cuadro'); };
     $('#bImportar').onclick = importarArchivo;
+    $('#bPaq').onclick = dialogoPaquete;
     $('#bRecibir').onclick = recibir;
     $('#bResp').onclick = ()=>descargar('burros_respaldo_' + hoy() + '.json', JSON.stringify({app:'burros', v:1, marchas:S.marchas}, null, 1), 'application/json');
     $('#bCargar').onclick = ()=>elegirArchivo('.json,application/json', t=>{
@@ -130,6 +134,49 @@
         const ids = new Set(S.marchas.map(m=>m.id)); let n = 0; ms.forEach(m=>{ if(!ids.has(m.id)){ S.marchas.push(m); n++; } });
         guardar(); pintar(); aviso('✔ ' + n + ' marcha' + (n===1 ? '' : 's') + ' cargada' + (n===1 ? '' : 's'));
       } catch(e){ aviso('⚠ El archivo no es un respaldo válido'); } });
+  }
+  /* ---------- paquete para terreno (paquete.js): marchas + cartas calzadas + zonas de mapa, para pasar sin internet ---------- */
+  async function dialogoPaquete(){
+    const inv = await Paquete.inventario(), m = actual(), fm = x=>f(x, x<10 ? 1 : 0);
+    const st = dialogoPaquete.st || (dialogoPaquete.st = {marchas:'todas', cartas:true, zonas:true});
+    const tam = ()=>(st.cartas ? inv.mbCartas : 0) + (st.zonas ? inv.mbZonas : 0) + 0.05;
+    dialogo(`<h3>📦 Paquete para terreno</h3>
+      <p class="nota">Para preparar a la unidad sin internet: el comandante arma el paquete (con señal, después de calzar las cartas y guardar las zonas) y lo reparte por AirDrop, Quick Share, Bluetooth o cable. Cada uno toca «Cargar un paquete».</p>
+      <h4>Armar</h4>
+      <div class="campos"><label class="c ancho">Marchas<select id="pqM"><option value="todas"${st.marchas==='todas' ? ' selected' : ''}>Todas (${S.marchas.length})</option>${m ? `<option value="actual"${st.marchas==='actual' ? ' selected' : ''}>Solo «${esc(m.nombre)}»</option>` : ''}<option value="no"${st.marchas==='no' ? ' selected' : ''}>Ninguna</option></select></label></div>
+      <label class="nota" style="display:block;margin:4px 0"><input type="checkbox" id="pqC" ${st.cartas ? 'checked' : ''} ${inv.cartas ? '' : 'disabled'} style="width:auto;vertical-align:middle"> Cartas propias calzadas (${inv.cartas}${inv.cartas ? ', ' + fm(inv.mbCartas) + ' MB' : ''})</label>
+      <label class="nota" style="display:block;margin:4px 0"><input type="checkbox" id="pqZ" ${st.zonas ? 'checked' : ''} ${inv.zonas ? '' : 'disabled'} style="width:auto;vertical-align:middle"> Zonas de mapa sin señal (${inv.zonas}${inv.zonas ? ', ≈ ' + fm(inv.mbZonas) + ' MB' : ''})</label>
+      <p class="nota" id="pqTam">Tamaño aproximado: ${fm(tam())} MB.</p>
+      <div id="pqProg" hidden><div class="barra"><i id="pqBarra" style="width:0"></i></div><div class="nota mono" id="pqTxt"></div></div>
+      <div class="btns"><button class="btn pri" id="pqArmar">📦 Armar y compartir</button></div>
+      <h4>Cargar</h4>
+      <p class="nota">Elige el archivo «.burros» que te pasaron (queda en Archivos o Descargas). Si una marcha ya la tienes, se actualiza con la del paquete (se conservan tus horas reales y tu reseña).</p>
+      <div class="btns"><button class="btn" id="pqCargar">📥 Cargar un paquete</button><button class="btn" data-cerrar>Cerrar</button></div>`, d=>{
+      const prog = (t, fr)=>{ d.querySelector('#pqProg').hidden = false; d.querySelector('#pqTxt').textContent = t; d.querySelector('#pqBarra').style.width = Math.round((fr || 0)*100) + '%'; };
+      d.querySelector('#pqM').onchange = e=>{ st.marchas = e.target.value; };
+      d.querySelector('#pqC').onchange = e=>{ st.cartas = e.target.checked; d.querySelector('#pqTam').textContent = 'Tamaño aproximado: ' + fm(tam()) + ' MB.'; };
+      d.querySelector('#pqZ').onchange = e=>{ st.zonas = e.target.checked; d.querySelector('#pqTam').textContent = 'Tamaño aproximado: ' + fm(tam()) + ' MB.'; };
+      d.querySelector('#pqArmar').onclick = async e=>{
+        const ms = st.marchas==='todas' ? S.marchas : st.marchas==='actual' && m ? [m] : [];
+        if(!ms.length && !(st.cartas && inv.cartas) && !(st.zonas && inv.zonas)) return aviso('No hay nada para armar');
+        e.target.disabled = true; prog('Armando el paquete…', 0);
+        try { const b = await Paquete.armar({marchas:ms, cartas:st.cartas && inv.cartas>0, zonas:st.zonas && inv.zonas>0}, prog);
+          prog('Listo: ' + fm(b.size/1048576) + ' MB', 1);
+          const r = await compartirArchivo('Paquete_Burros_' + hoy() + '.burros', b, 'application/octet-stream', 'Paquete de Burros de Combate');
+          aviso(r==='compartido' ? '✔ Paquete compartido' : r==='cancelado' ? 'Cancelado' : '✔ Paquete guardado en Descargas');
+        } catch(er){ aviso('No se pudo armar el paquete: ' + er.message); }
+        e.target.disabled = false; };
+      d.querySelector('#pqCargar').onclick = ()=>{ const i = document.createElement('input'); i.type = 'file';   // sin filtro: en el iPhone una extensión desconocida («.burros») quedaría bloqueada
+        i.onchange = async()=>{ const fl = i.files[0]; if(!fl) return; prog('Leyendo…', 0);
+          const ids = new Map(S.marchas.map((x, k)=>[x.id, k])); let ult = null;
+          const alMarcha = o=>{ o.par = Object.assign(M.porDefecto(), o.par || {});
+            if(ids.has(o.id)){ const k = ids.get(o.id), vieja = S.marchas[k]; if(!o.ejec && vieja.ejec) o.ejec = vieja.ejec; if(!o.resena && vieja.resena) o.resena = vieja.resena; S.marchas[k] = o; }
+            else { if(!o.id) o.id = nid(); S.marchas.unshift(o); ids.set(o.id, 0); } ult = o; };
+          try { const n = await Paquete.cargar(fl, alMarcha, prog); if(ult) S.actual = ult.id; guardar();
+            prog('Listo', 1); aviso('✔ Paquete cargado: ' + [n.marchas + ' marcha(s)', n.cartas + ' carta(s)', n.zonas + ' zona(s) de mapa (' + n.teselas + ' teselas)'].join(', '));
+            cerrarDialogo(); pintar();
+          } catch(er){ aviso('⚠ No se pudo cargar: ' + er.message); } }; i.click(); };
+    });
   }
   function elegirArchivo(accept, cb){
     const i = document.createElement('input'); i.type = 'file'; i.accept = accept;
@@ -189,7 +236,7 @@
   const apiMapa = {actual, guardar, punto, aviso, dialogo, cerrarDialogo, confirmar, copiar, descargar, esc, f, calcular:m=>M.calcular(m), vistaMapa:null,
     M, evento:c=>evento(c), tablaCuadro:(m, R)=>tablaCuadro(m, R), apoyo:R=>apoyo(R), material:(m, R)=>{ const pm = R.carga || pesoMaterial(m, R);
       return (pm ? `<p class="doc-nota"><b>Carga por hombre: ${f(pm.total, 1)} kg</b> (1.ª línea ${f(pm.lineas[1], 1)} + 2.ª línea ${f(pm.lineas[2], 1)} + 3.ª línea ${f(pm.lineas[3], 1)}${pm.sinMochila ? ', <b>se deja</b>' : ''}${pm.base ? ' + otro peso ' + f(pm.base, 1) : ''}).</p>` : '') + htmlMaterial(m, R, true).html; },
-    resultado:m=>resultadoHtml(m, true), svgPerfil:(R, T, c)=>svgPerfil(R, T, c), terrenoDe:R=>terrenoDe(R), ir:v=>ir(v)};
+    resultado:m=>resultadoHtml(m, true), paquete:()=>dialogoPaquete(), svgPerfil:(R, T, c)=>svgPerfil(R, T, c), terrenoDe:R=>terrenoDe(R), ir:v=>ir(v)};
   // documento para imprimir o PDF (orden gráfica militar o civil); se abre desde cada pantalla con la sección que corresponde
   function documento(secUnica){ const m = actual(); if(!m) return;
     if(secUnica){ m.doc = m.doc || {}; m.doc.sec = Object.assign({mapa:false, perfil:false, cuadro:false, matriz:false, luz:false, claves:false, apoyo:false, carga:false, material:false, lista:false, horiz:false, resultado:false}, {[secUnica]:true}); }
