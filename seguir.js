@@ -38,7 +38,9 @@ const Seguir = (function(){
      tiempo. Plan: la del tramo en curso. Para llegar a la hora: lo que falta al próximo evento ÷ el tiempo hasta su hora planificada. */
   const hist = [];
   function velAhora(){ const t = ahora(), H = hist.filter(h=>t - h.t<=120000 && (h.acc || 0)<=50); if(H.length>=2 && H[H.length - 1].t - H[0].t>=20000){
-      let d = 0; for(let i=1; i<H.length; i++) d += M.sobreTramo(H[i], H[i - 1], H[i - 1]).d; return d/1000/((H[H.length - 1].t - H[0].t)/36e5); }
+      // se descartan los saltos del GPS imposibles a pie (más de 25 km/h entre dos lecturas)
+      let d = 0, t = 0; for(let i=1; i<H.length; i++){ const s = M.sobreTramo(H[i], H[i - 1], H[i - 1]).d, dt = (H[i].t - H[i - 1].t)/36e5; if(dt>0 && s/1000/dt<=25){ d += s; t += dt; } }
+      return t>=20/3600 ? d/1000/t : null; }
     return pos && pos.vel>=0 && pos.vel!==null ? pos.vel*3.6 : null; }
   function vertAhora(){ const t = ahora(), H = hist.filter(h=>t - h.t<=300000 && h.alt!==null && h.alt!==undefined); if(H.length<2 || H[H.length - 1].t - H[0].t<60000) return null;
     return (H[H.length - 1].alt - H[0].alt)/((H[H.length - 1].t - H[0].t)/36e5); }

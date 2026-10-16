@@ -247,6 +247,7 @@ body.con-mapa .m-lectura{top:auto;bottom:118px;right:10px}
 .s-mapa{height:230px;border-radius:var(--r);overflow:hidden;border:1px solid var(--linea);margin:0 0 12px;background:#d8d4c4}
 .s-acc{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .s-acc #sLleg{grid-column:1/-1;padding:14px;font-size:16px}
+@media (max-width:699px){ .s-acc #sFin{grid-column:1/-1} }
 @media (min-width:700px){ .s-acc{grid-template-columns:repeat(5,1fr)} }
 /* perfil bajo el mapa */
 .m-perfil{background:#14150fee;border:1px solid var(--linea);border-radius:10px;padding:4px 6px 2px;max-height:42vh;overflow:hidden}
@@ -273,8 +274,9 @@ body.con-mapa .m-lectura{top:auto;bottom:118px;right:10px}
 .s-flecha.mini{width:42px;height:42px;font-size:22px;margin-left:auto}
 .s-centrar{position:absolute;z-index:1000;right:10px;bottom:132px;box-shadow:0 2px 10px #0008;font-size:18px}
 .s-pie{position:absolute;z-index:1000;left:10px;right:10px;bottom:10px}
-.s-pie .s-acc{grid-template-columns:repeat(4,1fr);gap:6px}
-.s-pie .s-acc .btn{box-shadow:0 2px 10px #0008;padding:9px 4px;font-size:13px}
+.s-pie .s-acc{grid-template-columns:repeat(5,1fr);gap:5px}
+.s-pie .s-acc #sFin{grid-column:auto}
+.s-pie .s-acc .btn{box-shadow:0 2px 10px #0008;padding:8px 2px;font-size:12px;line-height:1.2}
 .s-pie .s-acc #sLleg{padding:13px;font-size:16px}
 .s-etq{background:#14150fd9;color:#ece8d8;border:0;font-weight:700;font-size:11px;padding:1px 5px;box-shadow:none}
 .s-etq::before{display:none}
