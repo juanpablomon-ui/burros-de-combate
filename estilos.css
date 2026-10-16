@@ -663,3 +663,6 @@ table.sop td.sop-x{color:var(--suave);font-family:var(--mono)}
 .s-bsup{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
 .mapa-env{height:var(--alto-libre, calc(100dvh - 58px - 62px - env(safe-area-inset-bottom) - env(safe-area-inset-top)))}
 @media (orientation:landscape) and (max-height:520px){ .s-ctrl{flex-direction:row;bottom:calc(52px + env(safe-area-inset-bottom))} .s-ctrl .btn{height:38px} }
+/* v0.99.1: la carta girada (más grande que la pantalla) no debe salirse ni correr la página */
+.mapa-env{overflow:hidden}
+body.con-mapa{overflow:hidden}

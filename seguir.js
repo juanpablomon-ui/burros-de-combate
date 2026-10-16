@@ -540,6 +540,10 @@ ${E.track.map(t=>`<trkpt lat="${t[0]}" lon="${t[1]}"><time>${new Date(t[2]).toIS
     const hud = document.querySelector('.s-hud, .s-bsup'), alto = hud ? hud.offsetHeight + 30 : 200, abajo = document.querySelector('.s-binf') ? 140 : 170;
     mapa.fitBounds(L.latLngBounds(P.pts.map(p=>[p.lat, p.lon])), {paddingTopLeft:[40, alto], paddingBottomRight:[60, abajo], animate:false});
     mapa.on('dragstart', ()=>{ centrar = false; marcarCentrar(); });
+    // con la carta girada no se puede arrastrar bien: al empezar a mover el dedo se endereza (norte arriba) para recorrerla
+    { let x0 = null, y0 = null; el.addEventListener('pointerdown', e=>{ x0 = e.clientX; y0 = e.clientY; });
+      el.addEventListener('pointermove', e=>{ if(x0===null || giro===null) return; if(Math.hypot(e.clientX - x0, e.clientY - y0)>12){ explorando = true; centrar = false; x0 = null; girar(null); marcarCentrar(); A.aviso('Recorriendo la carta (norte arriba). ◎ para volver a centrar'); } });
+      el.addEventListener('pointerup', ()=>{ x0 = null; }); }
     controles();
     mapa.on('click', e=>{ if(!eligiendo) return; const el = eligiendo; eligiendo = null; empezarIrA({lat:e.latlng.lat, lon:e.latlng.lng, nombre:'el punto marcado'}, el.enMarcha, el.modo); });
     primera = true;
@@ -584,7 +588,7 @@ ${E.track.map(t=>`<trkpt lat="${t[0]}" lon="${t[1]}"><time>${new Date(t[2]).toIS
     if(curvasS){ mapa.removeLayer(curvasS); curvasS = null; }
     if(pr.curvas!==false && typeof Curvas!=='undefined') curvasS = Curvas.capa({claro:base==='sat', pane:'curvas'}).addTo(mapa);
   }
-  function marcarCentrar(){ const b = $('#sCentrar'); if(b) b.classList.toggle('pri', !centrar); }
+  function marcarCentrar(){ const b = $('#sCentrar'); if(b) b.classList.toggle('pri', !centrar || explorando); }
   function controles(){
     const bo = $('#sOrient'), bc = $('#sCapa'), bz = $('#sCentrar'); if(!bo) return;
     bo.textContent = orient==='destino' ? '⬆ Destino' : 'N↑'; bo.classList.toggle('on', orient==='destino');
@@ -598,13 +602,14 @@ ${E.track.map(t=>`<trkpt lat="${t[0]}" lon="${t[1]}"><time>${new Date(t[2]).toIS
         const guardarPr = o=>{ try { localStorage.setItem('burros_mapa', JSON.stringify(Object.assign(prefMapa(), o))); } catch(e){} ponerCapas(); };
         d.querySelectorAll('[data-cb]').forEach(b=>b.onclick = ()=>{ guardarPr({base:b.dataset.cb}); A.cerrarDialogo(); });
         d.querySelector('#cCurv').onchange = e=>guardarPr({curvas:e.target.checked}); }); };
-    bz.onclick = ()=>{ centrar = true; marcarCentrar(); zoomListo = false; if(pos && mapa) seguirPos(); else A.aviso('Esperando señal GPS…'); };
+    bz.onclick = ()=>{ centrar = true; explorando = false; marcarCentrar(); zoomListo = false; if(pos && mapa) seguirPos(); else A.aviso('Esperando señal GPS…'); };
     marcarCentrar();
   }
   // girar la carta: az = rumbo geográfico al destino (null = norte arriba)
+  let explorando = false;
   function girar(az){
     const el = $('#sMapa'); if(!el || !mapa) return; const cont = el.parentElement;
-    if(az===null || az===undefined || orient!=='destino'){ if(giro!==null){ giro = null; el.style.cssText = ''; delete el.dataset.dims; mapa.dragging.enable(); mapa.invalidateSize({animate:false}); } return; }
+    if(az===null || az===undefined || orient!=='destino' || explorando){ if(giro!==null){ giro = null; el.style.cssText = ''; delete el.dataset.dims; mapa.dragging.enable(); mapa.invalidateSize({animate:false}); } return; }
     const w = cont.clientWidth, h = cont.clientHeight, D = Math.ceil(Math.hypot(w, h)), dims = w + 'x' + h;
     if(giro===null || el.dataset.dims!==dims){ el.dataset.dims = dims; el.style.cssText = `position:absolute;inset:auto;right:auto;bottom:auto;width:${D}px;height:${D}px;left:${(w - D)/2}px;top:${(h - D)/2}px;transition:transform .6s`; mapa.dragging.disable(); mapa.invalidateSize({animate:false}); }
     giro = az; el.style.transform = 'rotate(' + (-az) + 'deg)'; flecha();
@@ -618,7 +623,7 @@ ${E.track.map(t=>`<trkpt lat="${t[0]}" lon="${t[1]}"><time>${new Date(t[2]).toIS
       mapa.setView([pos.lat, pos.lon], Math.max(12, Math.min(17, z)), {animate:false}); }
     else mapa.panTo([pos.lat, pos.lon], {animate:false});
   }
-  function cerrarMapa(){ if(mapa){ try { mapa.remove(); } catch(e){} mapa = null; capas = null; } capaS = null; curvasS = null; giro = null; zoomListo = false; }
+  function cerrarMapa(){ if(mapa){ try { mapa.remove(); } catch(e){} mapa = null; capas = null; } capaS = null; curvasS = null; giro = null; zoomListo = false; explorando = false; }
 
   function cerrar(){ cerrarMapa(); const m = A && A.actual(); if(!(m && m.ejec && m.ejec.estado!=='fin')) pararGps(); }
   // desde el Mapa: «Navegar hasta aquí» (con una marcha en curso, como desvío que vuelve a la ruta)
