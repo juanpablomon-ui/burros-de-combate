@@ -653,3 +653,13 @@ table.sop td.sop-x{color:var(--suave);font-family:var(--mono)}
 @media (orientation:landscape) and (max-height:520px) and (min-width:900px){ .pestanas button{padding:4px 8px} }
 .s-bsup .bc small span{display:inline;text-transform:none;letter-spacing:0;font-size:inherit}
 .s-binf .btn{font-size:11.5px}
+
+/* v0.99: controles de la carta de Seguir (orientación, capa, centrar) y márgenes seguros (la «isla» del iPhone en horizontal) */
+.s-ctrl{position:absolute;z-index:1000;right:calc(10px + env(safe-area-inset-right));bottom:calc(66px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:8px}
+.s-ctrl .btn{margin:0;min-width:48px;height:44px;padding:0 8px;font-size:15px;box-shadow:0 2px 10px #0008}
+.s-ctrl .btn.on{border-color:#6fb3d9;color:#6fb3d9}
+.s-flecha-g{left:calc(12px + env(safe-area-inset-left))}
+.s-binf{padding-left:calc(6px + env(safe-area-inset-left));padding-right:calc(6px + env(safe-area-inset-right))}
+.s-bsup{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
+.mapa-env{height:var(--alto-libre, calc(100dvh - 58px - 62px - env(safe-area-inset-bottom) - env(safe-area-inset-top)))}
+@media (orientation:landscape) and (max-height:520px){ .s-ctrl{flex-direction:row;bottom:calc(52px + env(safe-area-inset-bottom))} .s-ctrl .btn{height:38px} }

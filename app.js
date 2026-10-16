@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.98', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.99', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -58,6 +58,10 @@
   async function copiar(t){ try { await navigator.clipboard.writeText(t); aviso('📋 Copiado'); } catch(e){ aviso('No se pudo copiar: selecciónalo a mano'); } }
 
   /* ---------- navegación ---------- */
+  // alto libre para la carta (Mapa y Seguir): la ventana menos la cabecera y las pestañas de abajo (si van abajo); se mide al girar el teléfono
+  function medirAlto(){ const h = document.querySelector('.barra-sup'), t = document.getElementById('pestanas'); if(!h || !t) return;
+    const abajo = getComputedStyle(t).position==='fixed' ? t.offsetHeight : 0; document.documentElement.style.setProperty('--alto-libre', Math.max(200, window.innerHeight - h.offsetHeight - abajo) + 'px'); }
+  addEventListener('resize', ()=>{ medirAlto(); setTimeout(medirAlto, 300); }); addEventListener('orientationchange', ()=>setTimeout(medirAlto, 400)); setTimeout(medirAlto, 0);
   function ir(v){ S.v = v; guardar(); pintar(); window.scrollTo(0, 0); }
   $('#pestanas').addEventListener('click', e=>{ const b = e.target.closest('button[data-v]'); if(b) ir(b.dataset.v); });
   // Perfil y Lista van dentro de la pestaña Cuadro
