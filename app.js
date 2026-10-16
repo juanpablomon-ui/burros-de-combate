@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.97', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.98', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -505,6 +505,8 @@
         ${Rc.puntos[i].ev ? `<div class="extra" style="grid-template-columns:1fr"><label class="c">Nombre clave (vacío = automático)<input class="num clave" data-p="clave" value="${esc(x.clave||'')}" placeholder="${esc(Rc.puntos[i].clave || '')}" list="listaClaves"></label></div>` : ''}
         <div class="extra"><label class="c">Observaciones (punto característico)<input data-p="obs" value="${esc(x.obs)}" placeholder="puente, portezuelo, cruce…"></label>
           <label class="c">Detención (min)<input class="num" data-p="det" inputmode="numeric" value="${esc(x.det)}" placeholder="0"></label></div>
+        ${i ? (()=>{ const tr = Rc.tramos.find(z=>z.iB===i), vc = tr && !tr.velPropia ? tr.v : null;   // velocidad escrita a mano del tramo que llega aquí (v0.98; también en el Cuadro)
+          return `<div class="extra" style="grid-template-columns:1fr"><label class="c">Velocidad desde el punto anterior (km/h, o ritmo en min/km: «18:30»)<input class="num" data-pvel="${i}" value="${x.vel ? esc(String(x.vel).replace('.', ',')) : ''}" placeholder="${vc ? 'calculada ' + f(vc, 1) + ' km/h · ' + M.verRitmo(vc) : 'vacío = la calculada'}"></label></div>`; })() : ''}
         ${i && !Uso.civil() ? `<div class="extra"><label class="c">Técnica desde el punto anterior<select data-p="tecnica"><option value="">Igual que la marcha (${esc((M.TECNICAS[m.par.tecnica] || M.TECNICAS.desplazamiento).n.toLowerCase())})</option>${Object.entries(M.TECNICAS).map(([k, t])=>`<option value="${k}"${x.tecnica===k ? ' selected' : ''}>${t.n}</option>`).join('')}</select></label>
           <label class="c">Formación en ese tramo<select data-p="formacion"><option value="">Igual que la marcha</option>${Object.entries(M.FORMACIONES).map(([k, t])=>`<option value="${k}"${x.formacion===k ? ' selected' : ''}>${t.n}</option>`).join('')}</select></label></div>` : ''}
         ${i && !m.par.sinMochila ? `<div class="extra" style="grid-template-columns:1fr"><label class="c">🎒 Mochila en este punto<select data-p="mochila"><option value="">— Sigue igual —</option><option value="deja"${x.mochila==='deja' ? ' selected' : ''}>Se deja la de sostenimiento (sigue con la de asalto)</option><option value="dejaTodo"${x.mochila==='dejaTodo' ? ' selected' : ''}>Se dejan las dos (sigue con 1.ª y 2.ª línea)</option><option value="recogeB"${x.mochila==='recogeB' ? ' selected' : ''}>Se recoge la de sostenimiento (3.ª B)</option><option value="recogeA"${x.mochila==='recogeA' ? ' selected' : ''}>Se recoge la de asalto (3.ª A)</option><option value="recoge"${x.mochila==='recoge' ? ' selected' : ''}>Se recogen las dos</option></select></label></div>` : ''}
@@ -547,6 +549,7 @@
       if(t.dataset.par==='verboSel'){ m.par.verbo = v==='otra' ? '' : v; guardar(); return; }
       if(t.dataset.par==='verbo') v = String(v).toUpperCase();
       m.par[t.dataset.par] = v; }
+    else if(t.dataset.pvel!==undefined){ const i = +t.dataset.pvel, k = M.leerVel(t.value); if(k) m.puntos[i].vel = Math.round(k*1000)/1000; else delete m.puntos[i].vel; }
     else if(t.dataset.p){ const i = +t.closest('.punto').dataset.i; m.puntos[i][t.dataset.p] = t.value; if(t.dataset.p==='cota'){ delete m.puntos[i].cotaAuto; delete m.puntos[i].cotaSrc; } }
     else return;
     guardar();

@@ -571,7 +571,7 @@ const Mapa = (function(){
   }
   async function abrirPdf(f, nombre){
     A.aviso('Leyendo el PDF…');
-    let doc; try { const lib = await cargarPdfjs(); doc = await lib.getDocument({data:new Uint8Array(await f.arrayBuffer())}).promise; }
+    let doc; try { const lib = await cargarPdfjs(), b = new Uint8Array(await f.arrayBuffer()); pdfBytes = b; doc = await lib.getDocument({data:b.slice()}).promise; }
     catch(e){ return A.aviso('No se pudo leer el PDF: ' + (e.message || e)); }
     if(doc.numPages===1) return pdfAImagen(doc, 1, nombre);
     // varias páginas: elegir cuál (con vista previa)
@@ -585,6 +585,41 @@ const Mapa = (function(){
       d.querySelector('#pOk').onclick = ()=>pdfAImagen(doc, +d.querySelector('#pPag').value, nombre + (doc.numPages>1 ? ' (p. ' + d.querySelector('#pPag').value + ')' : ''));
       vista(1); });
   }
+  /* GeoPDF (v0.98): si el PDF trae su georreferencia (diccionario /Measure /GEO con /GPTS: lat-lon de las esquinas, /LPTS: dónde caen en el
+     recuadro /BBox del «viewport»), la carta se puede calzar sola. Se busca en el texto del archivo (si está comprimido, no se encuentra y se
+     calza con dos puntos). El datum sale del /GCS (PSAD56 o SAD69 se convierten a WGS84; si no, se asume WGS84/SIRGAS). */
+  let pdfBytes = null;
+  function geoDePdf(bytes){
+    if(!bytes) return null; let t; try { t = new TextDecoder('latin1').decode(bytes); } catch(e){ return null; }
+    const nums = x=>x.trim().split(/[\s,]+/).map(Number).filter(v=>!isNaN(v)), re = /\/GPTS\s*\[([^\]]*)\]/g, L = []; let r;
+    while((r = re.exec(t))){ const g = nums(r[1]); if(g.length<6) continue;
+      const cerca = t.slice(Math.max(0, r.index - 4000), r.index + 4000), lp = /\/LPTS\s*\[([^\]]*)\]/.exec(cerca);
+      const bbs = [...t.slice(Math.max(0, r.index - 8000), r.index).matchAll(/\/BBox\s*\[([^\]]*)\]/g)], bb = bbs.length ? nums(bbs[bbs.length - 1][1]) : null;
+      const gcs = (/GEOGCS\["([^"]+)"/.exec(cerca) || /\/GCS[\s\S]{0,200}?\(([^)]*)\)/.exec(cerca) || [])[1] || '';
+      L.push({g, lp:lp ? nums(lp[1]) : [0, 1, 0, 0, 1, 0, 1, 1], bbox:bb && bb.length===4 ? bb : null, gcs}); }
+    if(!L.length) return null;
+    const area = b=>b ? Math.abs((b[2] - b[0])*(b[3] - b[1])) : 0; return L.sort((a, b)=>area(b.bbox) - area(a.bbox))[0];
+  }
+  // ajuste lineal (mínimos cuadrados) lat/lon = a0 + a1·u + a2·v con los puntos de control; caja de la imagen en WGS84
+  function cajaGeo(G, W, H, k, alto, ancho){
+    const n = Math.min(G.g.length, G.lp.length)/2|0; if(n<3) return null;
+    let P = []; for(let i=0; i<n; i++){ let la = G.g[2*i], lo = G.g[2*i + 1]; if(Math.abs(la)>90 && Math.abs(lo)<=90){ const z = la; la = lo; lo = z; } P.push({u:G.lp[2*i], v:G.lp[2*i + 1], la, lo}); }
+    const ajuste = c=>{ const M3 = [[0, 0, 0], [0, 0, 0], [0, 0, 0]], y = [0, 0, 0];
+      P.forEach(p=>{ const f = [1, p.u, p.v]; for(let i=0; i<3; i++){ y[i] += f[i]*p[c]; for(let j=0; j<3; j++) M3[i][j] += f[i]*f[j]; } });
+      const det = m=>m[0][0]*(m[1][1]*m[2][2] - m[1][2]*m[2][1]) - m[0][1]*(m[1][0]*m[2][2] - m[1][2]*m[2][0]) + m[0][2]*(m[1][0]*m[2][1] - m[1][1]*m[2][0]), D = det(M3); if(Math.abs(D)<1e-12) return null;
+      return [0, 1, 2].map(i=>det(M3.map((f, r)=>f.map((x, cc)=>cc===i ? y[r] : x)))/D); };
+    const aLa = ajuste('la'), aLo = ajuste('lo'); if(!aLa || !aLo) return null;
+    const b = G.bbox || [0, 0, ancho, alto], dat = /PSAD|Provisional/i.test(G.gcs) ? 'PSAD56M' : /SAD.?69|South_American_1969/i.test(G.gcs) ? 'SAD69' : 'WGS84';
+    const aLL = (px, py)=>{ const x = px/k, yv = alto - py/k, u = (x - b[0])/(b[2] - b[0]), v = (yv - b[1])/(b[3] - b[1]);
+      let la = aLa[0] + aLa[1]*u + aLa[2]*v, lo = aLo[0] + aLo[1]*u + aLo[2]*v; if(dat!=='WGS84'){ const w = M.aWgs84(la, lo, 0, dat); la = w.lat; lo = w.lon; } return [la, lo]; };
+    const e = [aLL(0, 0), aLL(W, 0), aLL(W, H), aLL(0, H)]; if(e.some(c=>!isFinite(c[0]) || !isFinite(c[1]) || Math.abs(c[0])>90 || Math.abs(c[1])>180)) return null;
+    return {bounds:[[Math.min(...e.map(c=>c[0])), Math.min(...e.map(c=>c[1]))], [Math.max(...e.map(c=>c[0])), Math.max(...e.map(c=>c[1]))]], dat};
+  }
+  async function guardarCarta(img, nombre, bounds, txt){
+    const c = {id:Date.now().toString(36), nombre, img, bounds, opacidad:.8, visible:true};
+    try { await BD.poner(c); } catch(e){ return A.aviso('No se pudo guardar la carta (¿imagen muy grande?)'); }
+    A.cerrarDialogo(); await cargarCartas(); map.fitBounds(bounds); A.aviso(txt);
+  }
   async function pdfAImagen(doc, n, nombre){
     A.aviso('Convirtiendo la carta en imagen…');
     try {
@@ -592,7 +627,13 @@ const Mapa = (function(){
       const v = pg.getViewport({scale:k}), c = document.createElement('canvas'); c.width = Math.floor(v.width); c.height = Math.floor(v.height);
       const cx = c.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, c.width, c.height);
       await pg.render({canvasContext:cx, viewport:v}).promise;
-      const img = c.toDataURL('image/jpeg', 0.85); c.width = c.height = 0;
+      const W = c.width, H = c.height, img = c.toDataURL('image/jpeg', 0.85); c.width = c.height = 0;
+      const G = geoDePdf(pdfBytes), cg = G && cajaGeo(G, W, H, k, v0.height, v0.width);
+      if(cg) return A.dialogo(`<h3>Esta carta trae su ubicación</h3><p class="nota">El PDF «${A.esc(nombre)}» es un <b>GeoPDF</b>: trae las coordenadas de sus esquinas (datum ${A.esc(M.DATUMS[cg.dat] ? M.DATUMS[cg.dat].n : cg.dat)}).
+          Se puede calzar sola, sin marcar puntos. Revisa después que calce con la cuadrícula UTM y, si no, quítala y cálzala con dos puntos.</p>
+        <div class="btns"><button class="btn pri" id="gSola">✔ Calzarla sola</button><button class="btn" id="gDos">Calzar con dos puntos</button></div>`, d=>{
+          d.querySelector('#gSola').onclick = ()=>guardarCarta(img, nombre, cg.bounds, '✔ Carta calzada sola con su georreferencia (GeoPDF)');
+          d.querySelector('#gDos').onclick = ()=>calzar(img, nombre); });
       calzar(img, nombre);
     } catch(e){ A.aviso('No se pudo convertir la página: ' + (e.message || e)); }
   }

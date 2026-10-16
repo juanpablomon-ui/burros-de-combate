@@ -8,6 +8,18 @@ const Uso = (function(){
 
   // palabras militares → civiles (las más largas primero; se respetan mayúsculas tal como están escritas)
   const PALABRAS = [
+    // textos nuevos del material (v0.98): agua, líneas y notas que quedaban militares
+    ['Agua por hombre (bolsa de hidratación en el SPB o cantimploras en el cinturón)', 'Agua por persona (bolsa de hidratación o cantimploras)'],
+    ['en el cuerpo y cinturón de carga o de combate: supervivencia y munición', 'lo que llevas puesto y en los bolsillos'],
+    ['arma, casco y protección balística: combate', 'cinturón, riñonera y bolsillos: lo que necesitas a mano'],
+    ['mochila de asalto o de misión: la tarea', 'mochila de día: lo de la jornada'], ['mochila de sostenimiento: varios días', 'mochila grande: para varios días'],
+    ['(o en reemplazo, como la ametralladora en lugar del fusil)', '(según su rol)'], ['«PASANDO ALFA…»', 'puntos de control por radio'],
+    ['Lo llevan los fusileros (se lo reparten)', 'Se lo reparten los integrantes'], ['los fusileros', 'los integrantes'], ['fusileros', 'integrantes'], ['Fusileros', 'Integrantes'],
+    ['en el cinturón de carga', 'en el cinturón o la mochila'],
+    ['Solo la mochila de asalto (sin la de sostenimiento)', 'Solo la mochila de día (sin la grande)'], ['Va dentro de la de sostenimiento', 'Va dentro de la grande'],
+    ['Mochila de asalto o de misión', 'Mochila de día'], ['mochila de asalto o de misión', 'mochila de día'], ['Mochila de sostenimiento', 'Mochila grande'], ['mochila de sostenimiento', 'mochila grande'],
+    ['mochila de asalto', 'mochila de día'], ['la de sostenimiento', 'la grande'], ['de sostenimiento', 'grande'],
+    ['guía o jefe de patrulla', 'guía o líder del grupo'], ['jefe de patrulla', 'líder del grupo'], ['de la patrulla', 'del grupo'], ['la patrulla', 'el grupo'],
     ['ORDEN GRÁFICA DE MARCHA', 'PLAN DE RUTA'], ['Orden gráfica', 'Plan de ruta'], ['orden gráfica', 'plan de ruta'],
     ['Documento / orden gráfica', 'Documento / plan de ruta'], ['anexar a la OPORD', 'adjuntar al plan de ruta'], ['la OPORD', 'el plan de ruta'], ['OPORD', 'plan de ruta'],
     ['Equipo especial común de la patrulla', 'Equipo común del grupo'], ['Equipo de cada puesto (OME)', 'Equipo de cada rol'], ['Puestos (OME)', 'Roles del grupo'], ['Equipo especial común', 'Equipo común del grupo'], ['Equipo especial de la patrulla', 'Equipo común del grupo'], ['Fusilero o patrullero', 'Integrante'], ['Comandante o jefe de patrulla', 'Guía o líder del grupo'], ['Radioperador', 'Encargado de radio'], ['Sirviente de ametralladora', 'Portador'], ['el más cargado', 'el más cargado'], ['Mochila de trauma (enfermero u operador de trauma)', 'Botiquín grande del grupo (primeros auxilios avanzados)'],
