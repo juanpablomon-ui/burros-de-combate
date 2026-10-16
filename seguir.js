@@ -5,6 +5,11 @@
    Adelanto/atraso: tiempo real desde la partida comparado con el plan (marcha con altos + detenciones) en el mismo lugar de la ruta. */
 const Seguir = (function(){
   const M = MARCHA;
+  const IC = {ok:'<path d="M5 12.5l4.5 4.5L19 7.5"/>', alto:'<path d="M9 5v14M15 5v14"/>', seguir:'<path d="M8 5l11 7-11 7z"/>', nov:'<path d="M12 4l9 16H3z"/><path d="M12 10v4.5M12 17.2v.3"/>',
+    ira:'<circle cx="12" cy="12" r="8.5"/><path d="M15.5 8.5l-2.2 4.8-4.8 2.2 2.2-4.8z"/>', mas:'<path d="M5 12h.01M12 12h.01M19 12h.01" stroke-width="3.2"/>', fin:'<rect x="6.5" y="6.5" width="11" height="11" rx="1.5"/>',
+    x:'<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>', capa:'<path d="M12 4l9 5-9 5-9-5z"/><path d="M3 14l9 5 9-5"/>', centro:'<circle cx="12" cy="12" r="6.5"/><path d="M12 2.5v4M12 17.5v4M2.5 12h4M17.5 12h4"/><circle cx="12" cy="12" r="1.2"/>',
+    norte:'<path d="M12 3.5l5 15-5-3.5-5 3.5z"/>', dest:'<path d="M12 4v16M6 10l6-6 6 6"/>', pos:'<circle cx="12" cy="11" r="3"/><path d="M12 21s-7-6.2-7-11a7 7 0 0114 0c0 4.8-7 11-7 11z"/>', horiz:'<path d="M2 17l6-7 4 4 3-3 7 6"/><path d="M2 20h20"/>', lista:'<path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" />'};
+  const ic = (n, t)=>`<svg class="ico s-ico" viewBox="0 0 24 24" aria-hidden="true">${IC[n]}</svg><span>${t}</span>`;
   let plegada = false; try { plegada = localStorage.getItem('burros_barra')==='1'; } catch(e){}
   let irSolo = null, eligiendo = null;
   let A = null, watch = null, pos = null, rumboDisp = null, wake = null, mapa = null, capas = null, centrar = true;
@@ -87,11 +92,12 @@ const Seguir = (function(){
     (E.desvios || (E.desvios = [])).push({nombre:d.dest.nombre, modo:d.modo, ini:d.ini, llegada:d.llegada || (cancelado ? null : ahora()), fin:ahora(), cancelado:!!cancelado});
     delete E.desvio; A.guardar(); A.aviso(cancelado ? 'Desvío cancelado: sigues la ruta' : (auto ? '📍 ' : '✔ ') + (d.modo==='volver' ? 'De vuelta en la ruta' : 'Llegaste a ' + d.dest.nombre)); pintar();
   }
+  document.addEventListener('pointerdown', e=>{ const b = e.target.closest && e.target.closest('.s-binf .btn, .s-ctrl .btn, .s-acc .btn'); if(b && navigator.vibrate) navigator.vibrate(12); }, {passive:true});
   function cambiarModo(k){ modo = k; try { localStorage.setItem('burros_seguir', modo); } catch(e){} pintar(); }
   function menuMas(){
     A.dialogo(`<h3>Más</h3><div class="s-mas">
-      <button class="btn" data-mm="nav">🧭 Vista navegación (números grandes)</button><button class="btn" data-mm="reg">📋 Matriz de eventos</button>
-      <button class="btn" data-mm="pos">📡 Mensaje de posición</button><button class="btn" data-mm="hor">👁 Vuelta al horizonte</button></div>
+      <button class="btn" data-mm="nav">${ic('ira', 'Vista navegación (números grandes)')}</button><button class="btn" data-mm="reg">${ic('lista', 'Matriz de eventos')}</button>
+      <button class="btn" data-mm="pos">${ic('pos', 'Mensaje de posición')}</button><button class="btn" data-mm="hor">${ic('horiz', 'Vuelta al horizonte')}</button></div>
       <div class="btns"><button class="btn" data-cerrar>Cerrar</button></div>`, d=>d.querySelectorAll('[data-mm]').forEach(b=>b.onclick = ()=>{ const k = b.dataset.mm; A.cerrarDialogo();
         if(k==='nav' || k==='reg') cambiarModo(k); else if(k==='pos') verMensaje(mensaje('POS', {})); else horizonte(); }));
   }
@@ -130,8 +136,8 @@ const Seguir = (function(){
   function pintarSolo(c, P){
     document.body.classList.add('con-mapa');
     c.innerHTML = `<div class="mapa-env s-carta s-dos"><div id="sMapa"></div><div class="s-bsup" id="sCab"></div>
-      <div class="s-flecha s-flecha-g desvio" id="sFlecha">↑</div><div class="s-ctrl"><button class="btn" id="sOrient" title="Norte arriba o destino arriba">N↑</button><button class="btn" id="sCapa" title="Cambiar el mapa">🗺</button><button class="btn" id="sCentrar" title="Centrar en mi posición">◎</button></div>
-      <div class="s-binf"><button class="btn pri" id="sSoloFin">■ Terminar la navegación</button></div></div>`;
+      <div class="s-flecha s-flecha-g desvio" id="sFlecha">↑</div><div class="s-ctrl"><button class="btn" id="sOrient" title="Norte arriba o destino arriba" aria-label="Orientación"></button><button class="btn" id="sCapa" title="Cambiar el mapa" aria-label="Mapa">${ic('capa', 'Mapa')}</button><button class="btn" id="sCentrar" title="Centrar en mi posición" aria-label="Centrar">${ic('centro', 'Centrar')}</button></div>
+      <div class="s-binf"><button class="btn pri" id="sSoloFin">${ic('fin', 'Terminar la navegación')}</button></div></div>`;
     $('#sSoloFin').onclick = ()=>{ irSolo = null; pintar(); };
     centrar = true; hacerMapa(P); iniciarGps(); pintarSoloVivo();
   }
@@ -335,7 +341,7 @@ const Seguir = (function(){
       document.body.classList.add('con-mapa');
       c.innerHTML = `<div class="mapa-env s-carta"><div id="sMapa"></div>
         <div class="s-hud" id="sPrevio"></div>
-        <div class="s-ctrl"><button class="btn" id="sOrient" title="Norte arriba o destino arriba">N↑</button><button class="btn" id="sCapa" title="Cambiar el mapa">🗺</button><button class="btn" id="sCentrar" title="Centrar en mi posición">◎</button></div>
+        <div class="s-ctrl"><button class="btn" id="sOrient" title="Norte arriba o destino arriba" aria-label="Orientación"></button><button class="btn" id="sCapa" title="Cambiar el mapa" aria-label="Mapa">${ic('capa', 'Mapa')}</button><button class="btn" id="sCentrar" title="Centrar en mi posición" aria-label="Centrar">${ic('centro', 'Centrar')}</button></div>
         <div class="s-pie"><div class="s-ini"><button class="btn pri grande" id="sIni">▶ Iniciar marcha</button><button class="btn" id="sIrSolo">🧭 Ir a un punto</button></div>
           <p class="s-ayuda">Mantén la app abierta y la pantalla encendida durante la marcha. Las llegadas a cada evento se marcan solas a menos de 40 m.</p></div></div>`;
       $('#sIni').onclick = iniciar; $('#sIrSolo').onclick = ()=>dialogoIrA(false);
@@ -344,14 +350,14 @@ const Seguir = (function(){
     }
     if(E.estado==='fin') return pintarFin(c, m, P);
     const sel = `<div class="seg s-modos">${MODOS.map(([k, n])=>`<button data-smodo="${k}" class="${modo===k ? 'on' : ''}">${n}</button>`).join('')}</div>`;
-    const des = !!E.desvio, bAlto = `<button class="btn ${E.estado==='alto' ? 'pri' : ''}" id="sAlto">${E.estado==='alto' ? '▶ Reanudar' : '⏸ Alto'}</button>`;
-    const bIr = `<button class="btn${des ? ' pri' : ''}" id="sIrA">${des ? '✕ Cancelar' : '🧭 Ir a…'}</button>`;
+    const des = !!E.desvio, bAlto = `<button class="btn ${E.estado==='alto' ? 'pri' : ''}" id="sAlto">${E.estado==='alto' ? ic('seguir', 'Reanudar') : ic('alto', 'Alto')}</button>`;
+    const bIr = `<button class="btn${des ? ' pri' : ''}" id="sIrA">${des ? ic('x', 'Cancelar') : ic('ira', 'Ir a')}</button>`;
     const acc = `<div class="s-acc">
         <button class="btn pri" id="sLleg"></button>${bAlto}
-        <button class="btn" id="sNov">⚠ Novedad</button>${bIr}
-        <button class="btn" id="sPos">📡 Posición</button>
-        <button class="btn" id="sHor">👁 Horizonte</button>
-        <button class="btn peligro" id="sFin">⏹ Terminar</button>
+        <button class="btn" id="sNov">${ic('nov', 'Novedad')}</button>${bIr}
+        <button class="btn" id="sPos">${ic('pos', 'Posición')}</button>
+        <button class="btn" id="sHor">${ic('horiz', 'Horizonte')}</button>
+        <button class="btn peligro" id="sFin">${ic('fin', 'Terminar')}</button>
       </div>`;
     if(modo==='carta'){
       // carta (v0.97, pedido del usuario): datos en una barra pegada arriba y botones en otra abajo; la ruta queda libre al centro; flecha grande
@@ -359,8 +365,8 @@ const Seguir = (function(){
       c.innerHTML = `<div class="mapa-env s-carta s-dos"><div id="sMapa"></div>
         <div class="s-bsup${plegada ? ' plegada' : ''}" id="sCab" title="Tocar para achicar o agrandar"></div>
         <div class="s-flecha s-flecha-g" id="sFlecha" title="Hacia el próximo punto, según la brújula del teléfono">↑</div>
-        <div class="s-ctrl"><button class="btn" id="sOrient" title="Norte arriba o destino arriba">N↑</button><button class="btn" id="sCapa" title="Cambiar el mapa">🗺</button><button class="btn" id="sCentrar" title="Centrar en mi posición">◎</button></div>
-        <div class="s-binf"><button class="btn pri" id="sLleg"></button>${bAlto}<button class="btn" id="sNov">⚠ Novedad</button>${bIr}<button class="btn" id="sMas">⋯ Más</button><button class="btn peligro" id="sFin">⏹ Fin</button></div></div>`;
+        <div class="s-ctrl"><button class="btn" id="sOrient" title="Norte arriba o destino arriba" aria-label="Orientación"></button><button class="btn" id="sCapa" title="Cambiar el mapa" aria-label="Mapa">${ic('capa', 'Mapa')}</button><button class="btn" id="sCentrar" title="Centrar en mi posición" aria-label="Centrar">${ic('centro', 'Centrar')}</button></div>
+        <div class="s-binf"><button class="btn pri" id="sLleg"></button>${bAlto}<button class="btn" id="sNov">${ic('nov', 'Novedad')}</button>${bIr}<button class="btn" id="sMas">${ic('mas', 'Más')}</button><button class="btn peligro" id="sFin">${ic('fin', 'Fin')}</button></div></div>`;
     } else if(modo==='nav'){
       c.innerHTML = `${sel}<div class="tarjeta" id="sCab"></div>${acc}`;
     } else {
@@ -373,7 +379,8 @@ const Seguir = (function(){
     $('#sAlto').onclick = alto; $('#sNov').onclick = novedad; $('#sFin').onclick = ()=>terminar(false);
     const bp = $('#sPos'), bh = $('#sHor'), bm = $('#sMas'); if(bp) bp.onclick = ()=>verMensaje(mensaje('POS', {})); if(bh) bh.onclick = horizonte; if(bm) bm.onclick = menuMas;
     $('#sIrA').onclick = ()=>{ if(E.desvio) return A.confirmar('¿Cancelar el desvío y volver a seguir la ruta?', ()=>{ terminarDesvio(true); }); dialogoIrA(true); };
-    $('#sLleg').onclick = ()=>{ if(E.desvio) return llegarDesvio(false); const k = proxEv(m, P); if(k!==null) llegar(k, false); };
+    $('#sLleg').onclick = e=>{ const b = e.currentTarget; if(b.dataset.ocupado) return; b.dataset.ocupado = '1'; setTimeout(()=>{ delete b.dataset.ocupado; }, 1500);   // sin doble toque
+      if(E.desvio) return llegarDesvio(false); const k = proxEv(m, P); if(k!==null) llegar(k, false); };
     if(modo==='carta'){ centrar = true; hacerMapa(P);
       $('#sCab').onclick = ()=>{ plegada = !plegada; try { localStorage.setItem('burros_barra', plegada ? '1' : ''); } catch(e){} $('#sCab').classList.toggle('plegada', plegada); pintarVivo(); }; }
     pintarVivo();
@@ -381,7 +388,7 @@ const Seguir = (function(){
   function pintarVivo(){
     const m = A.actual(), E = m && m.ejec; if(!E || E.estado==='fin' || !$('#seguir')) return; const P = plan(m);
     const k = siguiente(m, P), q = k!==null ? P.pts[k] : null, ke = proxEv(m, P), p = ke!==null ? P.pts[ke] : null, at = atraso(m, P), t = ahora(), c = $('#sCab');
-    const O = objetivo(m, P), b = $('#sLleg'); if(b) b.textContent = O ? '✔ Llegué ' + (O.vuelta ? 'a la ruta' : 'a ' + O.nombre) : p ? '✔ ' + verbo() + ' ' + rotulo(p) : '';
+    const O = objetivo(m, P), b = $('#sLleg'), tl = O ? 'Llegué ' + (O.vuelta ? 'a la ruta' : 'a ' + O.nombre) : p ? verbo() + ' ' + rotulo(p) : ''; if(b && b.dataset.t!==tl){ b.dataset.t = tl; b.innerHTML = ic('ok', A.esc(tl)); }
     ficha(); mapaVivo();
     if(!c) return;
     let dist = '—', rumbo = '—', mils = '', fuera = '', eta = '';
@@ -591,9 +598,9 @@ ${E.track.map(t=>`<trkpt lat="${t[0]}" lon="${t[1]}"><time>${new Date(t[2]).toIS
   function marcarCentrar(){ const b = $('#sCentrar'); if(b) b.classList.toggle('pri', !centrar || explorando); }
   function controles(){
     const bo = $('#sOrient'), bc = $('#sCapa'), bz = $('#sCentrar'); if(!bo) return;
-    bo.textContent = orient==='destino' ? '⬆ Destino' : 'N↑'; bo.classList.toggle('on', orient==='destino');
+    const rotO = ()=>{ bo.innerHTML = orient==='destino' ? ic('dest', 'Destino') : ic('norte', 'Norte'); bo.classList.toggle('on', orient==='destino'); }; rotO();
     bo.onclick = ()=>{ orient = orient==='norte' ? 'destino' : 'norte'; try { localStorage.setItem('burros_orient', orient); } catch(e){}
-      bo.textContent = orient==='destino' ? '⬆ Destino' : 'N↑'; bo.classList.toggle('on', orient==='destino'); if(orient==='norte') girar(null);
+      rotO(); if(orient==='norte') girar(null);
       A.aviso(orient==='destino' ? 'Destino arriba: la carta gira hacia el punto al que vas' : 'Norte arriba'); if(irSolo) pintarSoloVivo(); else { mapaVivo(); } };
     bc.onclick = ()=>{ const pr = prefMapa();
       A.dialogo(`<h3>🗺 Mapa</h3><div class="s-mas">${Object.entries(Mapa.BASES).map(([k, b])=>`<button class="btn${(pr.base || 'topo')===k ? ' pri' : ''}" data-cb="${k}">${b.n}</button>`).join('')}</div>

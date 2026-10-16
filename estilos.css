@@ -666,3 +666,30 @@ table.sop td.sop-x{color:var(--suave);font-family:var(--mono)}
 /* v0.99.1: la carta girada (más grande que la pantalla) no debe salirse ni correr la página */
 .mapa-env{overflow:hidden}
 body.con-mapa{overflow:hidden}
+
+/* v0.99.2: botones que se sienten bien al tocarlos (pedido del usuario): sin el retardo del doble toque, sin el destello gris del iPhone,
+   respuesta visual al presionar; en Seguir, íconos de línea parejos (no emoji) con el texto debajo */
+.btn{touch-action:manipulation;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;transition:transform .08s ease,filter .08s ease,background-color .12s}
+.btn:active{transform:scale(.95);filter:brightness(1.3)}
+.s-ico{width:20px;height:20px;flex:0 0 auto}
+.s-binf .btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:50px;padding:5px 2px;font-size:11px;font-weight:600;border-radius:10px}
+.s-binf .btn span{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.s-binf #sLleg,.s-binf #sSoloFin{flex-direction:row;gap:6px;font-size:14px;font-weight:700}
+.s-binf #sLleg .s-ico,.s-binf #sSoloFin .s-ico{width:22px;height:22px;stroke-width:2.4}
+.s-binf .btn.peligro{color:var(--rojo)}
+.s-ctrl .btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;min-width:54px;height:52px;padding:3px 6px;font-size:10px;font-weight:600;border-radius:12px}
+.s-ctrl .btn .s-ico{width:22px;height:22px}
+.s-ctrl .btn.pri{color:#14150f}
+.s-acc .btn{display:flex;align-items:center;justify-content:center;gap:7px;min-height:48px}
+.s-mas .btn{display:flex;align-items:center;gap:10px;justify-content:flex-start;min-height:46px}
+@media (orientation:landscape) and (max-height:520px){ .s-binf .btn{min-height:42px;flex-direction:row;gap:5px;font-size:12px} .s-ctrl .btn{height:44px;min-width:50px} }
+/* en vertical, la barra de botones de Seguir en dos filas: PASANDO a todo el ancho y los otros cinco debajo, sin cortar textos */
+@media (orientation:portrait){
+  .s-binf{flex-wrap:wrap}
+  .s-binf #sLleg{flex:1 1 100%;min-height:52px;font-size:16px}
+  .s-binf .btn:not(#sLleg):not(#sSoloFin){flex:1 1 0;font-size:11.5px}
+  .s-dos .s-flecha-g{bottom:calc(126px + env(safe-area-inset-bottom))}
+  .s-dos .s-ctrl{bottom:calc(126px + env(safe-area-inset-bottom))}
+  body.con-mapa .aviso{bottom:calc(190px + env(safe-area-inset-bottom))}
+}
+@media (orientation:landscape){ body.con-mapa .aviso{bottom:calc(110px + env(safe-area-inset-bottom))} }
