@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.96', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.97', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -249,7 +249,7 @@
   const apiMapa = {actual, guardar, punto, aviso, dialogo, cerrarDialogo, confirmar, copiar, descargar, esc, f, calcular:m=>M.calcular(m), vistaMapa:null,
     M, evento:c=>evento(c), tablaCuadro:(m, R)=>tablaCuadro(m, R), apoyo:R=>apoyo(R), material:(m, R)=>{ const pm = R.carga || pesoMaterial(m, R);
       return (pm ? `<p class="doc-nota"><b>Carga por hombre: ${f(pm.total, 1)} kg</b> (1.ª línea ${f(pm.lineas[1], 1)} + 2.ª línea ${f(pm.lineas[2], 1)} + 3.ª línea ${f(pm.lineas[3], 1)}${pm.sinMochila ? ', <b>se deja</b>' : ''}${pm.base ? ' + otro peso ' + f(pm.base, 1) : ''}).</p>` : '') + htmlMaterial(m, R, true).html; },
-    resultado:m=>resultadoHtml(m, true), paquete:()=>dialogoPaquete(), svgPerfil:(R, T, c)=>svgPerfil(R, T, c), terrenoDe:R=>terrenoDe(R), ir:v=>ir(v)};
+    resultado:m=>resultadoHtml(m, true), paquete:()=>dialogoPaquete(), navegarA:d=>{ Seguir.irA(d); ir('seguir'); }, svgPerfil:(R, T, c)=>svgPerfil(R, T, c), terrenoDe:R=>terrenoDe(R), ir:v=>ir(v)};
   // documento para imprimir o PDF (orden gráfica militar o civil); se abre desde cada pantalla con la sección que corresponde
   function documento(secUnica){ const m = actual(); if(!m) return;
     if(secUnica){ m.doc = m.doc || {}; m.doc.sec = Object.assign({mapa:false, perfil:false, cuadro:false, matriz:false, luz:false, claves:false, apoyo:false, carga:false, material:false, lista:false, horiz:false, resultado:false}, {[secUnica]:true}); }
@@ -1104,6 +1104,7 @@
         <td class="${r.vReal && r.vPlan ? (r.vReal/r.vPlan<0.85 ? 'sube' : r.vReal/r.vPlan>1.05 ? 'baja' : '') : ''}">${r.dist ? vr(r.vReal) : ''}</td><td>${r.altosReal>0.01 ? Math.round(r.altosReal*60) + ' min' : ''}</td></tr>`).join('')}
       </tbody></table></div>
       ${Object.keys(C.motivos).length ? `<p class="nota"><b>Altos por motivo:</b> ${Object.entries(C.motivos).map(([k, v])=>esc(k) + ' ' + Math.round(v) + ' min').join(' · ')}.</p>` : ''}
+      ${(E.desvios || []).length ? `<p class="nota"><b>Desvíos:</b> ${E.desvios.map(x=>esc(x.nombre) + ' ' + hhmm(x.ini) + '–' + hhmm(x.fin) + ' (' + Math.round((x.fin - x.ini)/60000) + ' min' + (x.cancelado ? ', cancelado' : x.modo==='volver' ? ', ida y vuelta' : '') + ')').join(' · ')}.</p>` : ''}
       ${C.nov.length ? `<p class="nota"><b>Novedades:</b> ${C.nov.map(n=>hhmm(n.t) + ' ' + esc(n.txt)).join(' · ')}.</p>` : ''}`;
     if(doc) h += `<h3 class="doc-h3">Reseña</h3><table class="t"><tbody>
         <tr><td class="tx"><b>Resultado</b></td><td class="tx">${esc(RESULTADOS[rs.resultado] || '—')}</td></tr>

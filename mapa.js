@@ -383,6 +383,7 @@ const Mapa = (function(){
     if(i<m.puntos.length - 1) items.push({ico:'＋', lbl:'Insertar punto después', nota:'a mitad del tramo siguiente', fn:()=>{ const b = R.puntos[i + 1]; if(b && b.ok) insertar(i + 1, L.latLng((b.lat + g.lat)/2, (b.lon + g.lon)/2)); }});
     items.push({ico:'⤢', lbl:'Centrar el mapa aquí', fn:()=>map.setView([g.lat, g.lon], Math.max(map.getZoom(), 16))});
     items.push({ico:'👁', lbl:'Vuelta al horizonte desde aquí', nota:'panorama, puntos de referencia y zona vista', fn:()=>vueltaHorizonte(g.lat, g.lon, g.nombre || 'punto de ruta', null, g.cota)});
+    items.push({ico:'🧭', lbl:'Navegar hasta aquí', nota:'rumbo y distancia con el GPS (en Seguir)', fn:()=>A.navegarA({lat:g.lat, lon:g.lon, nombre:g.clave || g.nombre || 'el punto'})});
     items.push({sep:true}, {ico:'🗑', lbl:'Borrar punto', peligro:true, fn:()=>borrarPunto(i)});
     abrirMenu(ev, `${g.ev ? '◉' : '·'} <b>${A.esc(g.nombre || 'Punto de ruta')}</b>${g.clave ? ` <i class="clave">${A.esc(g.clave)}</i>` : ''}<small>${g.ev ? 'evento n.º ' + (R.eventos.indexOf(i) + 1) : 'punto de ruta'}</small>`, items);
   }
@@ -402,6 +403,7 @@ const Mapa = (function(){
     if(ok.length) items.push({ico:'◉', lbl:'Agregar evento aquí', nota:'al final, como punto de control', fn:()=>{ agregarPunto(ll); const k = A.actual().puntos.length - 1; ponerEvento(k, true); abrirHoja(k); }});
     items.push({ico:'⤢', lbl:'Centrar el mapa aquí', fn:()=>map.panTo(ll)});
     items.push({ico:'👁', lbl:'Vuelta al horizonte desde aquí', nota:'panorama, puntos de referencia y zona vista', fn:()=>vueltaHorizonte(ll.lat, ll.lng, '')});
+    items.push({ico:'🧭', lbl:'Navegar hasta aquí', nota:'rumbo y distancia con el GPS (en Seguir)', fn:()=>A.navegarA({lat:ll.lat, lon:ll.lng, nombre:'el punto marcado'})});
     abrirMenu(ev, '<b>Este lugar</b>', items);
     DEM.cotaPunto(ll.lat, ll.lng).then(r=>{ const x = document.getElementById('mmCota'); if(x) x.textContent = r ? '≈ ' + A.f(Math.round(r.v)) + ' m' : 'sin datos'; }).catch(()=>{});
   }
