@@ -693,3 +693,4 @@ body.con-mapa{overflow:hidden}
   body.con-mapa .aviso{bottom:calc(190px + env(safe-area-inset-bottom))}
 }
 @media (orientation:landscape){ body.con-mapa .aviso{bottom:calc(110px + env(safe-area-inset-bottom))} }
+.s-binf #sIrSolo2{flex:1 1 100%;flex-direction:row;gap:6px;font-size:15px;font-weight:700;min-height:52px}.s-binf #sIrSolo2 .s-ico{width:22px;height:22px}

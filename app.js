@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.99.2', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.99.3', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -71,13 +71,13 @@
   const subCuadro = ()=>`<div class="seg subv no-imp">${[['cuadro', 'Cuadro de marcha y navegación'], ['perfil', 'Perfil'], ['lista', 'Lista'], ['resultado', 'Resultado']].map(([k, n])=>`<button data-sv="${k}" class="${S.v===k ? 'on' : ''}">${n}</button>`).join('')}</div>`;
   vista.addEventListener('click', e=>{ const b = e.target.closest('[data-sv]'); if(b) ir(b.dataset.sv); });
   function pintar(){
-    const m = actual(); if(!m && S.v!=='marchas') S.v = 'marchas';
+    const m = actual(); if(!m && S.v!=='marchas' && S.v!=='seguir') S.v = 'marchas';
     if(S.v==='ficha') S.v = 'cuadro';   // la ficha de navegación ahora está dentro del cuadro
     if(!({marchas:1, mapa:1, ruta:1, cuadro:1, perfil:1, lista:1, resultado:1, material:1, luz:1, seguir:1, enviar:1})[S.v]) S.v = 'marchas';
     if(S.v!=='mapa') Mapa.cerrar();
     if(S.v!=='seguir') Seguir.cerrar();
     document.body.classList.toggle('con-mapa', S.v==='mapa');
-    document.querySelectorAll('#pestanas button').forEach(b=>{ b.classList.toggle('on', b.dataset.v===(PESTANA[S.v] || S.v)); b.disabled = !m && b.dataset.v!=='marchas'; b.style.opacity = b.disabled ? .35 : 1; });
+    document.querySelectorAll('#pestanas button').forEach(b=>{ b.classList.toggle('on', b.dataset.v===(PESTANA[S.v] || S.v)); b.disabled = !m && b.dataset.v!=='marchas' && b.dataset.v!=='seguir'; b.style.opacity = b.disabled ? .35 : 1; });
     $('#subtitulo').textContent = m ? m.nombre + (m.unidad ? ' · ' + m.unidad : '') : 'Planificación de marchas';
     ({marchas:vMarchas, mapa:vMapa, ruta:vRuta, cuadro:vCuadro, perfil:vPerfil, material:vMaterial, luz:vLuz, lista:vLista, resultado:vResultado, seguir:vSeguir, enviar:vEnviar})[S.v]();
     if(S.v==='ruta' || S.v==='material') vista.insertAdjacentHTML('afterbegin', subDatos());
@@ -101,7 +101,7 @@
       <h2>Mis marchas</h2>
       ${lista || `<div class="tarjeta vacio">Aún no hay marchas.<br>Crea una nueva o abre el ejemplo para ver cómo funciona.</div>`}
       <div class="btns"><button class="btn pri" id="bNueva">＋ Nueva marcha</button><button class="btn" id="bEjemplo">Ver ejemplo</button>
-        <button class="btn" id="bImportar">⤓ Importar archivo (JSON, GPX o KML)</button><button class="btn" id="bRecibir">📨 Recibir plan (código o QR)</button></div>
+        <button class="btn" id="bImportar">⤓ Importar archivo (JSON, GPX o KML)</button><button class="btn" id="bRecibir">📨 Recibir plan (código o QR)</button><button class="btn" id="bIrA">🧭 Ir a un punto (navegar)</button></div>
       <h2>Respaldo</h2>
       <div class="tarjeta nota">Las marchas quedan guardadas solo en este equipo. Guarda un respaldo para pasarlas a otro equipo o no perderlas.
         <div class="btns"><button class="btn" id="bResp">⬇ Guardar respaldo</button><button class="btn" id="bCargar">⬆ Cargar respaldo</button></div></div>
@@ -131,6 +131,7 @@
     $('#bEjemplo').onclick = ()=>{ ejemplo(); ir('cuadro'); };
     $('#bImportar').onclick = importarArchivo;
     $('#bPaq').onclick = dialogoPaquete;
+    $('#bIrA').onclick = ()=>{ Seguir.abrirIrA(); ir('seguir'); };
     $('#bRecibir').onclick = recibir;
     $('#bResp').onclick = ()=>descargar('burros_respaldo_' + hoy() + '.json', JSON.stringify({app:'burros', v:1, marchas:S.marchas}, null, 1), 'application/json');
     $('#bCargar').onclick = ()=>elegirArchivo('.json,application/json', t=>{
@@ -253,7 +254,7 @@
   const apiMapa = {actual, guardar, punto, aviso, dialogo, cerrarDialogo, confirmar, copiar, descargar, esc, f, calcular:m=>M.calcular(m), vistaMapa:null,
     M, evento:c=>evento(c), tablaCuadro:(m, R)=>tablaCuadro(m, R), apoyo:R=>apoyo(R), material:(m, R)=>{ const pm = R.carga || pesoMaterial(m, R);
       return (pm ? `<p class="doc-nota"><b>Carga por hombre: ${f(pm.total, 1)} kg</b> (1.ª línea ${f(pm.lineas[1], 1)} + 2.ª línea ${f(pm.lineas[2], 1)} + 3.ª línea ${f(pm.lineas[3], 1)}${pm.sinMochila ? ', <b>se deja</b>' : ''}${pm.base ? ' + otro peso ' + f(pm.base, 1) : ''}).</p>` : '') + htmlMaterial(m, R, true).html; },
-    resultado:m=>resultadoHtml(m, true), paquete:()=>dialogoPaquete(), navegarA:d=>{ Seguir.irA(d); ir('seguir'); }, svgPerfil:(R, T, c)=>svgPerfil(R, T, c), terrenoDe:R=>terrenoDe(R), ir:v=>ir(v)};
+    resultado:m=>resultadoHtml(m, true), paquete:()=>dialogoPaquete(), navegarA:d=>{ Seguir.irA(d); ir('seguir'); }, marchas:()=>S.marchas, svgPerfil:(R, T, c)=>svgPerfil(R, T, c), terrenoDe:R=>terrenoDe(R), ir:v=>ir(v)};
   // documento para imprimir o PDF (orden gráfica militar o civil); se abre desde cada pantalla con la sección que corresponde
   function documento(secUnica){ const m = actual(); if(!m) return;
     if(secUnica){ m.doc = m.doc || {}; m.doc.sec = Object.assign({mapa:false, perfil:false, cuadro:false, matriz:false, luz:false, claves:false, apoyo:false, carga:false, material:false, lista:false, horiz:false, resultado:false}, {[secUnica]:true}); }

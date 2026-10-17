@@ -18,6 +18,7 @@ const Seguir = (function(){
   /* ---------- plan de referencia ---------- */
   // lista de puntos válidos con la hora planificada (horas desde la partida) de llegada y salida
   function plan(m){
+    if(!m) return null;
     const R = A ? A.calcular(m) : M.calcular(m), r = R.res, pts = [];
     if(!R.tramos.length) return null;
     const p0 = R.puntos[R.tramos[0].iA];
@@ -103,35 +104,60 @@ const Seguir = (function(){
   }
   // elegir el destino: punto de la ruta, punto de referencia, tocar la carta o escribir la coordenada
   function dialogoIrA(enMarcha){
-    const m = A.actual(), P = plan(m), dat = m.datum || 'WGS84', prs = [].concat(...(m.horizontes || []).map(h=>h.prs));
-    const vistos = new Set(), ev = P.pts.map((q, k)=>({q, k})).filter(x=>{ const c = x.q.lat.toFixed(5) + ',' + x.q.lon.toFixed(5); if(!x.q.ev || vistos.has(c)) return false; vistos.add(c); return true; }), u = pos ? M.llAUtm(M.deWgs84(pos.lat, pos.lon, 0, dat).lat, M.deWgs84(pos.lat, pos.lon, 0, dat).lon, +m.zona || undefined, M.DATUMS[dat]) : null;
-    A.dialogo(`<h3>🧭 Ir a un punto</h3>
-      ${enMarcha ? `<p class="nota">«Ir y volver»: al llegar, la app te guía de vuelta al lugar donde dejaste la ruta y la marcha sigue.</p><div class="campos"><label class="c ancho">Después<select id="iMod"><option value="volver">↩ Ir y volver a la ruta</option><option value="solo">■ Solo ir a ese punto</option></select></label></div>` : '<p class="nota">Navegación directa a un punto, sin marcha planificada.</p>'}
-      <h4>Un punto de la ruta</h4><div class="s-mas">${ev.map(x=>`<button class="btn" data-ip="${x.k}">◉ ${A.esc(x.q.nombre)}${x.q.clave ? ' · ' + A.esc(x.q.clave) : ''}</button>`).join('')}</div>
-      ${prs.length ? `<h4>Un punto de referencia</h4><div class="s-mas">${prs.map((q, i)=>`<button class="btn" data-ir="${i}">▲ ${A.esc(q.nombre)}</button>`).join('')}</div>` : ''}
-      <h4>Otro lugar</h4><div class="s-mas"><button class="btn" id="iCarta">✛ Tocarlo en la carta</button></div>
-      <div class="campos"><label class="c">Zona<input class="num" id="iZ" value="${u ? u.zona : esc19(m)}" inputmode="numeric"></label><label class="c">Este (m)<input class="num" id="iE" inputmode="numeric" placeholder="${u ? Math.round(u.e) : '350000'}"></label>
-        <label class="c">Norte (m)<input class="num" id="iN" inputmode="numeric" placeholder="${u ? Math.round(u.n) : '6300000'}"></label></div>
-      <div class="btns"><button class="btn" id="iUtm">Ir a esa coordenada</button><button class="btn" data-cerrar>Cancelar</button></div>
-      <p class="nota">Coordenadas en ${A.esc(dat)}.</p>`, d=>{
-      const ir = dest=>{ const mo = enMarcha ? d.querySelector('#iMod').value : 'solo'; A.cerrarDialogo(); empezarIrA(dest, enMarcha, mo); };
-      d.querySelectorAll('[data-ip]').forEach(b=>b.onclick = ()=>{ const q = P.pts[+b.dataset.ip]; ir({lat:q.lat, lon:q.lon, nombre:rotulo(q)}); });
-      d.querySelectorAll('[data-ir]').forEach(b=>b.onclick = ()=>{ const q = prs[+b.dataset.ir]; ir({lat:q.lat, lon:q.lon, nombre:q.nombre}); });
-      d.querySelector('#iCarta').onclick = ()=>{ eligiendo = {enMarcha, modo:enMarcha ? d.querySelector('#iMod').value : 'solo'}; A.cerrarDialogo(); if(enMarcha && modo!=='carta') cambiarModo('carta'); A.aviso('Toca el lugar en la carta'); };
-      d.querySelector('#iUtm').onclick = ()=>{ const z = +d.querySelector('#iZ').value, e = +d.querySelector('#iE').value, n = +d.querySelector('#iN').value;
-        if(!z || !e || !n) return A.aviso('Escribe la zona, el este y el norte');
-        const g = M.utmALl(e, n, z, true, M.DATUMS[dat]), w = M.aWgs84(g.lat, g.lon, 0, dat); ir({lat:w.lat, lon:w.lon, nombre:'UTM ' + Math.round(e/1000) + ' ' + Math.round(n/1000)}); };
-    });
+    // cualquier punto (v0.99.3, pedido del usuario): de cualquier marcha guardada (sin activarla), tocado en la carta o una coordenada
+    const cur = A.actual(), ms = (A.marchas ? A.marchas() : [cur]).filter(Boolean);
+    const conRuta = ms.map(x=>{ let R = null; try { R = M.calcular(x); } catch(e){} return {m:x, R}; }).filter(x=>x.R && x.R.puntos.some(q=>q.ok));
+    let sel = conRuta.find(x=>x.m.id===dialogoIrA.sel) || conRuta.find(x=>cur && x.m.id===cur.id) || conRuta[0];
+    const dat = (cur && cur.datum) || 'WGS84', g0 = pos ? M.deWgs84(pos.lat, pos.lon, 0, dat) : null, u = g0 ? M.llAUtm(g0.lat, g0.lon, (cur && +cur.zona) || undefined, M.DATUMS[dat]) : null;
+    const pintarD = ()=>{
+      const R = sel && sel.R, vistos = new Set(), pts = R ? R.puntos.filter(q=>{ if(!q.ok || (!q.ev && !q.nombre)) return false; const c = q.lat.toFixed(5) + ',' + q.lon.toFixed(5); if(vistos.has(c)) return false; vistos.add(c); return true; }) : [];
+      const prs = sel ? [].concat(...(sel.m.horizontes || []).map(h=>h.prs)) : [];
+      A.dialogo(`<h3>🧭 Ir a un punto</h3>
+        ${enMarcha ? `<p class="nota">«Ir y volver»: al llegar, la app te guía de vuelta al lugar donde dejaste la ruta y la marcha sigue.</p><div class="campos"><label class="c ancho">Después<select id="iMod"><option value="volver">↩ Ir y volver a la ruta</option><option value="solo">■ Solo ir a ese punto</option></select></label></div>` : '<p class="nota">Navegación directa a cualquier punto, con o sin marcha.</p>'}
+        ${conRuta.length ? `<div class="campos"><label class="c ancho">Puntos de la marcha<select id="iMar">${conRuta.map(x=>`<option value="${x.m.id}"${x===sel ? ' selected' : ''}>${A.esc(x.m.nombre || 'Marcha')}${cur && x.m.id===cur.id ? ' (abierta)' : ''}</option>`).join('')}</select></label></div>
+          <div class="s-mas">${pts.map((q, k)=>`<button class="btn" data-ip="${k}">◉ ${A.esc(q.nombre || 'punto')}${q.clave ? ' · ' + A.esc(q.clave) : ''}</button>`).join('')}</div>
+          ${prs.length ? `<h4>Puntos de referencia de esa marcha</h4><div class="s-mas">${prs.map((q, i)=>`<button class="btn" data-ir="${i}">▲ ${A.esc(q.nombre)}</button>`).join('')}</div>` : ''}` : '<p class="nota">No hay marchas guardadas con puntos: toca el lugar en la carta o escribe la coordenada.</p>'}
+        <h4>Cualquier otro lugar</h4><div class="s-mas"><button class="btn" id="iCarta">✛ Tocarlo en la carta</button></div>
+        <div class="campos"><label class="c">Zona<input class="num" id="iZ" value="${u ? u.zona : (cur && +cur.zona) || 19}" inputmode="numeric"></label><label class="c">Este (m)<input class="num" id="iE" inputmode="numeric" placeholder="${u ? Math.round(u.e) : '350000'}"></label>
+          <label class="c">Norte (m)<input class="num" id="iN" inputmode="numeric" placeholder="${u ? Math.round(u.n) : '6300000'}"></label></div>
+        <div class="btns"><button class="btn" id="iUtm">Ir a esa coordenada</button><button class="btn" data-cerrar>Cancelar</button></div>
+        <p class="nota">Coordenadas UTM en ${A.esc(dat)}.</p>`, d=>{
+        const ir = dest=>{ const mo = enMarcha ? d.querySelector('#iMod').value : 'solo'; A.cerrarDialogo(); empezarIrA(dest, enMarcha, mo); };
+        const mar = d.querySelector('#iMar'); if(mar) mar.onchange = ()=>{ dialogoIrA.sel = mar.value; sel = conRuta.find(x=>x.m.id===mar.value); pintarD(); };
+        d.querySelectorAll('[data-ip]').forEach(b=>b.onclick = ()=>{ const q = pts[+b.dataset.ip]; ir({lat:q.lat, lon:q.lon, nombre:q.clave || q.nombre || 'el punto'}); });
+        d.querySelectorAll('[data-ir]').forEach(b=>b.onclick = ()=>{ const q = prs[+b.dataset.ir]; ir({lat:q.lat, lon:q.lon, nombre:q.nombre}); });
+        d.querySelector('#iCarta').onclick = ()=>{ eligiendo = {enMarcha, modo:enMarcha ? d.querySelector('#iMod').value : 'solo'}; A.cerrarDialogo();
+          if(enMarcha && modo!=='carta') cambiarModo('carta'); else if(!enMarcha && !mapa){ irSolo = null; pintarSinRuta(true); } A.aviso('Toca el lugar en la carta'); };
+        d.querySelector('#iUtm').onclick = ()=>{ const z = +d.querySelector('#iZ').value, e = +d.querySelector('#iE').value, n = +d.querySelector('#iN').value;
+          if(!z || !e || !n) return A.aviso('Escribe la zona, el este y el norte');
+          const g = M.utmALl(e, n, z, true, M.DATUMS[dat]), w = M.aWgs84(g.lat, g.lon, 0, dat); ir({lat:w.lat, lon:w.lon, nombre:'UTM ' + Math.round(e/1000) + ' ' + Math.round(n/1000)}); };
+      });
+    };
+    pintarD();
   }
   const esc19 = m=>+m.zona || 19;
   function empezarIrA(dest, enMarcha, mo){
-    const m = A.actual(), E = m.ejec;
+    const m = A.actual(), E = m && m.ejec;
     if(enMarcha && E && E.estado!=='fin'){ const P = plan(m), k = siguiente(m, P), q = P.pts[Math.max(0, (k===null ? P.pts.length : k) - 1)];
       E.desvio = {dest, modo:mo, fase:'ida', ini:ahora(), salida:{lat:pos ? pos.lat : q.lat, lon:pos ? pos.lon : q.lon, nombre:'donde dejaste la ruta'}}; A.guardar();
       A.aviso('🧭 Ir a ' + dest.nombre + (mo==='volver' ? ' y volver a la ruta' : '')); }
     else { irSolo = Object.assign({}, dest, {ini:ahora()}); A.aviso('🧭 Navegando a ' + dest.nombre); }
     pintar();
   }
+  // sin marcha abierta o sin ruta: la carta con tu posición y «Ir a un punto»
+  function pintarSinRuta(tocar){
+    const c = $('#seguir'); if(!c) return; document.body.classList.add('con-mapa');
+    c.innerHTML = `<div class="mapa-env s-carta s-dos"><div id="sMapa"></div><div class="s-bsup"><div class="b1">${tocar ? 'Toca en la carta el lugar al que quieres ir' : 'Sin ruta: navega a cualquier punto'}</div></div>
+      <div class="s-ctrl"><button class="btn" id="sOrient" aria-label="Orientación"></button><button class="btn" id="sCapa" aria-label="Mapa">${ic('capa', 'Mapa')}</button><button class="btn" id="sCentrar" aria-label="Centrar">${ic('centro', 'Centrar')}</button></div>
+      <div class="s-binf"><button class="btn pri" id="sIrSolo2">${ic('ira', 'Ir a un punto')}</button></div></div>`;
+    $('#sIrSolo2').onclick = ()=>dialogoIrA(false);
+    if(tocar) eligiendo = eligiendo || {enMarcha:false, modo:'solo'};
+    centrar = true; hacerMapa(null); iniciarGps();
+  }
+  function posSinRuta(){ if(!mapa || !capas || !pos) return; capas.clearLayers();
+    L.circle([pos.lat, pos.lon], {radius:pos.acc||20, color:'#2a7fd4', weight:1, fillOpacity:.12}).addTo(capas);
+    L.circleMarker([pos.lat, pos.lon], {radius:8, color:'#fff', weight:3, fillColor:'#2a7fd4', fillOpacity:1}).addTo(capas);
+    if(centrar){ if(primera){ mapa.setView([pos.lat, pos.lon], 15, {animate:false}); primera = false; } else mapa.panTo([pos.lat, pos.lon], {animate:false}); } }
   // navegación sola a un punto (sin marcha): la misma carta con las dos barras
   function pintarSolo(c, P){
     document.body.classList.add('con-mapa');
@@ -141,16 +167,20 @@ const Seguir = (function(){
     $('#sSoloFin').onclick = ()=>{ irSolo = null; pintar(); };
     centrar = true; hacerMapa(P); iniciarGps(); pintarSoloVivo();
   }
+  // zona UTM y declinación: las de la marcha abierta, o las del lugar (WMM) si no hay ruta
+  function geoRef(P, lat, lon){ if(P) return {zona:P.R.zona, dec:P.R.decl.valor}; const z = Math.floor((lon + 180)/6) + 1;
+    let dec = 0; try { if(typeof WMM!=='undefined') dec = WMM.decl(lat, lon, 0, WMM.year(new Date())); } catch(e){} return {zona:z, dec}; }
+  let decSolo = 0;
   function pintarSoloVivo(){
-    const c = $('#sCab'); if(!c || !irSolo) return; const P = plan(A.actual());
-    const r = pos ? M.rumboEntre(pos, irSolo, P.R.zona, P.R.decl.valor) : null, V = velAhora();
+    const c = $('#sCab'); if(!c || !irSolo) return; const P = plan(A.actual()), gr = geoRef(P, irSolo.lat, irSolo.lon); decSolo = gr.dec;
+    const r = pos ? M.rumboEntre(pos, irSolo, gr.zona, gr.dec) : null, V = velAhora();
     if(r){ c.dataset.az = r.azM; if(r.dist<=Math.max(40, 15 + (pos.acc || 0)) && !irSolo.llego){ irSolo.llego = true; if(navigator.vibrate) navigator.vibrate([200, 100, 200]); A.aviso('📍 Llegaste a ' + irSolo.nombre); } }
     const dist = r ? (r.dist>=1000 ? A.f(r.dist/1000, 2) + ' km' : A.f(r.dist) + ' m') : '—', cel = (rot, val, sub, cl)=>`<div class="bc"><span>${rot}</span><b class="${cl || ''}">${val}</b>${sub ? `<small>${sub}</small>` : ''}</div>`;
     c.innerHTML = `<div class="bcs">${cel(irSolo.llego ? 'Llegaste a' : 'Ir a', A.esc(irSolo.nombre), 'en línea recta', 'desv')}${cel('Distancia', dist)}${cel('Rumbo mag.', r ? A.f(r.azM, 0) + '°' : '—', r ? r.mils + ' ‰' : '', 'ocre')}
       ${cel('Ahora', V ? A.f(V, 1) + ' km/h' : '—', V ? M.verRitmo(V) : '')}${cel('Llega aprox.', r ? hh(ahora() + r.dist/1000/(V>1 ? V : 4)*36e5) : '—', 'a ' + A.f(V>1 ? V : 4, 1) + ' km/h')}${cel('GPS', pos ? '±' + Math.round(pos.acc || 0) + ' m' : '—', pos ? '' : 'esperando señal')}</div>`;
     flecha(); if(mapa && capas){ capas.clearLayers(); L.circleMarker([irSolo.lat, irSolo.lon], {radius:12, color:'#6fb3d9', weight:3, fill:false}).addTo(capas);
       if(pos){ L.polyline([[pos.lat, pos.lon], [irSolo.lat, irSolo.lon]], {color:'#6fb3d9', weight:3, dashArray:'6 6'}).addTo(capas); L.circleMarker([pos.lat, pos.lon], {radius:8, color:'#fff', weight:3, fillColor:'#2a7fd4', fillOpacity:1}).addTo(capas);
-        if(r) girar(M.rumboEntre(pos, irSolo, P.R.zona, 0).azG); if(centrar) seguirPos(irSolo); } }
+        if(r) girar(M.rumboEntre(pos, irSolo, gr.zona, 0).azG); if(centrar) seguirPos(irSolo); } }
   }
 
   /* ---------- adelanto / atraso ---------- */
@@ -206,6 +236,7 @@ const Seguir = (function(){
       hist.push({t:pos.t, lat:pos.lat, lon:pos.lon, alt:pos.alt, acc:pos.acc}); while(hist.length && pos.t - hist[0].t>6*60000) hist.shift();
       const m = A.actual(), E = m && m.ejec;
       if(irSolo && (!E || E.estado==='fin')){ pintarSoloVivo(); return; }
+      if($('#sIrSolo2')){ posSinRuta(); return; }   // sin ruta: solo la posición en la carta
       if(!E){ pintarPrevio(); return; }   // antes de partir: solo se muestra la posición y la distancia al PIM
       if(E.estado==='fin') return;
       const u = E.track[E.track.length - 1];
@@ -323,9 +354,10 @@ const Seguir = (function(){
   /* ---------- pantalla ---------- */
   function abrir(cont, api){
     A = api; cerrarMapa();
-    const m = A.actual(), E = m.ejec;
+    const m = A.actual(), E = m && m.ejec;
     if(E && E.estado!=='fin'){ iniciarGps(); pantalla(true); }
     cont.innerHTML = '<div id="seguir"></div>';
+    if(pedirIrA){ pedirIrA = false; pintar(); setTimeout(()=>dialogoIrA(!!(E && E.estado!=='fin')), 300); return; }
     if(pendiente){ const d = pendiente; pendiente = null; const en = !!(E && E.estado!=='fin'); if(en) modo = 'carta'; empezarIrA(d, en, en ? 'volver' : 'solo'); return; }
     pintar();
   }
@@ -333,10 +365,10 @@ const Seguir = (function(){
   let modo = 'carta'; try { modo = localStorage.getItem('burros_seguir') || 'carta'; } catch(e){}
   const MODOS = [['carta', '🗺 Carta'], ['nav', '🧭 Navegación'], ['reg', '📋 Matriz']];
   function pintar(){
-    const c = $('#seguir'); if(!c) return; const m = A.actual(), P = plan(m), E = m.ejec;
+    const c = $('#seguir'); if(!c) return; const m = A.actual(), P = m ? plan(m) : null, E = m && m.ejec;
     cerrarMapa(); document.body.classList.remove('con-mapa');
-    if(!P){ c.innerHTML = `<div class="tarjeta vacio">Completa la ruta (al menos dos puntos con cota) para poder seguir la marcha.</div>`; return; }
     if(irSolo && (!E || E.estado==='fin')) return pintarSolo(c, P);
+    if(!P) return pintarSinRuta(false);
     if(!E){ // antes de partir: la carta a pantalla completa con el plan encima y el botón de inicio abajo
       document.body.classList.add('con-mapa');
       c.innerHTML = `<div class="mapa-env s-carta"><div id="sMapa"></div>
@@ -452,7 +484,7 @@ const Seguir = (function(){
   }
   let horDec = 0;
   // sin brújula, la flecha grande apunta como en la carta (norte geográfico arriba): rumbo magnético + declinación
-  const decPlan = ()=>{ const m = A && A.actual(), P = m && plan(m); return P ? P.R.decl.valor : 0; };
+  const decPlan = ()=>{ const m = A && A.actual(), P = m && plan(m); return irSolo || !P ? decSolo : P.R.decl.valor; };
   function flecha(){
     // panorama del horizonte abierto: mover la línea de la brújula y centrarla
     const g = document.getElementById('hRumbo'), env = document.getElementById('sHorEnv');
@@ -460,7 +492,7 @@ const Seguir = (function(){
       g.setAttribute('transform', 'translate(' + x.toFixed(1) + ',0)'); env.scrollLeft = x - env.clientWidth/2; }
     const f = $('#sFlecha'), c = $('#sCab'); if(!f || !c || c.dataset.az===undefined) return;
     if(!rumboDisp){ f.style.opacity = f.classList.contains('s-flecha-g') ? .9 : .25; if(f.classList.contains('s-flecha-g')) f.style.transform = 'rotate(' + (+c.dataset.az + decPlan() - (giro || 0)) + 'deg)'; f.title = 'Sin brújula: apunta con el norte hacia arriba, como la carta'; return; }
-    const P = plan(A.actual()), dec = P ? P.R.decl.valor : 0, h = rumboDisp.mag ? rumboDisp.h : rumboDisp.h - dec;
+    const P = plan(A.actual()), dec = irSolo || !P ? decSolo : P.R.decl.valor, h = rumboDisp.mag ? rumboDisp.h : rumboDisp.h - dec;
     f.style.opacity = 1; f.style.transform = 'rotate(' + ((+c.dataset.az - h + 360)%360) + 'deg)';
   }
   // matriz de eventos: eventos planificados (paso por cada punto) y reales (inicio, pasos, altos, novedades, fin) en orden de hora
@@ -530,9 +562,13 @@ ${E.track.map(t=>`<trkpt lat="${t[0]}" lon="${t[1]}"><time>${new Date(t[2]).toIS
   let primera = true;
   function hacerMapa(P){
     const el = $('#sMapa'); if(!el || typeof L==='undefined') return;
-    mapa = L.map(el, {zoomControl:false, attributionControl:false}).setView([P.pts[0].lat, P.pts[0].lon], 15);
+    const c0 = P ? [P.pts[0].lat, P.pts[0].lon] : irSolo ? [irSolo.lat, irSolo.lon] : pos ? [pos.lat, pos.lon] : [-33.45, -70.66];
+    mapa = L.map(el, {zoomControl:false, attributionControl:false}).setView(c0, P || irSolo || pos ? 15 : 10);
     let base = 'topo'; try { base = JSON.parse(localStorage.getItem('burros_mapa') || '{}').base || 'topo'; } catch(e){}
     mapa.createPane('curvas').style.zIndex = 300; mapa.getPane('curvas').style.pointerEvents = 'none'; ponerCapas();
+    capas = L.layerGroup().addTo(mapa);
+    if(!P){ mapa.on('dragstart', ()=>{ centrar = false; marcarCentrar(); }); mapa.on('click', e=>{ if(!eligiendo) return; const el2 = eligiendo; eligiendo = null; empezarIrA({lat:e.latlng.lat, lon:e.latlng.lng, nombre:'el punto marcado'}, el2.enMarcha, el2.modo); });
+      controles(); primera = true; const este = mapa; setTimeout(()=>{ if(mapa===este) mapa.invalidateSize({animate:false}); }, 50); return; }
     L.polyline(P.pts.map(p=>[p.lat, p.lon]), {color:'#14150f', weight:8, opacity:.5}).addTo(mapa);
     L.polyline(P.pts.map(p=>[p.lat, p.lon]), {color:'#e3a63a', weight:4, opacity:.95, dashArray:'8 6'}).addTo(mapa);
     // un rótulo por lugar: si la ruta vuelve a pasar por el mismo punto, se juntan los nombres («PIM / ECO»)
@@ -634,7 +670,7 @@ ${E.track.map(t=>`<trkpt lat="${t[0]}" lon="${t[1]}"><time>${new Date(t[2]).toIS
 
   function cerrar(){ cerrarMapa(); const m = A && A.actual(); if(!(m && m.ejec && m.ejec.estado!=='fin')) pararGps(); }
   // desde el Mapa: «Navegar hasta aquí» (con una marcha en curso, como desvío que vuelve a la ruta)
-  let pendiente = null; function irA(dest){ pendiente = dest; }   // se aplica al abrir la pestaña Seguir
-  return {abrir, cerrar, siguiente, plan, atraso, irA, enMarcha:()=>watch!==null};
+  let pendiente = null, pedirIrA = false; function irA(dest){ pendiente = dest; } function abrirIrA(){ pedirIrA = true; }   // se aplica al abrir la pestaña Seguir
+  return {abrir, cerrar, siguiente, plan, atraso, irA, abrirIrA, enMarcha:()=>watch!==null};
 })();
 if(typeof globalThis!=='undefined') globalThis.Seguir = Seguir;
