@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.99.4', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.99.5', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -93,7 +93,7 @@
         <div><div class="n">${esc(m.nombre)}</div>
         <div class="d">${esc(m.unidad || 'sin unidad')} · ${m.fecha ? esc(m.fecha.split('-').reverse().join('-')) : 'sin fecha'} ${esc(m.hora||'')}</div>
         <div class="d">${ok ? km(r.res.dist) + ' km · +' + f(r.res.sube) + ' m · ' + M.verDur(r.res.total) : (m.puntos.length + ' puntos · faltan datos')}</div></div>
-        <span class="flecha"><button class="btn mini" data-dup="${m.id}">Duplicar</button> <button class="btn mini peligro" data-borra="${m.id}">Borrar</button></span></div>`;
+        <span class="flecha">${m.id===S.actual ? `<button class="btn mini" data-cierra="${m.id}" title="Deja la marcha guardada, sin seleccionar">Cerrar</button> ` : ''}<button class="btn mini" data-dup="${m.id}">Duplicar</button> <button class="btn mini peligro" data-borra="${m.id}">Borrar</button></span></div>`;
     }).join('');
     vista.innerHTML = `<div class="tarjeta uso"><div class="uso-t">${S.uso ? 'Uso de la app' : '¿Cómo vas a usar Burros de Combate?'}</div>
         <div class="seg"><button data-uso="militar" class="${Uso.civil() ? '' : 'on'}">🪖 Militar</button><button data-uso="civil" class="${Uso.civil() ? 'on' : ''}">🥾 Civil</button></div>
@@ -122,6 +122,10 @@
         <div class="mono" style="margin-top:8px;color:var(--tenue)">Versión ${VERSION}</div></div>`;
     vista.querySelectorAll('[data-abrir]').forEach(d=>d.onclick = e=>{
       const b = e.target.closest('button');
+      // cerrar la marcha abierta (v0.99.5): queda guardada pero sin seleccionar (p. ej. para navegar a cualquier punto sin ver su ruta)
+      if(b && b.dataset.cierra){ const x = S.marchas.find(y=>y.id===b.dataset.cierra);
+        if(x && x.ejec && x.ejec.estado!=='fin') return aviso('Esta marcha está en curso: termínala en Seguir antes de cerrarla');
+        S.actual = null; guardar(); pintar(); return aviso('Marcha cerrada: sigue guardada; tócala para abrirla de nuevo'); }
       if(b && b.dataset.dup){ const o = JSON.parse(JSON.stringify(S.marchas.find(x=>x.id===b.dataset.dup))); o.nombre += ' (copia)'; nueva(o); return pintar(); }
       if(b && b.dataset.borra){ const x = S.marchas.find(x=>x.id===b.dataset.borra);
         return confirmar('¿Borrar la marcha «' + x.nombre + '»? No se puede deshacer.', ()=>{ S.marchas = S.marchas.filter(y=>y!==x); if(S.actual===x.id) S.actual = null; guardar(); pintar(); }); }
