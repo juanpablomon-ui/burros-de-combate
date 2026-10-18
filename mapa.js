@@ -165,7 +165,7 @@ const Mapa = (function(){
     R.tramos.forEach(t=>{ const a = ok[t.iA], b = ok[t.iB];
       const ln = L.polyline([[a.lat, a.lon], [b.lat, b.lon]], {color:'#14150f', weight:9, opacity:.55}).addTo(capaRuta);
       const l2 = L.polyline([[a.lat, a.lon], [b.lat, b.lon]], {color:colPte(t.pte), weight:5, opacity:.95}).addTo(capaRuta);
-      [ln, l2].forEach(x=>{ x.on('click', e=>{ L.DomEvent.stop(e); insertar(t.iB, e.latlng); });
+      [ln, l2].forEach(x=>{ x.on('click', e=>{ L.DomEvent.stop(e); if(agregar) return agregarPunto(e.latlng); insertar(t.iB, e.latlng); });
         x.on('contextmenu', e=>{ L.DomEvent.stop(e); L.DomEvent.preventDefault(e); menuTramo(t, e.latlng, e.originalEvent); }); });
       l2.bindTooltip(`${A.esc(t.de)} → ${A.esc(t.a)}: ${A.f(t.dist)} m · ${t.dv>=0 ? '+' : ''}${A.f(t.dv)} m (${A.f(t.pte*100, 0)} %) · rumbo ${A.f(t.azM, 0)}° / ${t.mils} ‰ · ${M.verDur(t.t)}`, {sticky:true});
     });
@@ -174,7 +174,7 @@ const Mapa = (function(){
     ok.forEach((p, i)=>{ if(!p.ok) return;
       if(!p.ev){ // punto de ruta: solo marca el camino
         const mk = L.marker([p.lat, p.lon], {icon:L.divIcon({className:'m-ruta' + (sel===i ? ' sel' : ''), iconSize:[14, 14], iconAnchor:[7, 7]}), draggable:true, autoPan:true}).addTo(capaRuta);
-        mk.on('click', e=>{ L.DomEvent.stop(e); abrirHoja(i); });
+        mk.on('click', e=>{ L.DomEvent.stop(e); if(agregar && i!==A.actual().puntos.length - 1) return agregarEn(i); abrirHoja(i); });
         mk.on('contextmenu', e=>{ L.DomEvent.stop(e); L.DomEvent.preventDefault(e); menuPunto([i], e.originalEvent); });
         mk.on('dragstart', ()=>guardarDeshacer()); mk.on('dragend', e=>mover(i, e.target.getLatLng()));
         return; }
@@ -185,7 +185,7 @@ const Mapa = (function(){
       const ic = L.divIcon({className:'m-pto' + (ids.includes(sel) ? ' sel' : '') + (ids.includes(0) ? ' ini' : '') + (ids.length>1 ? ' multi' : ''), iconSize:[26, 26], iconAnchor:[13, 13],
         html:`<span class="n">${ids.map(i=>nEv[i]).join('·')}</span><span class="et"${ids.length>1 ? ` style="left:${ids.map(i=>nEv[i]).join('·').length*7.5 + 18}px"` : ''}>${cls.length ? `<i class="clave">${A.esc(cls.join(' / '))}</i> ` : ''}<b>${A.esc(nombres.join(' / '))}</b> ${isNaN(p.cota) ? '' : A.f(p.cota) + ' m'}${horas.length ? ' · ' + horas.join(' / ') : ''}</span>`});
       const mk = L.marker([p.lat, p.lon], {icon:ic, draggable:true, autoPan:true}).addTo(capaRuta);
-      mk.on('click', e=>{ L.DomEvent.stop(e); abrirHoja(ids.includes(sel) && ids.length>1 ? ids[(ids.indexOf(sel) + 1)%ids.length] : ids[0]); });
+      mk.on('click', e=>{ L.DomEvent.stop(e); if(agregar && !ids.includes(A.actual().puntos.length - 1)) return agregarEn(ids[0]); abrirHoja(ids.includes(sel) && ids.length>1 ? ids[(ids.indexOf(sel) + 1)%ids.length] : ids[0]); });
       mk.on('contextmenu', e=>{ L.DomEvent.stop(e); L.DomEvent.preventDefault(e); menuPunto(ids, e.originalEvent); });
       mk.on('dragstart', ()=>guardarDeshacer());
       mk.on('dragend', e=>{ const ll = e.target.getLatLng(); ids.forEach(i=>mover(i, ll, true)); A.guardar(); ruta(); ids.forEach(i=>cotaAuto(i)); if(ids.includes(sel)) abrirHoja(sel); });
@@ -247,8 +247,32 @@ const Mapa = (function(){
   }
   // el punto nuevo ocupa el primer punto sin coordenadas (los de una marcha nueva) o va al final
   const vacio = p=>p.tipo==='GEO' ? (p.lat==='' || p.lat===undefined) && (p.lon==='' || p.lon===undefined) : (p.e==='' || p.e===undefined) && (p.n==='' || p.n===undefined);
+  /* unir la ruta en un punto que ya existe (v0.99.8, pedido del usuario: el regreso se junta con la ida): el punto nuevo copia el lugar
+     exacto (coordenadas, cota, nombre y si es evento) de ese punto; en la carta se ve como un solo marcador */
+  const LUGAR = ['tipo', 'zona', 'e', 'n', 'lat', 'lon', 'norte', 'este', 'cota', 'cotaAuto', 'cotaSrc', 'nombre', 'ev', 'clave'];
+  const copiaLugar = (p, extra)=>{ const o = {}; LUGAR.forEach(k=>{ if(p[k]!==undefined) o[k] = p[k]; }); return Object.assign(A.punto(''), o, {obs:'', det:''}, extra || {}); };
+  function agregarEn(i){
+    const m = A.actual(), q = m.puntos[i]; if(!q) return; const u = m.puntos[m.puntos.length - 1];
+    if(u && u!==q && !vacio(u) && u.e===q.e && u.n===q.n && u.lat===q.lat && u.lon===q.lon) return A.aviso('El último punto ya está en ese lugar');
+    guardarDeshacer(); m.puntos.push(copiaLugar(q)); A.guardar(); ruta();
+    A.aviso('Unido a ' + (q.nombre || 'ese punto') + ': el siguiente punto pasa por el mismo lugar');
+  }
+  // completar el regreso desde un punto de la ida, por los mismos puntos, hasta el PIM
+  function volverPorLaIda(i){
+    const m = A.actual(), q = m.puntos[i], u = m.puntos[m.puntos.length - 1]; if(!q || i<1) return;
+    guardarDeshacer();
+    const mismo = u && u.e===q.e && u.n===q.n && u.lat===q.lat && u.lon===q.lon; if(!mismo) m.puntos.push(copiaLugar(q));
+    for(let j=i - 1; j>=0; j--){ const x = m.puntos[j]; m.puntos.push(copiaLugar(x, {obs:x.obs ? 'Regreso — ' + x.obs : 'Regreso', ev:x.ev})); }
+    const f = m.puntos[m.puntos.length - 1]; if(!f.nombre || f.nombre==='PIM') f.nombre = 'PTM';
+    A.guardar(); ruta(); A.aviso('↩ Regreso por la ida desde ' + (q.nombre || 'ese punto') + ' hasta el término');
+  }
   function agregarPunto(ll){
-    const m = A.actual(); guardarDeshacer();
+    const m = A.actual();
+    // si se toca justo al lado de un punto que ya existe, se une a él (mismo lugar)
+    if(map && m.puntos.length){ const R = A.calcular(m), c = map.latLngToContainerPoint(ll); let mejor = -1, dm = 25;
+      R.puntos.forEach((g, k)=>{ if(!g.ok) return; const d = map.latLngToContainerPoint([g.lat, g.lon]).distanceTo(c); if(d<dm){ dm = d; mejor = k; } });
+      if(mejor>=0 && mejor!==m.puntos.length - 1) return agregarEn(mejor); }
+    guardarDeshacer();
     let i = m.puntos.findIndex(vacio);
     if(i<0){ m.puntos.push(A.punto('', Object.assign(campos(m, ll), {ev:false}))); i = m.puntos.length - 1; }
     else Object.assign(m.puntos[i], campos(m, ll, m.puntos[i]));
@@ -379,6 +403,8 @@ const Mapa = (function(){
         mo('recoge', 'Recoger las dos aquí', 'se sigue con las dos mochilas', 'Se recogen las dos')); }
     items.push({ico:'✎', lbl:'Editar punto', nota:'nombre, cota, detención, observaciones', fn:()=>abrirHoja(i)});
     items.push({ico:'⏸', lbl:'Detención aquí', nota:(+p.det ? p.det + ' min' : 'sin detención') + ' (comida, descanso, reorganización)', fn:()=>{ abrirHoja(i); setTimeout(()=>{ const x = document.querySelector('[data-h=det]'); if(x){ x.focus(); x.select(); } }, 50); }});
+    if(i>0 && i<m.puntos.length - 1) items.push({ico:'↩', lbl:'Volver por la ida desde aquí', nota:'completa el regreso hasta el término por los mismos puntos', fn:()=>volverPorLaIda(i)});
+    if(i>0 && i<m.puntos.length - 1) items.push({ico:'⤵', lbl:'Unir el siguiente punto aquí', nota:'agrega un punto al final en este mismo lugar', fn:()=>agregarEn(i)});
     if(i>0) items.push({ico:'＋', lbl:'Insertar punto antes', nota:'a mitad del tramo anterior', fn:()=>{ const a = R.puntos[i - 1]; if(a && a.ok) insertar(i, L.latLng((a.lat + g.lat)/2, (a.lon + g.lon)/2)); }});
     if(i<m.puntos.length - 1) items.push({ico:'＋', lbl:'Insertar punto después', nota:'a mitad del tramo siguiente', fn:()=>{ const b = R.puntos[i + 1]; if(b && b.ok) insertar(i + 1, L.latLng((b.lat + g.lat)/2, (b.lon + g.lon)/2)); }});
     items.push({ico:'⤢', lbl:'Centrar el mapa aquí', fn:()=>map.setView([g.lat, g.lon], Math.max(map.getZoom(), 16))});
