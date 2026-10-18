@@ -704,3 +704,56 @@ body.con-mapa{overflow:hidden}
 .s-bsup .ch.mal{background:#3a1a14;border-color:var(--rojo);color:#ff9b8a} .s-bsup .ch.pausa{color:var(--suave)}
 .s-bsup .ch b{font-family:var(--sans,inherit)}
 @media (orientation:portrait){ .s-bsup .bchips{flex-wrap:wrap;overflow:visible} }
+
+/* v0.99.7: pantalla tipo ATAK — carta completa; panel de datos a la derecha que se oculta con la pestaña; PASANDO siempre a la vista */
+.s-atak{--pw:min(44vw,190px)}
+.s-atak .s-panel{position:absolute;z-index:1001;top:0;right:0;bottom:0;width:var(--pw);box-sizing:border-box;background:#14150ff2;border-left:1px solid var(--linea);
+  display:flex;flex-direction:column;gap:6px;padding:6px calc(6px + env(safe-area-inset-right)) calc(66px + env(safe-area-inset-bottom)) 6px;transition:transform .25s ease}
+.s-atak.oculto .s-panel{transform:translateX(100%)}
+.s-pcab{flex:1 1 auto;min-height:0;overflow:auto}
+.s-pcab .pcs{display:flex;flex-direction:column;gap:5px}
+.s-pcab .bc{background:#22231b;border:1px solid #2f3027;border-radius:9px;padding:4px 8px;min-width:0}
+.s-pcab .bc span{display:block;font-size:10px;letter-spacing:.04em;text-transform:uppercase;color:var(--suave)}
+.s-pcab .bc b{display:block;font-family:var(--mono);font-size:17px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.s-pcab .bc small{display:block;font-family:var(--mono);font-size:10.5px;color:var(--suave);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.s-pcab .bc small span{display:inline;text-transform:none;letter-spacing:0;font-size:inherit}
+.s-pcab .bc b.ocre{color:var(--ocre)} .s-pcab .bc b.desv{color:#6fb3d9;font-size:14px} .s-pcab .bc b.clave-tx{color:var(--ocre)}
+.s-pcab .bien{color:var(--verde)} .s-pcab .ojo{color:var(--ocre)} .s-pcab .mal{color:var(--rojo)}
+.s-pcab .bc:nth-child(5){display:none}   /* «plan del tramo» solo en horizontal, donde hay espacio */
+.s-pcab .bchips{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
+.s-pcab .ch{font-size:11.5px;padding:2px 7px;border-radius:999px;background:#2a2b22;border:1px solid var(--linea);font-family:var(--mono)}
+.s-pcab .ch.rapido{border-color:var(--ocre);color:var(--ocre)} .s-pcab .ch.lento{border-color:#5f9a5f;color:#9fd19f} .s-pcab .ch.mal{border-color:var(--rojo);color:#ff9b8a}
+.s-pbtn{display:grid;grid-template-columns:1fr 1fr;gap:5px;flex:0 0 auto}
+.s-pbtn .btn{margin:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:48px;padding:4px 2px;font-size:11px;font-weight:600;border-radius:10px}
+.s-pbtn .btn.peligro{color:var(--rojo)}
+.s-atak .s-pasando{position:absolute;z-index:1002;right:calc(6px + env(safe-area-inset-right));bottom:calc(8px + env(safe-area-inset-bottom));width:calc(var(--pw) - 12px - env(safe-area-inset-right));
+  margin:0;min-height:50px;display:flex;align-items:center;justify-content:center;gap:6px;font-size:14px;font-weight:700;border-radius:12px;box-shadow:0 3px 14px #000a}
+.s-atak .s-pasando span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.s-atak.oculto .s-pasando{width:auto;max-width:60vw;padding:0 16px}
+.s-pest{position:absolute;z-index:1002;top:42%;right:var(--pw);width:26px;height:60px;border:1px solid var(--linea);border-right:0;border-radius:10px 0 0 10px;background:#14150ff2;color:var(--ocre);font-size:22px;font-weight:700;padding:0;cursor:pointer;transition:right .25s ease}
+.s-atak.oculto .s-pest{right:env(safe-area-inset-right)}
+.s-atak .s-franja{display:none}
+.s-atak.oculto .s-franja{display:flex;position:absolute;z-index:1001;top:8px;left:calc(8px + env(safe-area-inset-left));right:calc(8px + env(safe-area-inset-right));justify-content:space-between;gap:10px;
+  background:#14150ff2;border:1px solid var(--linea);border-radius:10px;padding:6px 12px;font-family:var(--mono);font-size:15px}
+.s-atak.oculto .s-franja .ocre{color:var(--ocre)}
+.s-atak .s-ctrl{right:calc(var(--pw) + 34px);bottom:calc(12px + env(safe-area-inset-bottom));transition:right .25s ease}
+.s-atak.oculto .s-ctrl{right:calc(10px + env(safe-area-inset-right));bottom:calc(70px + env(safe-area-inset-bottom))}
+.s-atak .s-flecha-g{bottom:calc(14px + env(safe-area-inset-bottom))}
+@media (orientation:landscape) and (max-height:520px){
+  .s-atak{--pw:min(38vw,330px)}
+  .s-pcab .pcs{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+  .s-pcab .bc:nth-child(5){display:block}
+  .s-pbtn{grid-template-columns:repeat(4,1fr)}
+  .s-pbtn .btn{min-height:42px}
+  .s-atak .s-panel{padding-bottom:calc(60px + env(safe-area-inset-bottom))}
+  .s-atak .s-pasando{min-height:44px}
+  .s-atak .s-ctrl{flex-direction:column}
+  .s-atak.oculto .s-ctrl{flex-direction:row;bottom:calc(60px + env(safe-area-inset-bottom))}
+}
+/* solo datos en horizontal: a la izquierda próximo, distancia, rumbo y flecha; a la derecha los cuadros de velocidad */
+@media (orientation:landscape) and (max-height:520px){
+  #seguir .tarjeta#sCab{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);column-gap:14px;align-items:start}
+  #seguir .tarjeta#sCab>*{grid-column:1}
+  #seguir .tarjeta#sCab>.s-vel{grid-column:2;grid-row:1 / span 6;margin:0}
+}
+.s-atak:not(.oculto) .s-pasando span{white-space:normal;line-height:1.15;text-align:center;font-size:13px}
