@@ -263,7 +263,7 @@ const MARCHA = (function(){
      Tres formas del patrón: por distancia (p. ej. 100 m rápido × 300 m lento), por tiempo (1 min × 3 min) y por terreno
      (formato británico: trote en lo plano y en bajada, paso en las subidas). En subidas sobre 15 % manda el tiempo de montaña si es mayor. */
   const PATRONES = {distancia:'Por distancia: se alternan metros corriendo y metros caminando', tiempo:'Por tiempo: se alternan minutos corriendo y minutos caminando',
-    terreno:'Por terreno: se trota en lo plano y en bajada, se camina en subida'};
+    terreno:'Por terreno: se trota en lo plano y en bajada, se camina en subida', trote:'Solo trote: todo el recorrido trotando, a un ritmo por kilómetro'};
   const PRESETS_BR = {
     d100:{n:'Correr 100 m y caminar 300 m, una y otra vez', brPatron:'distancia', brRapido:100, brLento:300, brVelRap:9, brVelLen:6, brMetaKm:'', brMetaMin:''},
     d200:{n:'Correr 200 m y caminar 200 m, una y otra vez', brPatron:'distancia', brRapido:200, brLento:200, brVelRap:9, brVelLen:6, brMetaKm:'', brMetaMin:''},
@@ -271,12 +271,14 @@ const MARCHA = (function(){
     t13:{n:'Correr 1 min y caminar 3 min, una y otra vez', brPatron:'tiempo', brMinRap:1, brMinLen:3, brVelRap:9, brVelLen:6, brMetaKm:'', brMetaMin:''},
     t22:{n:'Correr 2 min y caminar 2 min, una y otra vez', brPatron:'tiempo', brMinRap:2, brMinLen:2, brVelRap:9, brVelLen:6, brMetaKm:'', brMetaMin:''},
     britanico:{n:'Británico (comandos): trotar en plano y bajada, caminar en subida; 14,5 km en 90 min con 14 kg', brPatron:'terreno', brVelRap:11, brVelLen:6.5, brPteLim:5, brMetaKm:14.5, brMetaMin:90, carga:14},
+    trote:{n:'Solo trote: todo trotando a un ritmo por kilómetro (6:00 min/km)', brPatron:'trote', brRitmo:'6:00', brMetaKm:'', brMetaMin:''},
     propio:{n:'Propio: escribo yo cuánto se corre y cuánto se camina'}};
   // descripción corta del tipo de marcha para el cuadro y el documento
   function tipoMarcha(par){ const q = Object.assign(porDefecto(), par || {});
     if(q.metodo==='forzada') return 'Marcha forzada: +' + fmt(num(q.forzadaPct)||0) + ' % de ritmo, sin altos';
     if(q.metodo!=='battle') return {montana:'Montaña', mide:'MIDE', general:'Marcha general'}[q.metodo] || '';
     const pr = PRESETS_BR[q.brPreset];
+    if(q.brPatron==='trote') return 'Carrera de combate: solo trote a ' + verRitmo(velBattle(q)) + ' (' + fmt(Math.round(velBattle(q)*10)/10) + ' km/h)';
     if(q.brPatron==='terreno') return 'Carrera de combate' + (q.brPreset==='britanico' ? ' (formato británico)' : '') + ': trote ' + fmt(num(q.brVelRap)||9) + ' km/h en plano y bajada, paso ' + fmt(num(q.brVelLen)||6) + ' km/h en subida';
     const c = cicloBattle(q); return 'Carrera de combate: ' + fmt(c.rap) + ' ' + c.u + ' rápido × ' + fmt(c.len) + ' ' + c.u + ' lento (media ' + fmt(velBattle(q)) + ' km/h)'; }
   // velocidad media del patrón (km/h); en el patrón por terreno, la del trote (la de cada tramo depende de su pendiente)
@@ -284,13 +286,14 @@ const MARCHA = (function(){
     const q = Object.assign({brPatron:'distancia', brRapido:100, brLento:300, brMinRap:1, brMinLen:3, brVelRap:9, brVelLen:6}, par || {});
     const vR = num(q.brVelRap) || 9, vL = num(q.brVelLen) || 6;
     if(q.brPatron==='terreno') return vR;
+    if(q.brPatron==='trote') return leerVel(q.brRitmo) || 10;   // solo trote: el ritmo escrito (min/km, o km/h)
     if(q.brPatron==='tiempo'){ const a = Math.max(0, num(q.brMinRap)||0), b = Math.max(0, num(q.brMinLen)||0); return a + b ? (a*vR + b*vL)/(a + b) : vL; }
     const a = Math.max(0, num(q.brRapido)||0), b = Math.max(0, num(q.brLento)||0); return a + b ? (a + b)/(a/vR + b/vL) : vL;
   }
   // largo de un ciclo rápido + lento (m o min) y repeticiones en la distancia o tiempo dados
   function cicloBattle(par){ const q = Object.assign(porDefecto(), par || {});
     if(q.brPatron==='tiempo') return {rap:num(q.brMinRap)||0, len:num(q.brMinLen)||0, u:'min'};
-    if(q.brPatron==='terreno') return null;
+    if(q.brPatron==='terreno' || q.brPatron==='trote') return null;
     return {rap:num(q.brRapido)||0, len:num(q.brLento)||0, u:'m'}; }
   function porDefecto(){
     return {metodo:'montana', tropa:'normal', terreno:'sinNieve', carga:20, criterio:'min',
@@ -308,7 +311,7 @@ const MARCHA = (function(){
       altosModo:'pct', altoCada:50, altoDur:10, altoPrimero:45, altoPrimeroDur:15,   // altos por % o por régimen programado
       cargaMat:false, cargaManual:false, cargaBase:'', reabast:'no', racion:'24',   // la carga sale del material salvo «cargaManual»; agua con o sin reabastecimiento; ración de 24 o 12 h
       // carrera de combate: patrón, tramos rápido/lento (m o min), velocidades (km/h), pendiente sobre la que se va al paso (%), meta opcional
-      brPreset:'d100', brPatron:'distancia', brRapido:100, brLento:300, brMinRap:1, brMinLen:3, brVelRap:9, brVelLen:6, brPteLim:5, brMetaKm:'', brMetaMin:'',
+      brPreset:'d100', brPatron:'distancia', brRapido:100, brLento:300, brMinRap:1, brMinLen:3, brVelRap:9, brVelLen:6, brPteLim:5, brRitmo:'6:00', brMetaKm:'', brMetaMin:'',
       forzadaPct:20,   // marcha forzada: ritmo sobre el de la marcha general (%)   // carga por hombre calculada desde el material (+ peso base: armamento, munición, casco, chaleco)
       ajusteAltura:true,
       formacion:'', distTipo:'tactica', tecnica:'desplazamiento',   // formación ('' = según filas), tipo de distancia entre hombres, técnica de movimiento   // marcha más lenta sobre 1.500 m (factorAltura)
@@ -343,6 +346,8 @@ const MARCHA = (function(){
       return {t:r.t/k, como:'forzada', v:r.v*k}; }
     if(par.metodo==='battle'){ const pte = dh>0 ? dv/dh : (dv>0 ? Infinity : 0), mont = tiempoTramo0(dh, dv, Object.assign({}, par, {metodo:'montana'}), vel, noche).t;
       const vR = num(par.brVelRap) || 9, vL = num(par.brVelLen) || 6;
+      // solo trote: todo al ritmo escrito; en subidas sobre 15 %, el tiempo de montaña si es mayor (ahí no alcanza a trotar)
+      if(par.brPatron==='trote'){ const v = velBattle(par); return pte>0.15 && dh/1000/v<mont ? {t:mont, como:'paso'} : {t:dh/1000/v, como:'trote'}; }
       if(par.brPatron==='terreno'){ const lim = (isNaN(num(par.brPteLim)) ? 5 : num(par.brPteLim))/100;
         return pte>lim ? {t:pte>0.15 ? Math.max(dh/1000/vL, mont) : dh/1000/vL, como:'paso'} : {t:dh/1000/vR, como:'trote'}; }
       // en subidas de 7 % o más no se corre: al paso; sobre 15 %, el tiempo de montaña si es mayor
@@ -479,10 +484,12 @@ const MARCHA = (function(){
     let meta = null;
     if(par.metodo==='battle'){ const v = velBattle(par), cic = cicloBattle(par), pas = tramos.filter(t=>t.como==='paso');
       const rep = cic && cic.rap + cic.len ? (cic.u==='m' ? dist/(cic.rap + cic.len) : acum*60/(cic.rap + cic.len)) : null;
-      avisos.push('Carrera de combate: ' + (par.brPatron==='terreno' ? 'trote a ' + fmt(num(par.brVelRap)||9) + ' km/h en lo plano y en bajada, paso a ' + fmt(num(par.brVelLen)||6) + ' km/h en subidas sobre ' + fmt(isNaN(num(par.brPteLim)) ? 5 : num(par.brPteLim)) + ' %'
+      avisos.push('Carrera de combate: ' + (par.brPatron==='trote' ? 'solo trote a ' + verRitmo(v) + ' (' + fmt(Math.round(v*10)/10) + ' km/h) todo el recorrido'
+        : par.brPatron==='terreno' ? 'trote a ' + fmt(num(par.brVelRap)||9) + ' km/h en lo plano y en bajada, paso a ' + fmt(num(par.brVelLen)||6) + ' km/h en subidas sobre ' + fmt(isNaN(num(par.brPteLim)) ? 5 : num(par.brPteLim)) + ' %'
         : fmt(cic.rap) + ' ' + cic.u + ' rápido × ' + fmt(cic.len) + ' ' + cic.u + ' lento, velocidad media ' + fmt(Math.round(v*100)/100) + ' km/h' + (rep ? ', unas ' + Math.round(rep) + ' repeticiones' : ''))
         + '; sin altos. Exige tropa entrenada y aclimatada: vigila a los rezagados y el agua.');
-      if(pas.length && par.brPatron!=='terreno') avisos.push('Hay subidas de 7 % o más: en ellas no se corre; se calculan al paso (y sobre 15 %, con el tiempo de montaña si es mayor).');
+      if(pas.length && par.brPatron==='trote') avisos.push('Hay subidas de más de 15 %: en ellas no se alcanza a trotar a ese ritmo; se calculan con el tiempo de montaña.');
+      if(pas.length && par.brPatron!=='terreno' && par.brPatron!=='trote') avisos.push('Hay subidas de 7 % o más: en ellas no se corre; se calculan al paso (y sobre 15 %, con el tiempo de montaña si es mayor).');
       const mk = num(par.brMetaKm), mm = num(par.brMetaMin);
       if(mk>0 && mm>0 && dist>0){ const ritmoMeta = mm/mk, plan = (acum + altos)*60, ritmo = plan/(dist/1000), objetivo = dist/1000*ritmoMeta;
         meta = {km:mk, min:mm, ritmoMeta, ritmo, objetivo, plan, cumple:plan<=objetivo + 1e-6, dif:plan - objetivo}; } }

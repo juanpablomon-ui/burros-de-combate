@@ -221,7 +221,7 @@ const Seguir = (function(){
     const par = P.R.par, E = m.ejec; if(par.metodo!=='battle' || !E) return null;
     const d = recorrido(m, P), min = enMarcha(E), cic = M.cicloBattle(par), ritmo = d>50 && min>=1 ? min/(d/1000) : null;
     let fase, falta, ciclo = null;
-    if(par.brPatron==='terreno'){ const k = siguiente(m, P); if(k===null) return null;
+    if(par.brPatron==='terreno' || par.brPatron==='trote'){ const k = siguiente(m, P); if(k===null) return null;
       fase = P.pts[k].tramo.como==='paso' ? 'lento' : 'rapido'; let f = 0;
       for(let j=k; j<P.pts.length && (P.pts[j].tramo.como==='paso')===(fase==='lento'); j++) f += P.pts[j].tramo.dist;
       falta = A.f(Math.max(0, f - (d - (P.pts[k].tramo.distAcum - P.pts[k].tramo.dist)))) + ' m más'; }
@@ -230,7 +230,7 @@ const Seguir = (function(){
       falta = cic.u==='m' ? A.f(q) + ' m más' : Math.floor(q) + ':' + String(Math.floor((q%1)*60)).padStart(2, '0') + ' min más'; }
     const pausa = E.estado==='alto';
     if(!pausa && ultFase && ultFase!==fase) sonido(fase==='rapido'); ultFase = pausa ? ultFase : fase;
-    const nombre = par.brPatron==='terreno' ? (fase==='rapido' ? 'TROTAR' : 'CAMINAR') : (fase==='rapido' ? 'CORRER' : 'CAMINAR');
+    const nombre = par.brPatron==='terreno' || par.brPatron==='trote' ? (fase==='rapido' ? 'TROTAR' : 'CAMINAR') : (fase==='rapido' ? 'CORRER' : 'CAMINAR');
     const mt = P.R.meta, rObj = mt ? mt.ritmoMeta : P.R.res.dist ? P.R.res.marcha*60/(P.R.res.dist/1000) : null, mmss = x=>Math.floor(x) + ':' + String(Math.round((x%1)*60)).padStart(2, '0');
     if(corto) return `<span class="ch ${pausa ? 'pausa' : fase}">${pausa ? '⏸ ' : '▶ '}<b>${nombre}</b> ${falta}${ciclo ? ' · ciclo ' + ciclo : ''}</span>`;
     return `<div class="s-intervalo ${pausa ? 'pausa' : fase}"><b>${pausa ? '⏸ ' : '▶ '}${nombre}</b><span>${falta}</span>${ciclo ? `<span>ciclo ${ciclo}</span>` : ''}

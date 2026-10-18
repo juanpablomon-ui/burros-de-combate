@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.99.8', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.99.9', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -280,12 +280,14 @@
     const campo = (k, n, ph)=>`<label class="c">${n}<input class="num" data-par="${k}" data-redibujar inputmode="decimal" value="${esc(p[k])}"${ph ? ` placeholder="${ph}"` : ''}></label>`;
     const camposBattle = `<label class="c ancho">Patrón preparado<select data-par="brPreset" data-redibujar>${opc(Object.fromEntries(Object.entries(M.PRESETS_BR).map(([k, v])=>[k, v.n])), p.brPreset || 'propio')}</select></label>
           <label class="c ancho">Forma del patrón<select data-par="brPatron" data-redibujar>${opc(M.PATRONES, p.brPatron)}</select></label><!--nota-->
+          ${p.brPatron==='trote' ? `<label class="c">Ritmo trotando (min/km)<input class="num" data-par="brRitmo" data-redibujar value="${esc(p.brRitmo || '6:00')}" placeholder="6:00"><small>${M.verRitmo(vb)} = ${f(vb, 1)} km/h</small></label>${carga}${campo('brMetaKm', 'Meta: distancia (km)', 'opcional')}${campo('brMetaMin', 'Meta: tiempo (min)', 'opcional')}` : `
           ${p.brPatron==='distancia' ? campo('brRapido', 'Metros corriendo') + campo('brLento', 'Metros caminando') : p.brPatron==='tiempo' ? campo('brMinRap', 'Minutos corriendo') + campo('brMinLen', 'Minutos caminando') : campo('brPteLim', 'Se camina en subidas de más de (%)')}
           ${campo('brVelRap', p.brPatron==='terreno' ? 'Velocidad trotando (km/h)' : 'Velocidad corriendo (km/h)')}${campo('brVelLen', 'Velocidad caminando (km/h)')}
-          ${carga}${campo('brMetaKm', 'Meta: distancia (km)', 'opcional')}${campo('brMetaMin', 'Meta: tiempo (min)', 'opcional')}`;
+          ${carga}${campo('brMetaKm', 'Meta: distancia (km)', 'opcional')}${campo('brMetaMin', 'Meta: tiempo (min)', 'opcional')}`}`;
     const mt = R.meta, ritmo = x=>Math.floor(x) + ':' + String(Math.round((x - Math.floor(x))*60)).padStart(2, '0');
     // en palabras simples: cuándo se corre y cuándo se camina (pedido del usuario, v0.99.6)
-    const notaSinAltos = p.metodo==='battle' ? `<p class="nota"><b>Cómo es:</b> ${p.brPatron==='terreno' ? `se <b>trota</b> a ${f(+p.brVelRap||9, 1)} km/h en lo plano y en las bajadas, y se <b>camina</b> a ${f(+p.brVelLen||6, 1)} km/h en las subidas de más de ${esc(p.brPteLim)} %; en subidas de más de 15 % se usa el tiempo de montaña si es mayor.`
+    const notaSinAltos = p.metodo==='battle' ? `<p class="nota"><b>Cómo es:</b> ${p.brPatron==='trote' ? `se <b>trota todo el recorrido</b> a <b>${M.verRitmo(vb)}</b> (${f(vb, 1)} km/h), sin caminar; en las subidas de más de 15 % se usa el tiempo de montaña si es mayor. El ritmo se escribe en minutos por kilómetro («6:00», «5:30») o en km/h («10 km/h»).`
+        : p.brPatron==='terreno' ? `se <b>trota</b> a ${f(+p.brVelRap||9, 1)} km/h en lo plano y en las bajadas, y se <b>camina</b> a ${f(+p.brVelLen||6, 1)} km/h en las subidas de más de ${esc(p.brPteLim)} %; en subidas de más de 15 % se usa el tiempo de montaña si es mayor.`
         : `se <b>corre ${p.brPatron==='tiempo' ? esc(p.brMinRap) + ' min' : esc(p.brRapido) + ' m'}</b> a ${f(+p.brVelRap||9, 1)} km/h, después se <b>camina ${p.brPatron==='tiempo' ? esc(p.brMinLen) + ' min' : esc(p.brLento) + ' m'}</b> a ${f(+p.brVelLen||6, 1)} km/h, y se repite hasta el final (velocidad media ${f(vb, 1)} km/h).
           En las subidas de 7 % o más no se corre, se camina (y en las de más de 15 % se usa el tiempo de montaña si es mayor).`} Sin altos; si el calor lo exige, se agregan descansos.
         ${mt ? `<br>Meta: ${f(mt.km, 1)} km en ${f(mt.min)} min = ritmo ${ritmo(mt.ritmoMeta)} min/km. Plan: ritmo <b>${ritmo(mt.ritmo)} min/km</b> → ${mt.cumple ? '<b style="color:var(--verde,#7bbf6a)">cumple</b> (' + Math.round(-mt.dif) + ' min de margen)' : '<b style="color:var(--rojo)">no cumple: faltan ' + Math.round(mt.dif) + ' min</b>'}.` : ''}
@@ -554,7 +556,8 @@
       if(t.dataset.par==='luz') delete m.par.noche;
       if(['temp', 'hum', 'wbgt'].includes(t.dataset.par)) v = String(v).replace(',', '.');
       if(['altoPrimero', 'altoPrimeroDur', 'altoCada', 'altoDur', 'forzadaPct'].includes(t.dataset.par) || /^br(?!P)/.test(t.dataset.par)){ v = String(v).replace(',', '.'); if(/^br(?!P)/.test(t.dataset.par)) m.par.brPreset = 'propio'; }
-      if(t.dataset.par==='brPatron') m.par.brPreset = 'propio';
+      if(t.dataset.par==='brPatron') m.par.brPreset = v==='trote' ? 'trote' : 'propio';
+      if(/^br(?!P)/.test(t.dataset.par) && m.par.brPatron==='trote') m.par.brPreset = 'trote';   // en solo trote, el ritmo o la meta no cambian el patrón
       if(t.dataset.par==='brPreset'){ const q = Object.assign({}, M.PRESETS_BR[v] || {}); delete q.n; Object.assign(m.par, q); if(q.carga){ m.par.cargaGeneral = true; m.par.cargaManual = true; } }
       if(t.dataset.par==='verboSel'){ m.par.verbo = v==='otra' ? '' : v; guardar(); return; }
       if(t.dataset.par==='verbo') v = String(v).toUpperCase();
