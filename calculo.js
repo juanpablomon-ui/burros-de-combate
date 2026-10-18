@@ -185,7 +185,7 @@ const MARCHA = (function(){
 
   /* ---------- marcha general: velocidades promedio en km/h según tipo de unidad, vía y día/noche ---------- */
   const VIAS = {camino1:'Camino de 1.ª clase', camino23:'Camino de 2.ª y 3.ª clase', sendero:'Sendero', campo:'Campo traviesa'};
-  const UNIDADES = {pie:'A pie', montada:'Montada'};
+  const UNIDADES = {pie:'A pie (infantería)', montada:'Montada (a caballo)'};
   const VEL_GENERAL = {
     pie:     {camino1:{dia:5, noche:4}, camino23:{dia:5, noche:4}, sendero:{dia:4, noche:3}, campo:{dia:2.5, noche:1.5}},
     montada: {camino1:{dia:8, noche:6}, camino23:{dia:8, noche:6}, sendero:{dia:5, noche:2}, campo:{dia:5, noche:3}}};
@@ -253,24 +253,25 @@ const MARCHA = (function(){
 
   /* ---------- parámetros por defecto de una marcha ---------- */
   const METODOS = {
-    montana: 'Montaña (pendiente sobre 5 % por desnivel, si no por distancia)',
-    mide: 'MIDE / DIN 33466 (mayor de horizontal y vertical + mitad del menor)',
-    general: 'Marcha general (velocidad según unidad, vía y día o noche)',
-    forzada: 'Marcha forzada (sin altos, ritmo alto)',
-    battle: 'Carrera de combate (tramos rápidos y lentos)'
+    montana: 'Montaña: el tiempo sale del desnivel en las subidas y bajadas fuertes, y de la distancia en lo plano',
+    mide: 'MIDE (DIN 33466): método de montaña europeo, con subidas y bajadas',
+    general: 'Marcha general: a pie o montada, por caminos, senderos o campo traviesa',
+    forzada: 'Marcha forzada: más rápida que la general y sin altos',
+    battle: 'Carrera de combate: se alterna correr y caminar'
   };
   /* ---------- carrera de combate: se alternan tramos rápidos (trote) y lentos (paso) ----------
      Tres formas del patrón: por distancia (p. ej. 100 m rápido × 300 m lento), por tiempo (1 min × 3 min) y por terreno
      (formato británico: trote en lo plano y en bajada, paso en las subidas). En subidas sobre 15 % manda el tiempo de montaña si es mayor. */
-  const PATRONES = {distancia:'Por distancia (metros rápidos × metros lentos)', tiempo:'Por tiempo (minutos rápidos × minutos lentos)', terreno:'Por terreno (trote en plano y bajada, paso en subida)'};
+  const PATRONES = {distancia:'Por distancia: se alternan metros corriendo y metros caminando', tiempo:'Por tiempo: se alternan minutos corriendo y minutos caminando',
+    terreno:'Por terreno: se trota en lo plano y en bajada, se camina en subida'};
   const PRESETS_BR = {
-    d100:{n:'100 m × 300 m', brPatron:'distancia', brRapido:100, brLento:300, brVelRap:9, brVelLen:6, brMetaKm:'', brMetaMin:''},
-    d200:{n:'200 m × 200 m', brPatron:'distancia', brRapido:200, brLento:200, brVelRap:9, brVelLen:6, brMetaKm:'', brMetaMin:''},
-    d400:{n:'400 m × 400 m', brPatron:'distancia', brRapido:400, brLento:400, brVelRap:9, brVelLen:6, brMetaKm:'', brMetaMin:''},
-    t13:{n:'1 min × 3 min', brPatron:'tiempo', brMinRap:1, brMinLen:3, brVelRap:9, brVelLen:6, brMetaKm:'', brMetaMin:''},
-    t22:{n:'2 min × 2 min', brPatron:'tiempo', brMinRap:2, brMinLen:2, brVelRap:9, brVelLen:6, brMetaKm:'', brMetaMin:''},
-    britanico:{n:'Británico (comandos): 14,5 km en 90 min', brPatron:'terreno', brVelRap:11, brVelLen:6.5, brPteLim:5, brMetaKm:14.5, brMetaMin:90, carga:14},
-    propio:{n:'Propio (escribo los valores)'}};
+    d100:{n:'Correr 100 m y caminar 300 m, una y otra vez', brPatron:'distancia', brRapido:100, brLento:300, brVelRap:9, brVelLen:6, brMetaKm:'', brMetaMin:''},
+    d200:{n:'Correr 200 m y caminar 200 m, una y otra vez', brPatron:'distancia', brRapido:200, brLento:200, brVelRap:9, brVelLen:6, brMetaKm:'', brMetaMin:''},
+    d400:{n:'Correr 400 m y caminar 400 m, una y otra vez', brPatron:'distancia', brRapido:400, brLento:400, brVelRap:9, brVelLen:6, brMetaKm:'', brMetaMin:''},
+    t13:{n:'Correr 1 min y caminar 3 min, una y otra vez', brPatron:'tiempo', brMinRap:1, brMinLen:3, brVelRap:9, brVelLen:6, brMetaKm:'', brMetaMin:''},
+    t22:{n:'Correr 2 min y caminar 2 min, una y otra vez', brPatron:'tiempo', brMinRap:2, brMinLen:2, brVelRap:9, brVelLen:6, brMetaKm:'', brMetaMin:''},
+    britanico:{n:'Británico (comandos): trotar en plano y bajada, caminar en subida; 14,5 km en 90 min con 14 kg', brPatron:'terreno', brVelRap:11, brVelLen:6.5, brPteLim:5, brMetaKm:14.5, brMetaMin:90, carga:14},
+    propio:{n:'Propio: escribo yo cuánto se corre y cuánto se camina'}};
   // descripción corta del tipo de marcha para el cuadro y el documento
   function tipoMarcha(par){ const q = Object.assign(porDefecto(), par || {});
     if(q.metodo==='forzada') return 'Marcha forzada: +' + fmt(num(q.forzadaPct)||0) + ' % de ritmo, sin altos';

@@ -209,7 +209,7 @@ const Seguir = (function(){
     return pos ? d + M.sobreTramo(pos, P.pts[k - 1], P.pts[k]).t*P.pts[k].tramo.dist : d; }
   // minutos de marcha sin los altos
   function enMarcha(E){ const t = ahora(); return (t - E.inicio - E.altos.reduce((a, x)=>a + ((x.fin || t) - x.ini), 0))/60000; }
-  function intervalo(m, P){
+  function intervalo(m, P, corto){
     const par = P.R.par, E = m.ejec; if(par.metodo!=='battle' || !E) return null;
     const d = recorrido(m, P), min = enMarcha(E), cic = M.cicloBattle(par), ritmo = d>50 && min>=1 ? min/(d/1000) : null;
     let fase, falta, ciclo = null;
@@ -222,8 +222,9 @@ const Seguir = (function(){
       falta = cic.u==='m' ? A.f(q) + ' m más' : Math.floor(q) + ':' + String(Math.floor((q%1)*60)).padStart(2, '0') + ' min más'; }
     const pausa = E.estado==='alto';
     if(!pausa && ultFase && ultFase!==fase) sonido(fase==='rapido'); ultFase = pausa ? ultFase : fase;
-    const nombre = par.brPatron==='terreno' ? (fase==='rapido' ? 'TROTE' : 'PASO') : (fase==='rapido' ? 'RÁPIDO' : 'LENTO');
+    const nombre = par.brPatron==='terreno' ? (fase==='rapido' ? 'TROTAR' : 'CAMINAR') : (fase==='rapido' ? 'CORRER' : 'CAMINAR');
     const mt = P.R.meta, rObj = mt ? mt.ritmoMeta : P.R.res.dist ? P.R.res.marcha*60/(P.R.res.dist/1000) : null, mmss = x=>Math.floor(x) + ':' + String(Math.round((x%1)*60)).padStart(2, '0');
+    if(corto) return `<span class="ch ${pausa ? 'pausa' : fase}">${pausa ? '⏸ ' : '▶ '}<b>${nombre}</b> ${falta}${ciclo ? ' · ciclo ' + ciclo : ''}</span>`;
     return `<div class="s-intervalo ${pausa ? 'pausa' : fase}"><b>${pausa ? '⏸ ' : '▶ '}${nombre}</b><span>${falta}</span>${ciclo ? `<span>ciclo ${ciclo}</span>` : ''}
       <small>${pausa ? 'intervalos en pausa durante el alto · ' : ''}${ritmo ? 'ritmo ' + mmss(ritmo) + ' min/km' : 'ritmo —'}${rObj ? ' · ' + (mt ? 'meta' : 'plan') + ' ' + mmss(rObj) + ' min/km' : ''} · ${A.f(d)} m recorridos</small></div>`;
   }
@@ -424,11 +425,11 @@ const Seguir = (function(){
     ficha(); mapaVivo();
     if(!c) return;
     let dist = '—', rumbo = '—', mils = '', fuera = '', eta = '';
-    let quiebre = '';
+    let quiebre = '', fueraD = 0;
     if(p && q && pos){ const r = M.rumboEntre(pos, q, P.R.zona, P.R.decl.valor), dr = distRuta(P, pos, k, ke);
       dist = dr>=1000 ? A.f(dr/1000, 2) + ' km' : A.f(dr) + ' m'; rumbo = A.f(r.azM, 0) + '°'; mils = r.mils + ' ‰'; c.dataset.az = r.azM;
       if(k!==ke) quiebre = 'rumbo al próximo quiebre (' + A.f(r.dist) + ' m) · distancia por la ruta';
-      const a = P.pts[k - 1], s = M.sobreTramo(pos, a, q); if(s.d>Math.max(120, 3*(pos.acc||0))) fuera = `<div class="alerta">Fuera de la ruta: ${A.f(s.d)} m de la línea</div>`; }
+      const a = P.pts[k - 1], s = M.sobreTramo(pos, a, q); if(s.d>Math.max(120, 3*(pos.acc||0))){ fuera = `<div class="alerta">Fuera de la ruta: ${A.f(s.d)} m de la línea</div>`; fueraD = s.d; } }
     // desvío («Ir a…»): la distancia y el rumbo son al destino, en línea recta
     if(O){ quiebre = ''; fuera = ''; if(O.dist!==null){ dist = O.dist>=1000 ? A.f(O.dist/1000, 2) + ' km' : A.f(O.dist) + ' m'; rumbo = A.f(O.az, 0) + '°'; mils = O.mils + ' ‰'; c.dataset.az = O.az; } else { dist = '—'; rumbo = '—'; mils = ''; } }
     const fl = $('#sFlecha'); if(fl) fl.classList.toggle('desvio', !!O);
@@ -448,9 +449,12 @@ const Seguir = (function(){
         : cel('Próximo', nom, p ? A.esc(p.clave ? p.nombre : p.obs || '') : '', 'clave-tx') + cel('Distancia', dist, quiebre ? 'por la ruta' : '') + cel('Rumbo mag.', rumbo, mils, 'ocre')
           + cel('Ahora', V.enAlto ? 'en alto' : vk(V.ahora), V.enAlto ? '' : rk(V.ahora), claseVel(V.ahora, V.plan)) + cel('Plan del tramo', vk(V.plan), rk(V.plan))
           + cel('Llega', p ? hh(E.inicio + p.lleg*3600000) : '—', at!==null && p ? 'est. ' + hh(E.inicio + p.lleg*3600000 + at*60000) + ' · ' + atC : '');
-      const avisoGps = !pos ? `<div class="bx">${gps}</div>` : (pos.acc || 0)>30 ? `<div class="bx">GPS poco preciso (±${Math.round(pos.acc)} m)</div>` : '';
-      c.innerHTML = plegada ? `<div class="b1">${O ? '🧭 ' : ''}<b>${nom}</b> · ${dist} · <b class="ocre">${rumbo}</b>${at!==null && !O ? ' · ' + atC : ''}<span class="bmas">▾</span></div>${enAlto}${fuera}${avisoGps}`
-        : `<div class="bcs">${celdas}</div>${quiebre ? `<div class="bx">↪ ${quiebre}</div>` : ''}${enAlto}${fuera}${avisoGps}`;
+      // avisos (v0.99.6: tapaban la ruta): una sola línea de fichas pequeñas bajo los datos
+      const chips = [intervalo(m, P, true) || '', ultAlto ? `<span class="ch pausa">⏸ Alto: ${A.esc(ultAlto.motivo)} · ${dur(t - ultAlto.ini)}</span>` : '',
+        quiebre ? `<span class="ch">↪ ${quiebre.split(' · ')[0]}</span>` : '', fueraD ? `<span class="ch mal">Fuera de la ruta: ${A.f(fueraD)} m</span>` : '', !pos ? `<span class="ch">${navigator.geolocation ? 'Esperando GPS…' : 'Sin GPS'}</span>` : (pos.acc || 0)>30 ? `<span class="ch">GPS ±${Math.round(pos.acc)} m</span>` : ''].filter(Boolean).join('');
+      const fila = chips ? `<div class="bchips">${chips}</div>` : '';
+      c.innerHTML = plegada ? `<div class="b1">${O ? '🧭 ' : ''}<b>${nom}</b> · ${dist} · <b class="ocre">${rumbo}</b>${at!==null && !O ? ' · ' + atC : ''}<span class="bmas">▾</span></div>${fila}`
+        : `<div class="bcs">${celdas}</div>${fila}`;
     } else {
       c.innerHTML = `<div class="s-estado"><span>⏱ ${dur(t - E.inicio)} de marcha</span><span class="hud-est ${cls}">${at===null ? '' : dif(at)}</span></div>${enAlto}
         ${p || O ? `<div class="s-prox">${O ? `🧭 <b class="clave-tx">${O.vuelta ? 'VOLVER A LA RUTA' : 'IR A ' + A.esc(O.nombre)}</b><small>${A.esc(O.modo)} · en línea recta</small>` : `PRÓXIMO <b class="clave-tx">${A.esc(rotulo(p))}</b><small>${A.esc(p.clave ? p.nombre + (p.obs ? ' · ' + p.obs : '') : p.obs || '')}</small>`}</div>

@@ -694,3 +694,13 @@ body.con-mapa{overflow:hidden}
 }
 @media (orientation:landscape){ body.con-mapa .aviso{bottom:calc(110px + env(safe-area-inset-bottom))} }
 .s-binf #sIrSolo2{flex:1 1 100%;flex-direction:row;gap:6px;font-size:15px;font-weight:700;min-height:52px}.s-binf #sIrSolo2 .s-ico{width:22px;height:22px}
+/* v0.99.6: en el teléfono, campos y selectores con letra de 16 px (con menos, el iPhone agranda la página al tocarlos y la deja corrida) */
+@media (max-width:899px){ input,select,textarea{font-size:16px} }
+/* v0.99.6: avisos de la carta de Seguir en una línea de fichas pequeñas (antes eran cajas grandes que tapaban la ruta) */
+.s-bsup .bchips{display:flex;gap:6px;overflow-x:auto;padding:4px 8px;scrollbar-width:none}
+.s-bsup .bchips::-webkit-scrollbar{display:none}
+.s-bsup .ch{flex:0 0 auto;white-space:nowrap;font-size:12.5px;padding:3px 9px;border-radius:999px;background:#2a2b22;border:1px solid var(--linea);font-family:var(--mono)}
+.s-bsup .ch.rapido{background:#3a2e12;border-color:var(--ocre);color:var(--ocre)} .s-bsup .ch.lento{background:#1c2a1c;border-color:#5f9a5f;color:#9fd19f}
+.s-bsup .ch.mal{background:#3a1a14;border-color:var(--rojo);color:#ff9b8a} .s-bsup .ch.pausa{color:var(--suave)}
+.s-bsup .ch b{font-family:var(--sans,inherit)}
+@media (orientation:portrait){ .s-bsup .bchips{flex-wrap:wrap;overflow:visible} }
