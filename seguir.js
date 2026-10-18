@@ -165,14 +165,14 @@ const Seguir = (function(){
       <div class="s-flecha s-flecha-g desvio" id="sFlecha">↑</div><div class="s-ctrl"><button class="btn" id="sOrient" title="Norte arriba o destino arriba" aria-label="Orientación"></button><button class="btn" id="sCapa" title="Cambiar el mapa" aria-label="Mapa">${ic('capa', 'Mapa')}</button><button class="btn" id="sCentrar" title="Centrar en mi posición" aria-label="Centrar">${ic('centro', 'Centrar')}</button></div>
       <div class="s-binf"><button class="btn pri" id="sSoloFin">${ic('fin', 'Terminar la navegación')}</button></div></div>`;
     $('#sSoloFin').onclick = ()=>{ irSolo = null; pintar(); };
-    centrar = true; hacerMapa(P); iniciarGps(); pintarSoloVivo();
+    centrar = true; hacerMapa(null); iniciarGps(); pintarSoloVivo();   // sin la ruta de ninguna marcha: solo tu ubicación y el destino (v0.99.4)
   }
   // zona UTM y declinación: las de la marcha abierta, o las del lugar (WMM) si no hay ruta
   function geoRef(P, lat, lon){ if(P) return {zona:P.R.zona, dec:P.R.decl.valor}; const z = Math.floor((lon + 180)/6) + 1;
     let dec = 0; try { if(typeof WMM!=='undefined') dec = WMM.decl(lat, lon, 0, WMM.year(new Date())); } catch(e){} return {zona:z, dec}; }
   let decSolo = 0;
   function pintarSoloVivo(){
-    const c = $('#sCab'); if(!c || !irSolo) return; const P = plan(A.actual()), gr = geoRef(P, irSolo.lat, irSolo.lon); decSolo = gr.dec;
+    const c = $('#sCab'); if(!c || !irSolo) return; const gr = geoRef(null, irSolo.lat, irSolo.lon); decSolo = gr.dec;
     const r = pos ? M.rumboEntre(pos, irSolo, gr.zona, gr.dec) : null, V = velAhora();
     if(r){ c.dataset.az = r.azM; if(r.dist<=Math.max(40, 15 + (pos.acc || 0)) && !irSolo.llego){ irSolo.llego = true; if(navigator.vibrate) navigator.vibrate([200, 100, 200]); A.aviso('📍 Llegaste a ' + irSolo.nombre); } }
     const dist = r ? (r.dist>=1000 ? A.f(r.dist/1000, 2) + ' km' : A.f(r.dist) + ' m') : '—', cel = (rot, val, sub, cl)=>`<div class="bc"><span>${rot}</span><b class="${cl || ''}">${val}</b>${sub ? `<small>${sub}</small>` : ''}</div>`;
@@ -566,6 +566,10 @@ ${E.track.map(t=>`<trkpt lat="${t[0]}" lon="${t[1]}"><time>${new Date(t[2]).toIS
     mapa = L.map(el, {zoomControl:false, attributionControl:false}).setView(c0, P || irSolo || pos ? 15 : 10);
     let base = 'topo'; try { base = JSON.parse(localStorage.getItem('burros_mapa') || '{}').base || 'topo'; } catch(e){}
     mapa.createPane('curvas').style.zIndex = 300; mapa.getPane('curvas').style.pointerEvents = 'none'; ponerCapas();
+    // con la carta girada no se puede arrastrar bien: al empezar a mover el dedo se endereza (norte arriba) para recorrerla
+    { let x0 = null, y0 = null; el.addEventListener('pointerdown', e=>{ x0 = e.clientX; y0 = e.clientY; });
+      el.addEventListener('pointermove', e=>{ if(x0===null || giro===null) return; if(Math.hypot(e.clientX - x0, e.clientY - y0)>12){ explorando = true; centrar = false; x0 = null; girar(null); marcarCentrar(); A.aviso('Recorriendo la carta (norte arriba). ◎ para volver a centrar'); } });
+      el.addEventListener('pointerup', ()=>{ x0 = null; }); }
     capas = L.layerGroup().addTo(mapa);
     if(!P){ mapa.on('dragstart', ()=>{ centrar = false; marcarCentrar(); }); mapa.on('click', e=>{ if(!eligiendo) return; const el2 = eligiendo; eligiendo = null; empezarIrA({lat:e.latlng.lat, lon:e.latlng.lng, nombre:'el punto marcado'}, el2.enMarcha, el2.modo); });
       controles(); primera = true; const este = mapa; setTimeout(()=>{ if(mapa===este) mapa.invalidateSize({animate:false}); }, 50); return; }
@@ -583,10 +587,7 @@ ${E.track.map(t=>`<trkpt lat="${t[0]}" lon="${t[1]}"><time>${new Date(t[2]).toIS
     const hud = document.querySelector('.s-hud, .s-bsup'), alto = hud ? hud.offsetHeight + 30 : 200, abajo = document.querySelector('.s-binf') ? 140 : 170;
     mapa.fitBounds(L.latLngBounds(P.pts.map(p=>[p.lat, p.lon])), {paddingTopLeft:[40, alto], paddingBottomRight:[60, abajo], animate:false});
     mapa.on('dragstart', ()=>{ centrar = false; marcarCentrar(); });
-    // con la carta girada no se puede arrastrar bien: al empezar a mover el dedo se endereza (norte arriba) para recorrerla
-    { let x0 = null, y0 = null; el.addEventListener('pointerdown', e=>{ x0 = e.clientX; y0 = e.clientY; });
-      el.addEventListener('pointermove', e=>{ if(x0===null || giro===null) return; if(Math.hypot(e.clientX - x0, e.clientY - y0)>12){ explorando = true; centrar = false; x0 = null; girar(null); marcarCentrar(); A.aviso('Recorriendo la carta (norte arriba). ◎ para volver a centrar'); } });
-      el.addEventListener('pointerup', ()=>{ x0 = null; }); }
+
     controles();
     mapa.on('click', e=>{ if(!eligiendo) return; const el = eligiendo; eligiendo = null; empezarIrA({lat:e.latlng.lat, lon:e.latlng.lng, nombre:'el punto marcado'}, el.enMarcha, el.modo); });
     primera = true;
