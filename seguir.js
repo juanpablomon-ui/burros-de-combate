@@ -352,7 +352,7 @@ const Seguir = (function(){
      Las cotas de los puntos de control se marcan automáticas para que también se reemplacen por las del terreno: mezclar la cota escrita
      a mano con la del terreno (SRTM) en los quiebres inventaba subidas y bajadas (el ejemplo daba +2.065 m en vez de +688). */
   function puntosDeRecorrido(m, ej){
-    const S = suavizar((ej && ej.track) || []); if(S.length<2) return [];
+    const S = limpio((ej && ej.track) || [], m); if(S.length<2) return [];
     const la0 = S[0][0], kx = Math.cos(la0*Math.PI/180)*111320, ky = 110540, X = S.map(t=>({x:t[1]*kx, y:t[0]*ky}));
     const dp = tol=>{ const keep = new Array(S.length).fill(false); keep[0] = keep[S.length - 1] = true; const pila = [[0, S.length - 1]];
       while(pila.length){ const [a, b] = pila.pop(); let dm = 0, im = -1; const A = X[a], B = X[b], dx = B.x - A.x, dy = B.y - A.y, L = Math.hypot(dx, dy) || 1;
@@ -377,7 +377,37 @@ const Seguir = (function(){
     return L2.map(q=>{ const o = Object.assign({}, q); delete o.t; delete o.la; delete o.lo; delete o.pc; if(o.cota===undefined) o.cota = ''; return o; });
   }
   // distancia del recorrido GPS (m), suavizado
-  function distGps(T){ const S = suavizar(T || []); let d = 0; for(let i=1; i<S.length; i++) d += M.sobreTramo({lat:S[i][0], lon:S[i][1]}, {lat:S[i - 1][0], lon:S[i - 1][1]}, {lat:S[i - 1][0], lon:S[i - 1][1]}).d; return d; }
+  /* Huecos rellenados (v0.99.17, pedido del usuario: «esa línea recta no corresponde»): un tramo sin grabar (más de CORTE.ms y CORTE.m)
+     se completa, en este orden: (1) por donde ya se caminó en esta misma marcha (p. ej. se volvió por las mismas calles de la ida): los
+     dos extremos del hueco a menos de 60 m de lo grabado antes; (2) por la ruta planificada (los dos extremos a menos de 80 m de ella);
+     (3) si no, queda recto (hueco gris). Los puntos agregados van marcados como aproximados (5.º valor = 1, se dibujan de puntos) con la
+     hora repartida por distancia. Sirve también para los recorridos grabados antes de la v0.99.13. */
+  function rellenar(S, P){
+    if(S.length<3) return S;
+    const la0 = S[0][0], kx = Math.cos(la0*Math.PI/180)*111320, ky = 110540, d = (a, b)=>Math.hypot((a[1] - b[1])*kx, (a[0] - b[0])*ky);
+    const out = [S[0]];
+    for(let g=1; g<S.length; g++){ const A = S[g - 1], B = S[g];
+      if(!(B[2] - A[2]>CORTE.ms && !B[4] && d(A, B)>CORTE.m)){ out.push(B); continue; }
+      let via = null;
+      // (1) por lo ya caminado: se deja fuera lo último antes del hueco (que está junto a A por haber llegado ahí)
+      let k = out.length - 1; while(k>0 && d(out[k], A)<=60) k--;
+      let iA = -1, iB = -1, dA = 60, dB = 60;
+      for(let j=0; j<=k; j++){ const a = d(out[j], A), b = d(out[j], B); if(a<=dA){ dA = a; iA = j; } if(b<=dB){ dB = b; iB = j; } }
+      if(iA>=0 && iB>=0 && iA!==iB){ const seg = iA<iB ? out.slice(iA, iB + 1) : out.slice(iB, iA + 1).reverse(); via = seg.map(t=>[t[0], t[1]]); }
+      // (2) por la ruta planificada
+      if(!via && P){ const acum = [0]; for(let j=1; j<P.pts.length; j++) acum[j] = acum[j - 1] + P.pts[j].tramo.dist;
+        const proy = q=>{ let m = null; for(let j=1; j<P.pts.length; j++){ const s2 = M.sobreTramo({lat:q[0], lon:q[1]}, P.pts[j - 1], P.pts[j]); if(s2.d<=80 && (!m || s2.d<m.d)) m = {j, t:s2.t, d:s2.d, a:acum[j - 1] + s2.t*P.pts[j].tramo.dist}; } return m; };
+        const a = proy(A), b = proy(B);
+        if(a && b && a.a!==b.a){ via = []; if(a.a<b.a){ for(let j=a.j; j<b.j; j++) via.push([P.pts[j].lat, P.pts[j].lon]); } else { for(let j=a.j - 1; j>=b.j; j--) via.push([P.pts[j].lat, P.pts[j].lon]); } } }
+      if(via && via.length){ const pts = [[A[0], A[1]]].concat(via, [[B[0], B[1]]]); let L = 0; const c = [0]; for(let i=1; i<pts.length; i++){ L += d(pts[i], pts[i - 1]); c.push(L); }
+        for(let i=1; i<pts.length - 1; i++) out.push([pts[i][0], pts[i][1], Math.round(A[2] + (B[2] - A[2])*(L ? c[i]/L : 0)), 15, 1]);
+        out.push(Object.assign(B.slice(), {4:1})); }
+      else out.push(B); }
+    return out;
+  }
+  // el recorrido listo para usar: suavizado y con los huecos rellenados
+  const limpio = (T, m)=>rellenar(suavizar(T || []), m ? plan(m) : null);
+  function distGps(T, m){ const S = limpio(T, m); let d = 0; for(let i=1; i<S.length; i++) d += M.sobreTramo({lat:S[i][0], lon:S[i][1]}, {lat:S[i - 1][0], lon:S[i - 1][1]}, {lat:S[i - 1][0], lon:S[i - 1][1]}).d; return d; }
   // cortes: más de 2 min sin lecturas y más de 150 m de salto (pantalla apagada, app cerrada): no se une con una línea recta
   // aprox = true: solo los pedazos completados por la ruta (pantalla apagada); false: solo lo grabado
   function cortar(S, aprox){ const L2 = [[]]; S.forEach((t, i)=>{ const u = S[i - 1]; if(!u) return;
@@ -387,7 +417,7 @@ const Seguir = (function(){
   function huecos(S){ const H = []; S.forEach((t, i)=>{ const u = S[i - 1];
       if(u && t[2] - u[2]>CORTE.ms && !t[4] && M.sobreTramo({lat:t[0], lon:t[1]}, {lat:u[0], lon:u[1]}, {lat:u[0], lon:u[1]}).d>CORTE.m) H.push([[u[0], u[1]], [t[0], t[1]]]); }); return H; }
   function partes(m, P){
-    const E = m.ejec, T0 = (E && E.track) || [], T = suavizar(T0), hu = huecos(T), todo = cortar(T), tA = cortar(T, true); P = P || plan(m);
+    P = P || plan(m); const E = m.ejec, T0 = (E && E.track) || [], T = rellenar(suavizar(T0), P), hu = huecos(T), todo = cortar(T), tA = cortar(T, true);
     const sal = (ida, reg, ia, ra)=>({ida, reg, idaA:ia || tA, regA:ra || [], huecos:hu});
     if(!P || T.length<2) return sal(todo, []);
     let r = P.pts.findIndex(p=>/^Regreso/.test(p.obs || '')) - 1;
@@ -733,7 +763,7 @@ const Seguir = (function(){
   }
   function pintarFin(c, m, P){
     const E = m.ejec, durReal = E.fin - E.inicio, altos = E.altos.reduce((a, x)=>a + ((x.fin || E.fin) - x.ini), 0);
-    const km = distGps(E.track);
+    const km = distGps(E.track, m);
     const dTot = durReal/3600000 - P.R.res.total;
     c.innerHTML = `<h2>Marcha terminada</h2>
       <div class="kpis"><div class="kpi"><div class="k">Duración real</div><div class="v">${dur(durReal)}</div></div>
