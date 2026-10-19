@@ -23,7 +23,8 @@ const Resultado = (function(){
       filas.push(fila); }
     const conTramo = filas.filter(f=>f.dist), dist = conTramo.reduce((a, f)=>a + f.dist, 0), movPlan = conTramo.reduce((a, f)=>a + f.movPlan, 0), movReal = conTramo.reduce((a, f)=>a + f.movReal, 0);
     const durReal = (fin - E.inicio)/36e5, altosReal = altoEn(E.inicio, fin)/36e5;
-    let km = 0; const T = E.track || []; for(let i=1; i<T.length; i++) km += DEM.dist({lat:T[i - 1][0], lon:T[i - 1][1]}, {lat:T[i][0], lon:T[i][1]});
+    // distancia GPS suavizada (como la de un reloj GPS; v0.99.12)
+    let km = 0; const T = E.track || []; if(typeof Seguir!=='undefined' && Seguir.distGps) km = Seguir.distGps(T); else for(let i=1; i<T.length; i++) km += DEM.dist({lat:T[i - 1][0], lon:T[i - 1][1]}, {lat:T[i][0], lon:T[i][1]});
     const vPlan = movPlan>0 ? dist/1000/movPlan : null, vReal = movReal>0 ? dist/1000/movReal : null;
     const motivos = {}; altos.forEach(x=>{ const k = x.motivo || 'Alto'; motivos[k] = (motivos[k] || 0) + ((x.fin || fin) - x.ini)/60000; });
     return {filas, terminada:!!E.fin, durPlan:P.R.res.total, durReal, altosPlan:P.R.res.altos + P.R.res.det, altosReal, nAltos:altos.length, motivos,
