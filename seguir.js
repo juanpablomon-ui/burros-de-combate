@@ -346,6 +346,29 @@ const Seguir = (function(){
     const X = eje('x'), Y = eje('y');
     return T.map((t, i)=>[+(la0 + Y[i]/ky).toFixed(6), +(lo0 + X[i]/kx).toFixed(6), t[2], t[3], t[4]]);
   }
+  /* Recorrido → ruta nueva (v0.99.14, pedido del usuario): el recorrido suavizado se reduce a sus quiebres (Douglas-Peucker: se deja un
+     punto solo si la línea se aparta más de `tol` m; tol sube de 10 m hasta que queden ≤ 150 puntos) y se intercalan, por hora, los
+     puntos de control a los que se llegó (con su nombre, clave y cota). Devuelve puntos para `nueva()`: el primero PIM y el último PTM. */
+  function puntosDeRecorrido(m, ej){
+    const S = suavizar((ej && ej.track) || []); if(S.length<2) return [];
+    const la0 = S[0][0], kx = Math.cos(la0*Math.PI/180)*111320, ky = 110540, X = S.map(t=>({x:t[1]*kx, y:t[0]*ky}));
+    const dp = tol=>{ const keep = new Array(S.length).fill(false); keep[0] = keep[S.length - 1] = true; const pila = [[0, S.length - 1]];
+      while(pila.length){ const [a, b] = pila.pop(); let dm = 0, im = -1; const A = X[a], B = X[b], dx = B.x - A.x, dy = B.y - A.y, L = Math.hypot(dx, dy) || 1;
+        for(let i=a + 1; i<b; i++){ const d = Math.abs(dy*(X[i].x - A.x) - dx*(X[i].y - A.y))/L; if(d>dm){ dm = d; im = i; } }
+        if(dm>tol){ keep[im] = true; pila.push([a, im], [im, b]); } }
+      return S.filter((t, i)=>keep[i]); };
+    let tol = 10, V = dp(tol); while(V.length>150 && tol<200){ tol *= 1.5; V = dp(tol); }
+    const geo = (lat, lon)=>({tipo:'GEO', lat:Math.abs(lat).toFixed(6), lon:Math.abs(lon).toFixed(6), norte:lat>0 || undefined, este:lon>0 || undefined});
+    let L2 = V.map(t=>Object.assign(geo(t[0], t[1]), {nombre:'', ev:false, t:t[2], la:t[0], lo:t[1]}));
+    // puntos de control a los que se llegó, en su lugar por la hora; se quitan los quiebres a menos de 25 m de ellos
+    const P = plan(m);
+    if(P && ej.llegadas) P.pts.forEach((p, k)=>{ const h = ej.llegadas[k]; if(!(h>0) || !p.ev || k===0 || k===P.pts.length - 1) return;
+      const o = m.puntos[p.i] || {}, pc = Object.assign(geo(p.lat, p.lon), {nombre:o.nombre || p.nombre || '', clave:o.clave || '', cota:o.cota===undefined ? '' : o.cota, ev:true, t:h, la:p.lat, lo:p.lon, pc:true});
+      L2 = L2.filter((q, i)=>i===0 || i===L2.length - 1 || q.pc || Math.hypot((q.lo - p.lon)*kx, (q.la - p.lat)*ky)>25);
+      let i = L2.findIndex((q, j)=>j>0 && q.t>=h); if(i<1) i = L2.length - 1; L2.splice(i, 0, pc); });
+    L2[0] = Object.assign(L2[0], {nombre:'PIM', ev:true}); L2[L2.length - 1] = Object.assign(L2[L2.length - 1], {nombre:'PTM', ev:true});
+    return L2.map(q=>{ const o = Object.assign({}, q); delete o.t; delete o.la; delete o.lo; delete o.pc; if(o.cota===undefined) o.cota = ''; return o; });
+  }
   // distancia del recorrido GPS (m), suavizado
   function distGps(T){ const S = suavizar(T || []); let d = 0; for(let i=1; i<S.length; i++) d += M.sobreTramo({lat:S[i][0], lon:S[i][1]}, {lat:S[i - 1][0], lon:S[i - 1][1]}, {lat:S[i - 1][0], lon:S[i - 1][1]}).d; return d; }
   // cortes: más de 2 min sin lecturas y más de 150 m de salto (pantalla apagada, app cerrada): no se une con una línea recta
@@ -714,7 +737,7 @@ const Seguir = (function(){
         return `<div class="${no.length || sal.length ? 'alerta' : 'info'}">Puntos de control: <b>${hechos.length} de ${ev.length}</b>${sal.length ? ' · saltados: ' + sal.map(x=>A.esc(rotulo(x.p))).join(', ') : ''}${no.length ? ' · no alcanzados: ' + no.map(x=>A.esc(rotulo(x.p))).join(', ') : ''}</div>`; })()}
       <div class="desglose"><span>partida <b>${hh(E.inicio)}</b></span><span>término <b>${hh(E.fin)}</b></span><span>altos <b>${dur(altos)}</b> (${E.altos.length})</span><span>novedades <b>${E.nov.length}</b></span></div>
       <h2>Matriz de eventos</h2><div id="sFicha"></div>
-      <div class="btns"><button class="btn pri" id="fMsg">📡 Mensaje de fin al C2</button><button class="btn" id="fRes">📊 Resultado y reseña</button><button class="btn" id="fGpx">⬇ Recorrido (GPX)</button><button class="btn" id="fImp">🖨 Imprimir</button><button class="btn peligro" id="fRe">↺ Hacer de nuevo</button></div>
+      <div class="btns"><button class="btn pri" id="fMsg">📡 Mensaje de fin al C2</button><button class="btn" id="fRes">📊 Resultado y reseña</button><button class="btn" id="fGpx">⬇ Recorrido (GPX)</button><button class="btn" id="fRuta">🧭 Guardar el recorrido como ruta nueva</button><button class="btn" id="fImp">🖨 Imprimir</button><button class="btn peligro" id="fRe">↺ Hacer de nuevo</button></div>
       <p class="nota">En <b>Cuadro → Resultado</b> está la comparación de lo planificado con lo ejecutado (horas, velocidades, altos) y la reseña.</p>`;
     ficha();
     $('#fMsg').onclick = ()=>verMensaje((E.msgs || []).filter(x=>x.k==='FIN').pop()?.msg || mensaje('FIN', {}));
@@ -725,6 +748,7 @@ ${E.track.map(t=>`<trkpt lat="${t[0]}" lon="${t[1]}"><time>${new Date(t[2]).toIS
 </trkseg></trk></gpx>
 `, 'application/gpx+xml'); };
     $('#fImp').onclick = ()=>window.print();
+    $('#fRuta').onclick = ()=>A.rutaDeRecorrido(m, E);
     $('#fRes').onclick = ()=>A.ir('resultado');
     $('#fRe').onclick = ()=>A.confirmar('¿Hacer la marcha de nuevo? El registro actual se quita de Seguir y su recorrido GPS queda guardado en Cuadro → Resultado (los 5 últimos).', ()=>{ archivar(m); delete m.ejec; A.guardar(); pintar(); });
   }
@@ -884,6 +908,6 @@ ${T.map(t=>`<trkpt lat="${t[0]}" lon="${t[1]}"><time>${new Date(t[2]).toISOStrin
   function cerrar(){ cerrarMapa(); const m = A && A.actual(); if(!(m && m.ejec && m.ejec.estado!=='fin')) pararGps(); }
   // desde el Mapa: «Navegar hasta aquí» (con una marcha en curso, como desvío que vuelve a la ruta)
   let pendiente = null, pedirIrA = false; function irA(dest){ pendiente = dest; } function abrirIrA(){ pedirIrA = true; }   // se aplica al abrir la pestaña Seguir
-  return {abrir, cerrar, siguiente, plan, atraso, irA, abrirIrA, enMarcha:()=>watch!==null, partes, gpx, COL_IDA, COL_REG, suavizar, distGps, CORTE};
+  return {abrir, cerrar, siguiente, plan, atraso, irA, abrirIrA, enMarcha:()=>watch!==null, partes, gpx, COL_IDA, COL_REG, suavizar, distGps, CORTE, puntosDeRecorrido};
 })();
 if(typeof globalThis!=='undefined') globalThis.Seguir = Seguir;
