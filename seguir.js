@@ -348,7 +348,9 @@ const Seguir = (function(){
   }
   /* Recorrido → ruta nueva (v0.99.14, pedido del usuario): el recorrido suavizado se reduce a sus quiebres (Douglas-Peucker: se deja un
      punto solo si la línea se aparta más de `tol` m; tol sube de 10 m hasta que queden ≤ 150 puntos) y se intercalan, por hora, los
-     puntos de control a los que se llegó (con su nombre, clave y cota). Devuelve puntos para `nueva()`: el primero PIM y el último PTM. */
+     puntos de control a los que se llegó (con su nombre, clave y cota). Devuelve puntos para `nueva()`: el primero PIM y el último PTM.
+     Las cotas de los puntos de control se marcan automáticas para que también se reemplacen por las del terreno: mezclar la cota escrita
+     a mano con la del terreno (SRTM) en los quiebres inventaba subidas y bajadas (el ejemplo daba +2.065 m en vez de +688). */
   function puntosDeRecorrido(m, ej){
     const S = suavizar((ej && ej.track) || []); if(S.length<2) return [];
     const la0 = S[0][0], kx = Math.cos(la0*Math.PI/180)*111320, ky = 110540, X = S.map(t=>({x:t[1]*kx, y:t[0]*ky}));
@@ -363,7 +365,7 @@ const Seguir = (function(){
     // puntos de control a los que se llegó, en su lugar por la hora; se quitan los quiebres a menos de 25 m de ellos
     const P = plan(m);
     if(P && ej.llegadas) P.pts.forEach((p, k)=>{ const h = ej.llegadas[k]; if(!(h>0) || !p.ev || k===0 || k===P.pts.length - 1) return;
-      const o = m.puntos[p.i] || {}, pc = Object.assign(geo(p.lat, p.lon), {nombre:o.nombre || p.nombre || '', clave:o.clave || '', cota:o.cota===undefined ? '' : o.cota, ev:true, t:h, la:p.lat, lo:p.lon, pc:true});
+      const o = m.puntos[p.i] || {}, pc = Object.assign(geo(p.lat, p.lon), {nombre:o.nombre || p.nombre || '', clave:o.clave || '', cota:o.cota===undefined ? '' : o.cota, cotaAuto:true, ev:true, t:h, la:p.lat, lo:p.lon, pc:true});
       L2 = L2.filter((q, i)=>i===0 || i===L2.length - 1 || q.pc || Math.hypot((q.lo - p.lon)*kx, (q.la - p.lat)*ky)>25);
       let i = L2.findIndex((q, j)=>j>0 && q.t>=h); if(i<1) i = L2.length - 1; L2.splice(i, 0, pc); });
     L2[0] = Object.assign(L2[0], {nombre:'PIM', ev:true}); L2[L2.length - 1] = Object.assign(L2[L2.length - 1], {nombre:'PTM', ev:true});
