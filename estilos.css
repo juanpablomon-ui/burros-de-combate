@@ -757,3 +757,6 @@ body.con-mapa{overflow:hidden}
   #seguir .tarjeta#sCab>.s-vel{grid-column:2;grid-row:1 / span 6;margin:0}
 }
 .s-atak:not(.oculto) .s-pasando span{white-space:normal;line-height:1.15;text-align:center;font-size:13px}
+/* v0.99.10: mantener presionado «PASANDO …» abre el envío (sin el menú de texto del iPhone); enlaces con forma de botón */
+#sLleg{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+a.btn{text-decoration:none;display:inline-flex;align-items:center;justify-content:center}

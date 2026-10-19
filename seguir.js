@@ -98,9 +98,10 @@ const Seguir = (function(){
   function menuMas(){
     A.dialogo(`<h3>Más</h3><div class="s-mas">
       <button class="btn" data-mm="vista">${ic('capa', 'Tipo de pantalla: datos, carta o ATAK')}</button><button class="btn" data-mm="nov">${ic('nov', 'Novedad')}</button><button class="btn" data-mm="reg">${ic('lista', 'Matriz de eventos')}</button>
-      <button class="btn" data-mm="pos">${ic('pos', 'Mensaje de posición')}</button><button class="btn" data-mm="hor">${ic('horiz', 'Vuelta al horizonte')}</button></div>
+      <button class="btn" data-mm="pos">${ic('pos', 'Mensaje de posición')}</button><button class="btn" data-mm="hor">${ic('horiz', 'Vuelta al horizonte')}</button><button class="btn" data-mm="desde">${ic('ira', 'Seguir desde otro punto (saltar puntos)')}</button>
+      <button class="btn" data-mm="matriz">${ic('lista', 'Enviar la matriz completa')}</button></div>
       <div class="btns"><button class="btn" data-cerrar>Cerrar</button></div>`, d=>d.querySelectorAll('[data-mm]').forEach(b=>b.onclick = ()=>{ const k = b.dataset.mm; A.cerrarDialogo();
-        if(k==='reg') cambiarModo(k); else if(k==='vista') elegirVista(); else if(k==='nov') novedad(); else if(k==='pos') verMensaje(mensaje('POS', {})); else horizonte(); }));
+        if(k==='reg') cambiarModo(k); else if(k==='vista') elegirVista(); else if(k==='nov') novedad(); else if(k==='pos') verMensaje(mensaje('POS', {})); else if(k==='desde') elegirDesde(); else if(k==='matriz') enviar(textoMatriz(), 'Matriz de eventos'); else horizonte(); }));
   }
   // tres pantallas para navegar (v0.99.7, pedido del usuario): solo datos, carta con datos arriba y tipo ATAK (panel a la derecha que se oculta)
   function elegirVista(){
@@ -188,7 +189,7 @@ const Seguir = (function(){
       ${cel('Ahora', V ? A.f(V, 1) + ' km/h' : '—', V ? M.verRitmo(V) : '')}${cel('Llega aprox.', r ? hh(ahora() + r.dist/1000/(V>1 ? V : 4)*36e5) : '—', 'a ' + A.f(V>1 ? V : 4, 1) + ' km/h')}${cel('GPS', pos ? '±' + Math.round(pos.acc || 0) + ' m' : '—', pos ? '' : 'esperando señal')}</div>`;
     flecha(); if(mapa && capas){ capas.clearLayers(); L.circleMarker([irSolo.lat, irSolo.lon], {radius:12, color:'#6fb3d9', weight:3, fill:false}).addTo(capas);
       if(pos){ L.polyline([[pos.lat, pos.lon], [irSolo.lat, irSolo.lon]], {color:'#6fb3d9', weight:3, dashArray:'6 6'}).addTo(capas); L.circleMarker([pos.lat, pos.lon], {radius:8, color:'#fff', weight:3, fillColor:'#2a7fd4', fillOpacity:1}).addTo(capas);
-        if(r) girar(M.rumboEntre(pos, irSolo, gr.zona, 0).azG); if(centrar) seguirPos(irSolo); } }
+        if(r) girar(azGiro(M.rumboEntre(pos, irSolo, gr.zona, 0).azG)); if(centrar) seguirPos(irSolo); } }
   }
 
   /* ---------- adelanto / atraso ---------- */
@@ -238,6 +239,7 @@ const Seguir = (function(){
   }
 
   /* ---------- GPS, brújula y pantalla encendida ---------- */
+  let saltosGps = 0;
   function iniciarGps(){
     if(watch!==null || !navigator.geolocation) return;
     watch = navigator.geolocation.watchPosition(p=>{
@@ -248,14 +250,19 @@ const Seguir = (function(){
       if($('#sIrSolo2')){ posSinRuta(); return; }   // sin ruta: solo la posición en la carta
       if(!E){ pintarPrevio(); return; }   // antes de partir: solo se muestra la posición y la distancia al PIM
       if(E.estado==='fin') return;
-      const u = E.track[E.track.length - 1];
-      if(!u || M.sobreTramo(pos, {lat:u[0], lon:u[1]}, {lat:u[0], lon:u[1]}).d>10 || pos.t - u[2]>60000){ E.track.push([+pos.lat.toFixed(6), +pos.lon.toFixed(6), pos.t]); if(E.track.length>8000) E.track.splice(0, E.track.length - 8000); }
+      const u = E.track[E.track.length - 1], du = u ? M.sobreTramo(pos, {lat:u[0], lon:u[1]}, {lat:u[0], lon:u[1]}).d : 0;
+      // saltos del GPS (v0.99.10, visto en terreno): no se anotan las lecturas malas (más de 35 m de error; si se repiten 5 veces seguidas se
+      // aceptan igual) y se borra el «pico»: un punto que se va lejos a más de 20 km/h y el siguiente vuelve cerca de donde se estaba
+      const mala = u && (pos.acc || 0)>35; if(mala) saltosGps++; else saltosGps = 0;
+      if(!u || ((!mala || saltosGps>=5) && (du>10 || pos.t - u[2]>60000))){ saltosGps = 0; E.track.push([+pos.lat.toFixed(6), +pos.lon.toFixed(6), pos.t]); if(E.track.length>8000) E.track.splice(0, E.track.length - 8000);
+        const T = E.track, n = T.length; if(n>=3){ const [a, b, c] = [T[n - 3], T[n - 2], T[n - 1]].map(t=>({lat:t[0], lon:t[1], t:t[2]})), d = (x, y)=>M.sobreTramo(x, y, y).d;
+          const ab = d(a, b), bc = d(b, c), ac = d(a, c); if(ab>30 && bc>30 && ac<Math.min(ab, bc)/2 && ab/1000/Math.max(1/3600, (b.t - a.t)/36e5)>20) T.splice(n - 2, 1); } }
       // llegada automática
       const P = plan(m), k = P && siguiente(m, P);
       const O = P && objetivo(m, P);
       if(O && E.estado==='marcha'){ if(O.dist!==null && O.dist<=Math.max(40, 15 + (pos.acc||0))) llegarDesvio(true); }
-      else if(k!==null && k!==undefined && E.estado==='marcha'){ const d = M.rumboEntre(pos, P.pts[k], P.R.zona, P.R.decl.valor).dist;
-        if(d<=Math.max(40, 15 + (pos.acc||0))) llegar(k, true); }
+      else if(k!==null && k!==undefined && E.estado==='marcha'){ const rad = Math.max(40, 15 + (pos.acc||0)), d = M.rumboEntre(pos, P.pts[k], P.R.zona, P.R.decl.valor).dist;
+        if(d<=rad) llegar(k, true); else { const j = adelante(m, P, k, rad); if(j!==null) saltar(j, true); } }
       A.guardar(); pintarVivo();
     }, e=>{ pos = null; const x = $('#sGps'); if(x) x.textContent = e.code===1 ? 'GPS sin permiso: marca las llegadas a mano' : 'Sin señal GPS'; },
     {enableHighAccuracy:true, maximumAge:5000, timeout:30000});
@@ -266,14 +273,20 @@ const Seguir = (function(){
       if(!on && wake){ await wake.release(); wake = null; } } catch(e){}
   }
   document.addEventListener('visibilitychange', ()=>{ const m = A && A.actual(); if(!document.hidden && m && m.ejec && m.ejec.estado!=='fin') pantalla(true); });
+  // ángulo de la pantalla: con el teléfono en horizontal la brújula entrega el rumbo del borde de arriba del teléfono vertical (v0.99.10,
+  // error visto en terreno): se suma el giro de la pantalla (iPhone: window.orientation; Android: screen.orientation.angle)
+  const anguloPantalla = ios=>{ const w = typeof window.orientation==='number' ? window.orientation : null, s = screen.orientation && typeof screen.orientation.angle==='number' ? screen.orientation.angle : null;
+    return (ios ? (w!==null ? w : s) : (s!==null ? s : w)) || 0; };
+  let conBrujula = false;
   function brujula(){
-    const fn = e=>{ let h = null;
-      if(typeof e.webkitCompassHeading==='number') h = e.webkitCompassHeading;           // iPhone: respecto del norte magnético
+    if(conBrujula) return; conBrujula = true;
+    const fn = e=>{ let h = null; const ios = typeof e.webkitCompassHeading==='number';
+      if(ios) h = e.webkitCompassHeading;                                                  // iPhone: respecto del norte magnético
       else if(e.absolute && typeof e.alpha==='number') h = (360 - e.alpha + 360)%360;      // Android: norte geográfico
-      if(h!==null){ rumboDisp = {h, mag:typeof e.webkitCompassHeading==='number'}; flecha(); } };
+      if(h!==null){ rumboDisp = {h:((h + anguloPantalla(ios))%360 + 360)%360, mag:ios}; flecha(); } };
     const activar = ()=>{ addEventListener('deviceorientationabsolute', fn); addEventListener('deviceorientation', fn); };
     if(typeof DeviceOrientationEvent!=='undefined' && typeof DeviceOrientationEvent.requestPermission==='function')
-      DeviceOrientationEvent.requestPermission().then(r=>{ if(r==='granted') activar(); }).catch(()=>{});
+      DeviceOrientationEvent.requestPermission().then(r=>{ if(r==='granted') activar(); else conBrujula = false; }).catch(()=>{ conBrujula = false; });
     else activar();
   }
 
@@ -299,6 +312,49 @@ const Seguir = (function(){
     A.aviso((auto ? '📍 ' : '✔ ') + verbo() + ' ' + rotulo(p) + ' — ' + dif(d) + (p.mochila ? ' · 🎒 ' + avisoMochila(p.mochila) : ''));
     mensaje('PC', {pc:p.nombre, clave:p.clave || '', n:k, h:hh(E.llegadas[k]), dif:Math.round(d)});
     if(k===P.pts.length - 1) terminar(true); else { A.guardar(); pintar(); }
+  }
+  /* ---------- recorrido real: ida y regreso (v0.99.10, pedido del usuario: el regreso de otro color aunque pise la ida) ----------
+     El regreso empieza en el punto anterior al primero marcado «Regreso» (los que deja «Volver por la ida»); si no hay, en el punto más
+     lejano del inicio (si es el último, no hay regreso). Lo grabado después de llegar ahí (o a uno posterior) es regreso. */
+  const COL_IDA = '#2a7fd4', COL_REG = '#e0453a';
+  function partes(m, P){
+    const E = m.ejec, T = (E && E.track) || [], todo = T.map(t=>[t[0], t[1]]); P = P || plan(m); if(!P || T.length<2) return {ida:todo, reg:[]};
+    let r = P.pts.findIndex(p=>/^Regreso/.test(p.obs || '')) - 1;
+    if(r<1){ let dm = 0; P.pts.forEach((p, j)=>{ const d = M.rumboEntre(P.pts[0], p, P.R.zona, 0).dist; if(d>dm){ dm = d; r = j; } }); }
+    if(!(r>=1 && r<P.pts.length - 1)) return {ida:todo, reg:[]};
+    let tR = null; for(let j=r; j<P.pts.length && tR===null; j++) if(E.llegadas[j]>0) tR = E.llegadas[j];
+    if(tR===null) return {ida:todo, reg:[]};
+    const i = T.findIndex(t=>t[2]>=tR); if(i<0) return {ida:todo, reg:[]};
+    return i<1 ? {ida:[], reg:todo} : {ida:todo.slice(0, i), reg:todo.slice(i - 1)};   // se unen en el último punto antes de empezar el regreso
+  }
+
+  /* ---------- puntos saltados (v0.99.10, pedido del usuario tras la prueba en terreno) ----------
+     Una ruta puede no hacerse completa, saltarse puntos o juntarse antes (o por otro rumbo) con el regreso. Si se llega a un punto más
+     adelante de la ruta, se marca la llegada y los anteriores quedan «saltados» (llegadas = −1). No cuentan los puntos que están en el
+     mismo lugar que el último marcado (ida y regreso por el mismo punto, PIM = PTM), para no saltar al regreso al pasar por la ida. */
+  function ultimoLugar(m, P){ const E = m.ejec; let u = 0; for(let j=1; j<P.pts.length; j++) if(E.llegadas[j]>0) u = j; return P.pts[u]; }
+  function adelante(m, P, k, rad){
+    const u = ultimoLugar(m, P);
+    for(let j=k + 1; j<P.pts.length; j++){ const q = P.pts[j];
+      if(M.rumboEntre(pos, q, P.R.zona, 0).dist<=Math.min(rad, 40) && M.rumboEntre(u, q, P.R.zona, 0).dist>80) return j; }
+    return null; }
+  // marca como saltados los puntos anteriores a j que faltan; auto = se llegó a j (GPS), si no se elige seguir hacia j
+  function saltar(j, auto){
+    const m = A.actual(), E = m.ejec, P = plan(m), sal = [];
+    for(let i=1; i<j; i++) if(!E.llegadas[i]){ E.llegadas[i] = -1; if(P.pts[i].ev) sal.push(rotulo(P.pts[i])); }
+    E.saltos = (E.saltos || []).concat([{t:ahora(), hasta:j, pts:sal}]);
+    if(sal.length) A.aviso('⤼ Saltados: ' + sal.join(', ') + (auto ? '' : ' — sigues hacia ' + (rotulo(P.pts[j]) || 'el punto ' + j)));
+    if(auto) llegar(j, true); else { A.guardar(); pintar(); }
+  }
+  // elegir a mano desde qué punto se sigue (Más → Seguir desde otro punto)
+  function elegirDesde(){
+    const m = A.actual(), P = plan(m), k = siguiente(m, P); if(k===null) return;
+    const lista = P.pts.map((p, j)=>({p, j})).filter(x=>x.j>k && (x.p.ev || x.j===P.pts.length - 1));
+    if(!lista.length) return A.aviso('No quedan puntos más adelante');
+    A.dialogo(`<h3>⤼ Seguir desde otro punto</h3><p class="nota">Si la patrulla se salta puntos o se une antes al regreso: elige hacia qué punto sigue.
+        Los anteriores quedan como <b>saltados</b> en la matriz y en el resultado. (Si el GPS te ve llegar a un punto más adelante, lo hace solo.)</p>
+      <div class="s-mas">${lista.map(x=>`<button class="btn" data-dj="${x.j}">${A.esc(rotulo(x.p) + (x.p.clave && x.p.nombre ? ' (' + x.p.nombre + ')' : ''))} · plan ${hh(m.ejec.inicio + x.p.lleg*36e5)}${/^Regreso/.test(x.p.obs || '') ? ' · regreso' : ''}</button>`).join('')}</div>
+      <div class="btns"><button class="btn" data-cerrar>Cancelar</button></div>`, d=>d.querySelectorAll('[data-dj]').forEach(b=>b.onclick = ()=>{ A.cerrarDialogo(); saltar(+b.dataset.dj, false); }));
   }
   function alto(){
     const m = A.actual(), E = m.ejec;
@@ -329,7 +385,8 @@ const Seguir = (function(){
     const fin = ()=>{ if(E.estado==='alto'){ E.altos[E.altos.length - 1].fin = ahora(); } E.estado = 'fin'; E.fin = ahora();
       pararGps(); pantalla(false); mensaje('FIN', {}); A.guardar(); pintar(); };
     if(auto) return fin();
-    A.confirmar('¿Terminar la marcha? Se detiene el GPS y queda el registro.', fin);
+    const P = plan(m), falta = P ? P.pts.filter((p, j)=>j && p.ev && !E.llegadas[j]).map(rotulo) : [];
+    A.confirmar('¿Terminar la marcha? Se detiene el GPS y queda el registro.' + (falta.length ? ' Faltan ' + falta.length + ' punto(s) (' + falta.join(', ') + '): quedan como no alcanzados.' : ''), fin);
   }
 
   /* ---------- mensajes para el C2 ---------- */
@@ -358,6 +415,39 @@ const Seguir = (function(){
       d.querySelector('#mCop').onclick = ()=>A.copiar(msg);
       if(d.querySelector('#mComp')) d.querySelector('#mComp').onclick = ()=>navigator.share({text:msg}).catch(()=>{});
       if(d.querySelector('#mQr')) d.querySelector('#mQr').onclick = ()=>{ const q = qrcode(0, 'L'); q.addData(cod, 'Byte'); q.make(); d.querySelector('#mQrC').innerHTML = `<div class="qr">${q.createSvgTag({cellSize:4, margin:2, scalable:true})}</div>`; }; });
+  }
+
+  /* ---------- enviar por… (v0.99.10, pedido del usuario): mantener presionado «PASANDO …» marca el paso y ofrece cómo mandarlo ---------- */
+  function enviar(msg, titulo){
+    if(!msg) return; const cod = msg.split('\n').find(x=>/^#BDC1:/.test(x));
+    A.dialogo(`<h3>📡 ${A.esc(titulo || 'Enviar')}</h3><div class="mensaje">${A.esc(msg)}</div>
+      <div class="s-mas"><a class="btn pri" id="eWa" href="https://wa.me/?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">💬 WhatsApp</a>
+        <a class="btn" id="eSms" href="sms:${/iPhone|iPad|Mac/.test(navigator.userAgent) ? '&' : '?'}body=${encodeURIComponent(msg)}">✉ Mensaje de texto (SMS)</a>
+        ${navigator.share ? '<button class="btn" id="eComp">↗ Compartir (otras apps)</button>' : ''}<button class="btn" id="eCop">📋 Copiar</button>
+        ${cod && !Uso.civil() ? '<button class="btn" id="eQr">▦ QR para el C2</button>' : ''}</div>
+      <div id="eQrC"></div><div class="btns"><button class="btn" data-cerrar>Cerrar</button></div>`, d=>{
+      d.querySelector('#eCop').onclick = ()=>A.copiar(msg);
+      if(d.querySelector('#eComp')) d.querySelector('#eComp').onclick = ()=>navigator.share({text:msg}).catch(()=>{});
+      if(d.querySelector('#eQr')) d.querySelector('#eQr').onclick = ()=>{ const q = qrcode(0, 'L'); q.addData(cod, 'Byte'); q.make(); d.querySelector('#eQrC').innerHTML = `<div class="qr">${q.createSvgTag({cellSize:4, margin:2, scalable:true})}</div>`; }; });
+  }
+  // la matriz de eventos hasta ahora, en texto para un mensaje
+  function textoMatriz(){
+    const m = A.actual(), E = m.ejec, P = plan(m); if(!E || !P) return '';
+    const L = ['MATRIZ DE EVENTOS «' + (m.nombre || 'marcha') + '»' + (m.unidad ? ' (' + m.unidad + ')' : '') + ' — ' + hh(ahora())];
+    eventos(m, P).forEach(x=>L.push((x.real ? hh(x.t) : '(' + hh(x.plan) + ')') + ' ' + x.ev + (x.salta ? ' — SALTADO' : !x.real && x.tipo==='pc' ? ' — pendiente' : '') + (x.dif!==null && x.dif!==undefined && x.real ? ' (' + difCorta(x.dif) + ')' : '')));
+    if(pos) L.push('Posición ' + utmTxt(pos));
+    return L.join('\n');
+  }
+  function pasandoYEnviar(){
+    const m = A.actual(), E = m.ejec, P = plan(m); if(!E || E.estado==='fin' || E.desvio) return;
+    const k = proxEv(m, P), tl = k!==null ? verbo() + ' ' + rotulo(P.pts[k]) : '';
+    A.dialogo(`<h3>📡 Enviar</h3><div class="s-mas">${k!==null ? `<button class="btn pri" id="ePas">✔ ${A.esc(tl)}: marcar y enviar</button>` : ''}
+        <button class="btn" id="eMat">${ic('lista', 'Enviar la matriz completa (sin marcar)')}</button><button class="btn" id="ePos">${ic('pos', 'Enviar mi posición (sin marcar)')}</button></div>
+      <div class="btns"><button class="btn" data-cerrar>Cancelar</button></div>`, d=>{
+      if(d.querySelector('#ePas')) d.querySelector('#ePas').onclick = ()=>{ A.cerrarDialogo(); llegar(k, false);
+        const x = (A.actual().ejec.msgs || []).filter(y=>y.k==='PC').pop(); if(x) setTimeout(()=>enviar(x.msg, tl), 250); };
+      d.querySelector('#eMat').onclick = ()=>{ A.cerrarDialogo(); setTimeout(()=>enviar(textoMatriz(), 'Matriz de eventos'), 250); };
+      d.querySelector('#ePos').onclick = ()=>{ A.cerrarDialogo(); setTimeout(()=>enviar(mensaje('POS', {}), 'Posición'), 250); }; });
   }
 
   /* ---------- pantalla ---------- */
@@ -431,7 +521,10 @@ const Seguir = (function(){
     $('#sAlto').onclick = alto; const bnv = $('#sNov'); if(bnv) bnv.onclick = novedad; $('#sFin').onclick = ()=>terminar(false);
     const bp = $('#sPos'), bh = $('#sHor'), bm = $('#sMas'); if(bp) bp.onclick = ()=>verMensaje(mensaje('POS', {})); if(bh) bh.onclick = horizonte; if(bm) bm.onclick = menuMas;
     $('#sIrA').onclick = ()=>{ if(E.desvio) return A.confirmar('¿Cancelar el desvío y volver a seguir la ruta?', ()=>{ terminarDesvio(true); }); dialogoIrA(true); };
-    $('#sLleg').onclick = e=>{ const b = e.currentTarget; if(b.dataset.ocupado) return; b.dataset.ocupado = '1'; setTimeout(()=>{ delete b.dataset.ocupado; }, 1500);   // sin doble toque
+    { const b = $('#sLleg'); let tm = null; b.oncontextmenu = e=>e.preventDefault();
+      b.addEventListener('pointerdown', ()=>{ clearTimeout(tm); tm = setTimeout(()=>{ tm = null; b.dataset.largo = '1'; if(navigator.vibrate) navigator.vibrate(40); pasandoYEnviar(); }, 650); });
+      ['pointerup', 'pointerleave', 'pointercancel'].forEach(t=>b.addEventListener(t, ()=>{ clearTimeout(tm); tm = null; })); }
+    $('#sLleg').onclick = e=>{ const b = e.currentTarget; if(b.dataset.largo){ delete b.dataset.largo; return; } if(b.dataset.ocupado) return; b.dataset.ocupado = '1'; setTimeout(()=>{ delete b.dataset.ocupado; }, 1500);   // sin doble toque
       if(E.desvio) return llegarDesvio(false); const k = proxEv(m, P); if(k!==null) llegar(k, false); };
     if(modo==='atak'){ centrar = true; hacerMapa(P); const pe = $('#sPest'), env = c.querySelector('.s-atak');
       const pp = ()=>{ pe.innerHTML = panelOculto ? '‹' : '›'; env.classList.toggle('oculto', panelOculto); };
@@ -521,10 +614,10 @@ const Seguir = (function(){
     if(!rumboDisp){ f.style.opacity = f.classList.contains('s-flecha-g') ? .9 : .25; if(f.classList.contains('s-flecha-g')) f.style.transform = 'rotate(' + (+c.dataset.az + decPlan() - (giro || 0)) + 'deg)'; f.title = 'Sin brújula: apunta con el norte hacia arriba, como la carta'; return; }
     const P = plan(A.actual()), dec = irSolo || !P ? decSolo : P.R.decl.valor, h = rumboDisp.mag ? rumboDisp.h : rumboDisp.h - dec;
     f.style.opacity = 1; f.style.transform = 'rotate(' + ((+c.dataset.az - h + 360)%360) + 'deg)';
+    if(orient==='brujula' && mapa && giro!==null && !explorando){ const g = rumboGeo(); if(Math.abs((((g - giro)%360) + 540)%360 - 180)>2) girar(g); }
   }
   // matriz de eventos: eventos planificados (paso por cada punto) y reales (inicio, pasos, altos, novedades, fin) en orden de hora
-  function ficha(){
-    const c = $('#sFicha'); if(!c) return; const m = A.actual(), P = plan(m), E = m.ejec, ev = [];
+  function eventos(m, P){ const E = m.ejec, ev = [];
     const posTxt = (la, lo)=>la===undefined || la===null ? '' : utmTxt({lat:la, lon:lo});
     ev.push({t:E.inicio, real:true, ev:'Inicio de marcha' + (P.pts[0].clave ? ' — ' + P.pts[0].clave : ''), punto:P.pts[0].nombre, plan:E.inicio, dif:0, tipo:'ini'});
     P.pts.forEach((p, k)=>{ if(!k || !p.ev) return; const r = E.llegadas[k], pl = E.inicio + p.lleg*3600000;
@@ -532,10 +625,12 @@ const Seguir = (function(){
     E.altos.forEach(a=>ev.push({t:a.ini, real:true, ev:'Alto — ' + a.motivo + (a.fin ? ' (' + dur(a.fin - a.ini) + ')' : ' (en curso)'), pos:posTxt(a.lat, a.lon), tipo:'alto'}));
     E.nov.forEach(n=>ev.push({t:n.t, real:true, ev:'Novedad — ' + n.txt, pos:posTxt(n.lat, n.lon), tipo:'nov'}));
     if(E.fin) ev.push({t:E.fin, real:true, ev:'Fin de marcha', punto:P.pts[P.pts.length - 1].nombre, tipo:'fin'});
-    ev.sort((x, y)=>x.t - y.t);
+    ev.sort((x, y)=>x.t - y.t); return ev; }
+  function ficha(){
+    const c = $('#sFicha'); if(!c) return; const m = A.actual(), P = plan(m), ev = eventos(m, P);
     c.innerHTML = `<div class="tabla-env"><table class="t matriz"><thead><tr><th class="tx">Punto / posición</th><th>Plan</th><th>Real</th><th>Diferencia</th><th class="tx">Evento</th></tr></thead><tbody>
       ${ev.map(x=>`<tr class="${x.real ? '' : 'pend'} ${x.tipo}"><td class="tx"><b>${A.esc(x.punto || x.pos || '')}</b></td><td>${x.plan ? hh(x.plan) : ''}</td>
-        <td>${x.salta ? 'no marcado' : x.real ? hh(x.t) : '—'}</td>
+        <td>${x.salta ? 'saltado' : x.real ? hh(x.t) : '—'}</td>
         <td class="${x.dif===null || x.dif===undefined ? '' : x.dif>5 ? 'sube' : x.dif< -5 ? 'baja' : ''}">${x.dif===null || x.dif===undefined ? '' : difCorta(x.dif)}</td><td class="tx ev">${A.esc(x.ev)}</td></tr>`).join('')}
       </tbody></table></div>`;
   }
@@ -548,9 +643,11 @@ const Seguir = (function(){
         <div class="kpi"><div class="k">Plan</div><div class="v">${M.verDur(P.R.res.total)}</div></div>
         <div class="kpi ${dTot*60>5 ? '' : 'ocre'}"><div class="k">Diferencia</div><div class="v">${difCorta(dTot*60)}</div></div>
         <div class="kpi"><div class="k">Recorrido GPS</div><div class="v">${E.track.length>1 ? A.f(km/1000, 2) + ' <small>km</small>' : '—'}</div></div></div>
+      ${(()=>{ const ev = P.pts.map((p, j)=>({p, j})).filter(x=>x.j && x.p.ev), hechos = ev.filter(x=>E.llegadas[x.j]>0), sal = ev.filter(x=>E.llegadas[x.j]===-1), no = ev.filter(x=>!E.llegadas[x.j]);
+        return `<div class="${no.length || sal.length ? 'alerta' : 'info'}">Puntos de control: <b>${hechos.length} de ${ev.length}</b>${sal.length ? ' · saltados: ' + sal.map(x=>A.esc(rotulo(x.p))).join(', ') : ''}${no.length ? ' · no alcanzados: ' + no.map(x=>A.esc(rotulo(x.p))).join(', ') : ''}</div>`; })()}
       <div class="desglose"><span>partida <b>${hh(E.inicio)}</b></span><span>término <b>${hh(E.fin)}</b></span><span>altos <b>${dur(altos)}</b> (${E.altos.length})</span><span>novedades <b>${E.nov.length}</b></span></div>
       <h2>Matriz de eventos</h2><div id="sFicha"></div>
-      <div class="btns"><button class="btn pri" id="fMsg">📡 Mensaje de fin al C2</button><button class="btn" id="fRes">📊 Resultado y reseña</button><button class="btn" id="fGpx">⬇ Recorrido (GPX)</button><button class="btn" id="fImp">🖨 Imprimir</button><button class="btn peligro" id="fRe">↺ Borrar registro</button></div>
+      <div class="btns"><button class="btn pri" id="fMsg">📡 Mensaje de fin al C2</button><button class="btn" id="fRes">📊 Resultado y reseña</button><button class="btn" id="fGpx">⬇ Recorrido (GPX)</button><button class="btn" id="fImp">🖨 Imprimir</button><button class="btn peligro" id="fRe">↺ Hacer de nuevo</button></div>
       <p class="nota">En <b>Cuadro → Resultado</b> está la comparación de lo planificado con lo ejecutado (horas, velocidades, altos) y la reseña.</p>`;
     ficha();
     $('#fMsg').onclick = ()=>verMensaje((E.msgs || []).filter(x=>x.k==='FIN').pop()?.msg || mensaje('FIN', {}));
@@ -562,8 +659,17 @@ ${E.track.map(t=>`<trkpt lat="${t[0]}" lon="${t[1]}"><time>${new Date(t[2]).toIS
 `, 'application/gpx+xml'); };
     $('#fImp').onclick = ()=>window.print();
     $('#fRes').onclick = ()=>A.ir('resultado');
-    $('#fRe').onclick = ()=>A.confirmar('¿Borrar el registro de esta marcha (horas reales, altos, recorrido)?', ()=>{ delete m.ejec; A.guardar(); pintar(); });
+    $('#fRe').onclick = ()=>A.confirmar('¿Hacer la marcha de nuevo? El registro actual se quita de Seguir y su recorrido GPS queda guardado en Cuadro → Resultado (los 5 últimos).', ()=>{ archivar(m); delete m.ejec; A.guardar(); pintar(); });
   }
+
+  // recorridos anteriores (v0.99.10, pedido del usuario: que el recorrido quede guardado): los 5 últimos, con sus horas
+  function archivar(m){ const E = m.ejec; if(!E || !E.inicio || !(E.track || []).length) return;
+    m.recorridos = (m.recorridos || []).concat([{inicio:E.inicio, fin:E.fin, track:E.track, llegadas:E.llegadas}]).slice(-5); }
+  function gpx(nombre, T){ return `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Burros de Combate" xmlns="http://www.topografix.com/GPX/1/1"><trk><name>${String(nombre).replace(/[&<>]/g, c=>({'&':'&amp;', '<':'&lt;', '>':'&gt;'})[c])}</name><trkseg>
+${T.map(t=>`<trkpt lat="${t[0]}" lon="${t[1]}"><time>${new Date(t[2]).toISOString()}</time></trkpt>`).join('\n')}
+</trkseg></trk></gpx>
+`; }
 
   // datos del plan sobre la carta antes de partir, y dónde estoy respecto del PIM
   function pintarPrevio(){
@@ -632,7 +738,7 @@ ${E.track.map(t=>`<trkpt lat="${t[0]}" lon="${t[1]}"><time>${new Date(t[2]).toIS
           mapa.fitBounds(L.latLngBounds(P.pts.map(p=>[p.lat, p.lon]).concat([[pos.lat, pos.lon]])), {paddingTopLeft:[40, alto], paddingBottomRight:[70, 170], animate:false}); } }
       L.circleMarker([P.pts[0].lat, P.pts[0].lon], {radius:13, color:'#fff', weight:3, fill:false}).addTo(capas);
       return; }
-    if(E.track.length>1) L.polyline(E.track.map(t=>[t[0], t[1]]), {color:'#2a7fd4', weight:4}).addTo(capas);
+    { const T = partes(m, P); if(T.ida.length>1) L.polyline(T.ida, {color:COL_IDA, weight:4}).addTo(capas); if(T.reg.length>1) L.polyline(T.reg, {color:COL_REG, weight:4}).addTo(capas); }
     const k = siguiente(m, P), ke = proxEv(m, P);
     if(ke!==null){ const e = P.pts[ke]; L.circleMarker([e.lat, e.lon], {radius:13, color:'#fff', weight:3, fill:false}).addTo(capas); }
     const O = objetivo(m, P);
@@ -642,7 +748,7 @@ ${E.track.map(t=>`<trkpt lat="${t[0]}" lon="${t[1]}"><time>${new Date(t[2]).toIS
     if(pos){ L.circle([pos.lat, pos.lon], {radius:pos.acc||20, color:'#2a7fd4', weight:1, fillOpacity:.12}).addTo(capas);
       L.circleMarker([pos.lat, pos.lon], {radius:8, color:'#fff', weight:3, fillColor:'#2a7fd4', fillOpacity:1}).addTo(capas);
       const dst = O ? O.dest : k!==null ? P.pts[k] : null;
-      if(dst){ const az = M.rumboEntre(pos, dst, P.R.zona, 0).azG; girar(az); }
+      if(dst){ const az = M.rumboEntre(pos, dst, P.R.zona, 0).azG; girar(azGiro(az)); }
       if(centrar){ if(primera){ mapa.setView([pos.lat, pos.lon], Math.max(mapa.getZoom(), 16), {animate:false}); primera = false; } else seguirPos(); } }
   }
   /* ---------- controles de la carta de Seguir (v0.99, pedido del usuario): orientación, capa del mapa y centrado ----------
@@ -651,6 +757,9 @@ ${E.track.map(t=>`<trkpt lat="${t[0]}" lon="${t[1]}"><time>${new Date(t[2]).toIS
      La capa (topográfica, satélite…) y las curvas se guardan en la misma preferencia del Mapa (`burros_mapa`). Centrado: sigue la posición;
      al mover la carta con el dedo se suelta y el botón ◎ se ilumina para volver a centrar. */
   let orient = 'norte'; try { orient = localStorage.getItem('burros_orient') || 'norte'; } catch(e){}
+  // rumbo del teléfono respecto del norte geográfico (para girar la carta en el modo brújula)
+  const rumboGeo = ()=>rumboDisp ? ((rumboDisp.mag ? rumboDisp.h + decPlan() : rumboDisp.h) + 360)%360 : null;
+  const azGiro = az=>orient==='brujula' && rumboDisp ? rumboGeo() : az;
   let capaS = null, curvasS = null, giro = null;
   const prefMapa = ()=>{ try { return JSON.parse(localStorage.getItem('burros_mapa') || '{}'); } catch(e){ return {}; } };
   function ponerCapas(){
@@ -663,10 +772,13 @@ ${E.track.map(t=>`<trkpt lat="${t[0]}" lon="${t[1]}"><time>${new Date(t[2]).toIS
   function marcarCentrar(){ const b = $('#sCentrar'); if(b) b.classList.toggle('pri', !centrar || explorando); }
   function controles(){
     const bo = $('#sOrient'), bc = $('#sCapa'), bz = $('#sCentrar'), bv = $('#sVista'); if(!bo) return; if(bv) bv.onclick = elegirVista;
-    const rotO = ()=>{ bo.innerHTML = orient==='destino' ? ic('dest', 'Destino') : ic('norte', 'Norte'); bo.classList.toggle('on', orient==='destino'); }; rotO();
-    bo.onclick = ()=>{ orient = orient==='norte' ? 'destino' : 'norte'; try { localStorage.setItem('burros_orient', orient); } catch(e){}
-      rotO(); if(orient==='norte') girar(null);
-      A.aviso(orient==='destino' ? 'Destino arriba: la carta gira hacia el punto al que vas' : 'Norte arriba'); if(irSolo) pintarSoloVivo(); else { mapaVivo(); } };
+    const rotO = ()=>{ bo.innerHTML = orient==='destino' ? ic('dest', 'Destino') : orient==='brujula' ? ic('ira', 'Brújula') : ic('norte', 'Norte'); bo.classList.toggle('on', orient!=='norte'); }; rotO();
+    // Norte arriba → Destino arriba → Brújula (la carta gira con el teléfono; v0.99.10, pedido del usuario) → Norte
+    bo.onclick = ()=>{ orient = orient==='norte' ? 'destino' : orient==='destino' ? 'brujula' : 'norte'; try { localStorage.setItem('burros_orient', orient); } catch(e){}
+      rotO(); if(orient==='norte') girar(null); if(orient==='brujula') brujula();
+      A.aviso(orient==='destino' ? 'Destino arriba: la carta gira hacia el punto al que vas' : orient==='brujula' ? 'Brújula: la carta gira con el teléfono; lo que tienes al frente queda arriba' : 'Norte arriba');
+      if(orient==='brujula') setTimeout(()=>{ if(orient==='brujula' && !rumboDisp) A.aviso('Este equipo no entrega la brújula: la carta gira hacia el destino'); }, 2500);
+      if(irSolo) pintarSoloVivo(); else { mapaVivo(); } };
     bc.onclick = ()=>{ const pr = prefMapa();
       A.dialogo(`<h3>🗺 Mapa</h3><div class="s-mas">${Object.entries(Mapa.BASES).map(([k, b])=>`<button class="btn${(pr.base || 'topo')===k ? ' pri' : ''}" data-cb="${k}">${b.n}</button>`).join('')}</div>
         <label class="nota" style="display:block"><input type="checkbox" id="cCurv" ${pr.curvas!==false ? 'checked' : ''} style="width:auto;vertical-align:middle"> Curvas de nivel</label>
@@ -681,11 +793,14 @@ ${E.track.map(t=>`<trkpt lat="${t[0]}" lon="${t[1]}"><time>${new Date(t[2]).toIS
   let explorando = false;
   function girar(az){
     const el = $('#sMapa'); if(!el || !mapa) return; const cont = el.parentElement;
-    if(az===null || az===undefined || orient!=='destino' || explorando){ if(giro!==null){ giro = null; el.style.cssText = ''; delete el.dataset.dims; mapa.dragging.enable(); mapa.invalidateSize({animate:false}); } return; }
+    if(az===null || az===undefined || orient==='norte' || explorando){ if(giro!==null){ giro = null; rotAcum = null; el.style.cssText = ''; delete el.dataset.dims; mapa.dragging.enable(); mapa.invalidateSize({animate:false}); } return; }
     const w = cont.clientWidth, h = cont.clientHeight, D = Math.ceil(Math.hypot(w, h)), dims = w + 'x' + h;
-    if(giro===null || el.dataset.dims!==dims){ el.dataset.dims = dims; el.style.cssText = `position:absolute;inset:auto;right:auto;bottom:auto;width:${D}px;height:${D}px;left:${(w - D)/2}px;top:${(h - D)/2}px;transition:transform .6s`; mapa.dragging.disable(); mapa.invalidateSize({animate:false}); }
-    giro = az; el.style.transform = 'rotate(' + (-az) + 'deg)'; flecha();
+    if(giro===null || el.dataset.dims!==dims){ el.dataset.dims = dims; el.style.cssText = `position:absolute;inset:auto;right:auto;bottom:auto;width:${D}px;height:${D}px;left:${(w - D)/2}px;top:${(h - D)/2}px;transition:transform ${orient==='brujula' ? '.25s linear' : '.6s'}`; mapa.dragging.disable(); mapa.invalidateSize({animate:false}); }
+    // el ángulo se acumula por el camino más corto (de 359° a 1° gira 2°, no una vuelta entera)
+    rotAcum = rotAcum===null ? -az : rotAcum + ((((-az - rotAcum)%360) + 540)%360 - 180);
+    giro = az; el.style.transform = 'rotate(' + rotAcum + 'deg)'; flecha();
   }
+  let rotAcum = null;
   addEventListener('resize', ()=>setTimeout(()=>{ if(giro!==null) girar(giro); if(centrar && pos && mapa) mapa.panTo([pos.lat, pos.lon], {animate:false}); }, 350));
   // seguir la posición: centrada; la primera vez, con un acercamiento que deja ver el destino
   let zoomListo = false;
@@ -700,6 +815,6 @@ ${E.track.map(t=>`<trkpt lat="${t[0]}" lon="${t[1]}"><time>${new Date(t[2]).toIS
   function cerrar(){ cerrarMapa(); const m = A && A.actual(); if(!(m && m.ejec && m.ejec.estado!=='fin')) pararGps(); }
   // desde el Mapa: «Navegar hasta aquí» (con una marcha en curso, como desvío que vuelve a la ruta)
   let pendiente = null, pedirIrA = false; function irA(dest){ pendiente = dest; } function abrirIrA(){ pedirIrA = true; }   // se aplica al abrir la pestaña Seguir
-  return {abrir, cerrar, siguiente, plan, atraso, irA, abrirIrA, enMarcha:()=>watch!==null};
+  return {abrir, cerrar, siguiente, plan, atraso, irA, abrirIrA, enMarcha:()=>watch!==null, partes, gpx, COL_IDA, COL_REG};
 })();
 if(typeof globalThis!=='undefined') globalThis.Seguir = Seguir;
