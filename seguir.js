@@ -254,6 +254,7 @@ const Seguir = (function(){
       // saltos del GPS (v0.99.10, visto en terreno): no se anotan las lecturas malas (más de 35 m de error; si se repiten 5 veces seguidas se
       // aceptan igual) y se borra el «pico»: un punto que se va lejos a más de 20 km/h y el siguiente vuelve cerca de donde se estaba
       const mala = u && (pos.acc || 0)>35; if(mala) saltosGps++; else saltosGps = 0;
+      if(u && pos.t - u[2]>CORTE.ms && du>CORTE.m && E.estado!=='alto' && !E.desvio) reconstruir(m, E, u);   // volvió a grabar más adelante
       const quieto = E.estado==='alto' && du<=Math.max(30, 2*(pos.acc || 0));   // en un alto, el GPS «baila» sin moverse: no se anota
       if(!u || ((!mala || saltosGps>=5) && !quieto && (du>10 || pos.t - u[2]>60000))){ saltosGps = 0; E.track.push([+pos.lat.toFixed(6), +pos.lon.toFixed(6), pos.t, Math.round(pos.acc || 0)]); if(E.track.length>8000) E.track.splice(0, E.track.length - 8000);
         const T = E.track, n = T.length; if(n>=3){ const [a, b, c] = [T[n - 3], T[n - 2], T[n - 1]].map(t=>({lat:t[0], lon:t[1], t:t[2]})), d = (x, y)=>M.sobreTramo(x, y, y).d;
@@ -324,7 +325,7 @@ const Seguir = (function(){
      deja la distancia a menos de 2 % de la real. Se usa para la distancia GPS y para dibujar el recorrido; lo grabado no se cambia. */
   const Q_GPS = 0.05;
   function suavizar(T){
-    const n = T.length; if(n<3) return T.map(t=>t.slice());
+    const n = T.length; if(n<3) return T.map(t=>t.slice(0, 5));
     const la0 = T[0][0], lo0 = T[0][1], kx = Math.cos(la0*Math.PI/180)*111320, ky = 110540;
     const Z = T.map(t=>({x:(t[1] - lo0)*kx, y:(t[0] - la0)*ky, t:t[2]/1000, a:Math.max(3, t[3] || 10)}));
     const eje = k=>{ const xs = [], Ps = [], xp = [], Pp = []; let x = [Z[0][k], 0], P = [[Z[0].a*Z[0].a, 0], [0, 4]];
@@ -343,26 +344,55 @@ const Seguir = (function(){
         sm[i] = [xs[i][0] + C[0][0]*d0 + C[0][1]*d1, xs[i][1] + C[1][0]*d0 + C[1][1]*d1]; }
       return sm.map(v=>v[0]); };
     const X = eje('x'), Y = eje('y');
-    return T.map((t, i)=>[+(la0 + Y[i]/ky).toFixed(6), +(lo0 + X[i]/kx).toFixed(6), t[2]]);
+    return T.map((t, i)=>[+(la0 + Y[i]/ky).toFixed(6), +(lo0 + X[i]/kx).toFixed(6), t[2], t[3], t[4]]);
   }
   // distancia del recorrido GPS (m), suavizado
   function distGps(T){ const S = suavizar(T || []); let d = 0; for(let i=1; i<S.length; i++) d += M.sobreTramo({lat:S[i][0], lon:S[i][1]}, {lat:S[i - 1][0], lon:S[i - 1][1]}, {lat:S[i - 1][0], lon:S[i - 1][1]}).d; return d; }
   // cortes: más de 2 min sin lecturas y más de 150 m de salto (pantalla apagada, app cerrada): no se une con una línea recta
-  function cortar(S){ const L2 = [[]]; S.forEach((t, i)=>{ const u = S[i - 1];
-      if(u && t[2] - u[2]>120000 && M.sobreTramo({lat:t[0], lon:t[1]}, {lat:u[0], lon:u[1]}, {lat:u[0], lon:u[1]}).d>150) L2.push([]);
-      L2[L2.length - 1].push([t[0], t[1]]); }); return L2.filter(x=>x.length>1); }
+  // aprox = true: solo los pedazos completados por la ruta (pantalla apagada); false: solo lo grabado
+  function cortar(S, aprox){ const L2 = [[]]; S.forEach((t, i)=>{ const u = S[i - 1]; if(!u) return;
+      const hueco = t[2] - u[2]>CORTE.ms && !t[4] && M.sobreTramo({lat:t[0], lon:t[1]}, {lat:u[0], lon:u[1]}, {lat:u[0], lon:u[1]}).d>CORTE.m;
+      if(hueco || !!(t[4] || 0)!==!!aprox){ if(L2[L2.length - 1].length) L2.push([]); return; }
+      const c = L2[L2.length - 1]; if(!c.length) c.push([u[0], u[1]]); c.push([t[0], t[1]]); }); return L2.filter(x=>x.length>1); }
   function huecos(S){ const H = []; S.forEach((t, i)=>{ const u = S[i - 1];
-      if(u && t[2] - u[2]>120000 && M.sobreTramo({lat:t[0], lon:t[1]}, {lat:u[0], lon:u[1]}, {lat:u[0], lon:u[1]}).d>150) H.push([[u[0], u[1]], [t[0], t[1]]]); }); return H; }
+      if(u && t[2] - u[2]>CORTE.ms && !t[4] && M.sobreTramo({lat:t[0], lon:t[1]}, {lat:u[0], lon:u[1]}, {lat:u[0], lon:u[1]}).d>CORTE.m) H.push([[u[0], u[1]], [t[0], t[1]]]); }); return H; }
   function partes(m, P){
-    const E = m.ejec, T0 = (E && E.track) || [], T = suavizar(T0), hu = huecos(T), todo = cortar(T); P = P || plan(m); if(!P || T.length<2) return {ida:todo, reg:[], huecos:hu};
+    const E = m.ejec, T0 = (E && E.track) || [], T = suavizar(T0), hu = huecos(T), todo = cortar(T), tA = cortar(T, true); P = P || plan(m);
+    const sal = (ida, reg, ia, ra)=>({ida, reg, idaA:ia || tA, regA:ra || [], huecos:hu});
+    if(!P || T.length<2) return sal(todo, []);
     let r = P.pts.findIndex(p=>/^Regreso/.test(p.obs || '')) - 1;
     if(r<1){ let dm = 0; P.pts.forEach((p, j)=>{ const d = M.rumboEntre(P.pts[0], p, P.R.zona, 0).dist; if(d>dm){ dm = d; r = j; } }); }
-    if(!(r>=1 && r<P.pts.length - 1)) return {ida:todo, reg:[], huecos:hu};
+    if(!(r>=1 && r<P.pts.length - 1)) return sal(todo, []);
     let tR = null; for(let j=r; j<P.pts.length && tR===null; j++) if(E.llegadas[j]>0) tR = E.llegadas[j];
-    if(tR===null) return {ida:todo, reg:[], huecos:hu};
-    const i = T.findIndex(t=>t[2]>=tR); if(i<0) return {ida:todo, reg:[], huecos:hu};
+    if(tR===null) return sal(todo, []);
+    const i = T.findIndex(t=>t[2]>=tR); if(i<0) return sal(todo, []);
     // se unen en el último punto antes de empezar el regreso
-    return i<1 ? {ida:[], reg:todo, huecos:hu} : {ida:cortar(T.slice(0, i)), reg:cortar(T.slice(i - 1)), huecos:hu};
+    return i<1 ? sal([], todo, [], tA) : sal(cortar(T.slice(0, i)), cortar(T.slice(i - 1)), cortar(T.slice(0, i), true), cortar(T.slice(i - 1), true));
+  }
+
+  /* ---------- pantalla apagada (v0.99.13, pedido del usuario: «¿puede hacerlo aproximando?») ----------
+     Con la pantalla apagada el iPhone no le da el GPS a una app web. Al volver a grabar más adelante (más de 2 min y 150 m después), si
+     la posición está sobre la ruta, el tramo sin registro se completa POR LA RUTA PLANIFICADA (puntos del recorrido marcados como
+     aproximados, 5.º valor = 1) y los puntos por los que se pasó reciben una hora ESTIMADA, repartiendo el tiempo según la distancia
+     (`E.estim[k] = 1`). Si la ruta pasa dos veces por el mismo lugar (ida y regreso), se elige la pasada que calza con el tiempo
+     transcurrido a la velocidad que se traía. Si no está sobre la ruta, queda como hueco (línea gris de puntos). */
+  const CORTE = {ms:120000, m:150};   // sin lecturas por más de 2 min y 150 m de salto (las pruebas lo achican)
+  function reconstruir(m, E, u){
+    const P = plan(m), k = P && siguiente(m, P); if(k===null || k===undefined || !P) return;
+    const acum = [0]; for(let j=1; j<P.pts.length; j++) acum[j] = acum[j - 1] + P.pts[j].tramo.dist;
+    const ul = {lat:u[0], lon:u[1]}, s0 = M.sobreTramo(ul, P.pts[k - 1], P.pts[k]), d1 = acum[k - 1] + s0.t*P.pts[k].tramo.dist;
+    const v = (velAhora() || (P.R.res.marcha>0 ? P.R.res.dist/1000/P.R.res.marcha : 4))*1000/3600, dEsp = d1 + v*(pos.t - u[2])/1000;
+    let mejor = null; const lim = Math.max(80, 2*(pos.acc || 0));
+    for(let j=k; j<P.pts.length; j++){ const s = M.sobreTramo(pos, P.pts[j - 1], P.pts[j]); if(s.d>lim) continue;
+      const d2 = acum[j - 1] + s.t*P.pts[j].tramo.dist; if(d2<=d1) continue;
+      if(!mejor || Math.abs(d2 - dEsp)<Math.abs(mejor.d2 - dEsp)) mejor = {j, d2}; }
+    if(!mejor) return;
+    const t1 = u[2], t2 = pos.t, hora = d=>Math.round(t1 + (t2 - t1)*(d - d1)/(mejor.d2 - d1)), pas = [];
+    for(let i=k; i<mejor.j; i++){ const h = hora(acum[i]); E.track.push([+P.pts[i].lat.toFixed(6), +P.pts[i].lon.toFixed(6), h, 15, 1]);
+      if(!E.llegadas[i]){ E.llegadas[i] = h; (E.estim = E.estim || {})[i] = 1; if(P.pts[i].ev) pas.push(rotulo(P.pts[i]) + ' ≈' + hh(h)); } }
+    const s2 = M.sobreTramo(pos, P.pts[mejor.j - 1], P.pts[mejor.j]), f = s2.t, a = P.pts[mejor.j - 1], b = P.pts[mejor.j];
+    E.track.push([+(a.lat + (b.lat - a.lat)*f).toFixed(6), +(a.lon + (b.lon - a.lon)*f).toFixed(6), t2 - 1, 15, 1]);
+    if(pas.length) A.aviso('📴 Con la pantalla apagada pasaste por ' + pas.join(', ') + ' (horas estimadas)');
   }
 
   /* ---------- puntos saltados (v0.99.10, pedido del usuario tras la prueba en terreno) ----------
@@ -471,7 +501,7 @@ const Seguir = (function(){
   function textoMatriz(){
     const m = A.actual(), E = m.ejec, P = plan(m); if(!E || !P) return '';
     const L = ['MATRIZ DE EVENTOS «' + (m.nombre || 'marcha') + '»' + (m.unidad ? ' (' + m.unidad + ')' : '') + ' — ' + hh(ahora())];
-    eventos(m, P).forEach(x=>L.push((x.real ? hh(x.t) : '(' + hh(x.plan) + ')') + ' ' + x.ev + (x.salta ? ' — SALTADO' : !x.real && x.tipo==='pc' ? ' — pendiente' : '') + (x.dif!==null && x.dif!==undefined && x.real ? ' (' + difCorta(x.dif) + ')' : '')));
+    eventos(m, P).forEach(x=>L.push((x.real ? (x.est ? '≈' : '') + hh(x.t) + (x.est ? ' (estimada)' : '') : '(' + hh(x.plan) + ')') + ' ' + x.ev + (x.salta ? ' — SALTADO' : !x.real && x.tipo==='pc' ? ' — pendiente' : '') + (x.dif!==null && x.dif!==undefined && x.real ? ' (' + difCorta(x.dif) + ')' : '')));
     if(pos) L.push('Posición ' + utmTxt(pos));
     return L.join('\n');
   }
@@ -658,7 +688,7 @@ const Seguir = (function(){
     const posTxt = (la, lo)=>la===undefined || la===null ? '' : utmTxt({lat:la, lon:lo});
     ev.push({t:E.inicio, real:true, ev:'Inicio de marcha' + (P.pts[0].clave ? ' — ' + P.pts[0].clave : ''), punto:P.pts[0].nombre, plan:E.inicio, dif:0, tipo:'ini'});
     P.pts.forEach((p, k)=>{ if(!k || !p.ev) return; const r = E.llegadas[k], pl = E.inicio + p.lleg*3600000;
-      ev.push({t:r>0 ? r : pl, real:r>0, ev:verbo() + ' ' + rotulo(p), punto:p.nombre, plan:pl, dif:r>0 ? (r - pl)/60000 : null, salta:r===-1, tipo:'pc'}); });
+      ev.push({t:r>0 ? r : pl, real:r>0, ev:verbo() + ' ' + rotulo(p), punto:p.nombre, plan:pl, dif:r>0 ? (r - pl)/60000 : null, salta:r===-1, est:!!(E.estim && E.estim[k]), tipo:'pc'}); });
     E.altos.forEach(a=>ev.push({t:a.ini, real:true, ev:'Alto — ' + a.motivo + (a.fin ? ' (' + dur(a.fin - a.ini) + ')' : ' (en curso)'), pos:posTxt(a.lat, a.lon), tipo:'alto'}));
     E.nov.forEach(n=>ev.push({t:n.t, real:true, ev:'Novedad — ' + n.txt, pos:posTxt(n.lat, n.lon), tipo:'nov'}));
     if(E.fin) ev.push({t:E.fin, real:true, ev:'Fin de marcha', punto:P.pts[P.pts.length - 1].nombre, tipo:'fin'});
@@ -667,7 +697,7 @@ const Seguir = (function(){
     const c = $('#sFicha'); if(!c) return; const m = A.actual(), P = plan(m), ev = eventos(m, P);
     c.innerHTML = `<div class="tabla-env"><table class="t matriz"><thead><tr><th class="tx">Punto / posición</th><th>Plan</th><th>Real</th><th>Diferencia</th><th class="tx">Evento</th></tr></thead><tbody>
       ${ev.map(x=>`<tr class="${x.real ? '' : 'pend'} ${x.tipo}"><td class="tx"><b>${A.esc(x.punto || x.pos || '')}</b></td><td>${x.plan ? hh(x.plan) : ''}</td>
-        <td>${x.salta ? 'saltado' : x.real ? hh(x.t) : '—'}</td>
+        <td>${x.salta ? 'saltado' : x.real ? (x.est ? '≈' : '') + hh(x.t) : '—'}</td>
         <td class="${x.dif===null || x.dif===undefined ? '' : x.dif>5 ? 'sube' : x.dif< -5 ? 'baja' : ''}">${x.dif===null || x.dif===undefined ? '' : difCorta(x.dif)}</td><td class="tx ev">${A.esc(x.ev)}</td></tr>`).join('')}
       </tbody></table></div>`;
   }
@@ -776,6 +806,7 @@ ${T.map(t=>`<trkpt lat="${t[0]}" lon="${t[1]}"><time>${new Date(t[2]).toISOStrin
       L.circleMarker([P.pts[0].lat, P.pts[0].lon], {radius:13, color:'#fff', weight:3, fill:false}).addTo(capas);
       return; }
     { const T = partes(m, P); if(T.ida.length) L.polyline(T.ida, {color:COL_IDA, weight:4}).addTo(capas); if(T.reg.length) L.polyline(T.reg, {color:COL_REG, weight:4}).addTo(capas);
+      if(T.idaA.length) L.polyline(T.idaA, {color:COL_IDA, weight:3, dashArray:'3 7'}).addTo(capas); if(T.regA.length) L.polyline(T.regA, {color:COL_REG, weight:3, dashArray:'3 7'}).addTo(capas);
       T.huecos.forEach(h=>L.polyline(h, {color:'#9a9a9a', weight:2, dashArray:'2 6'}).addTo(capas)); }
     const k = siguiente(m, P), ke = proxEv(m, P);
     if(ke!==null){ const e = P.pts[ke]; L.circleMarker([e.lat, e.lon], {radius:13, color:'#fff', weight:3, fill:false}).addTo(capas); }
@@ -853,6 +884,6 @@ ${T.map(t=>`<trkpt lat="${t[0]}" lon="${t[1]}"><time>${new Date(t[2]).toISOStrin
   function cerrar(){ cerrarMapa(); const m = A && A.actual(); if(!(m && m.ejec && m.ejec.estado!=='fin')) pararGps(); }
   // desde el Mapa: «Navegar hasta aquí» (con una marcha en curso, como desvío que vuelve a la ruta)
   let pendiente = null, pedirIrA = false; function irA(dest){ pendiente = dest; } function abrirIrA(){ pedirIrA = true; }   // se aplica al abrir la pestaña Seguir
-  return {abrir, cerrar, siguiente, plan, atraso, irA, abrirIrA, enMarcha:()=>watch!==null, partes, gpx, COL_IDA, COL_REG, suavizar, distGps};
+  return {abrir, cerrar, siguiente, plan, atraso, irA, abrirIrA, enMarcha:()=>watch!==null, partes, gpx, COL_IDA, COL_REG, suavizar, distGps, CORTE};
 })();
 if(typeof globalThis!=='undefined') globalThis.Seguir = Seguir;

@@ -181,6 +181,10 @@ const Mapa = (function(){
         [[T.ida, Seguir.COL_IDA], [T.reg, Seguir.COL_REG]].forEach(([l, c])=>{ if(!l.length) return;
           L.polyline(l, {color:'#fff', weight:vr ? 9 : 7, opacity:.85, interactive:false}).addTo(capaRuta);
           L.polyline(l, {color:c, weight:vr ? 5 : 4, opacity:1, interactive:false}).addTo(capaRuta); });
+        // completado por la ruta con la pantalla apagada (v0.99.13): del mismo color, de puntos
+        [[T.idaA, Seguir.COL_IDA], [T.regA, Seguir.COL_REG]].forEach(([l, c])=>{ if(!l.length) return;
+          L.polyline(l, {color:'#fff', weight:vr ? 7 : 6, opacity:.7, dashArray:'3 7', interactive:false}).addTo(capaRuta);
+          L.polyline(l, {color:c, weight:vr ? 4 : 3, opacity:1, dashArray:'3 7', interactive:false}).addTo(capaRuta); });
         // donde el teléfono dejó de grabar (pantalla apagada, app cerrada): línea gris de puntos, sin contar como camino seguro
         T.huecos.forEach(h=>L.polyline(h, {color:'#9a9a9a', weight:2.5, opacity:.9, dashArray:'2 7', interactive:false}).addTo(capaRuta)); } }
     // los puntos en el mismo lugar (ida y vuelta) van en un solo marcador; al arrastrarlo se mueven todos
