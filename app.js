@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.99.10', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.99.11', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -1133,10 +1133,11 @@
   }
   // recorridos GPS de las veces anteriores (v0.99.10)
   const recorridosHtml = m=>(m.recorridos || []).length ? `<h2>Recorridos anteriores</h2><div class="tarjeta"><p class="nota">Los recorridos GPS de las veces anteriores que se hizo esta marcha (los 5 últimos).</p>
-        ${m.recorridos.map((x, i)=>`<div class="btns" style="align-items:center"><span>${new Date(x.inicio).toLocaleDateString('es-CL')} ${hhmm(x.inicio)}${x.fin ? '–' + hhmm(x.fin) : ''} · ${x.track.length} lecturas</span><button class="btn mini" data-rgpx="${i}">⬇ GPX</button><button class="btn mini peligro" data-rbor="${i}">Borrar</button></div>`).join('')}</div>` : '';
+        ${m.recorridos.map((x, i)=>`<div class="btns" style="align-items:center"><span>${new Date(x.inicio).toLocaleDateString('es-CL')} ${hhmm(x.inicio)}${x.fin ? '–' + hhmm(x.fin) : ''} · ${x.track.length} lecturas</span><button class="btn mini" data-rver="${i}">🗺 Ver</button><button class="btn mini" data-rgpx="${i}">⬇ GPX</button><button class="btn mini peligro" data-rbor="${i}">Borrar</button></div>`).join('')}</div>` : '';
   function enlazarRecorridos(m){
     const nomA = (m.nombre || 'marcha').replace(/[^\w-]+/g, '_');
     vista.querySelectorAll('[data-rgpx]').forEach(b=>b.onclick = ()=>{ const x = m.recorridos[+b.dataset.rgpx]; descargar(nomA + '_recorrido_' + new Date(x.inicio).toISOString().slice(0, 10) + '.gpx', Seguir.gpx((m.nombre || '') + ' — recorrido ' + new Date(x.inicio).toLocaleDateString('es-CL'), x.track), 'application/gpx+xml'); });
+    vista.querySelectorAll('[data-rver]').forEach(b=>b.onclick = ()=>{ Mapa.verRecorrido(+b.dataset.rver); ir('mapa'); });
     vista.querySelectorAll('[data-rbor]').forEach(b=>b.onclick = ()=>confirmar('¿Borrar ese recorrido guardado?', ()=>{ m.recorridos.splice(+b.dataset.rbor, 1); guardar(); pintar(); }));
   }
   function vResultado(){
@@ -1175,7 +1176,7 @@
         if(E.manual){ const ult = Math.max(0, ...Object.values(E.llegadas).filter(v=>v>0)); E.fin = ult || null; } }
       guardar(); const y = window.scrollY; pintar(); window.scrollTo(0, y); });
     $('#rDoc').onclick = ()=>documento('resultado');
-    const mp = $('#rMapa'); if(mp) mp.onclick = ()=>ir('mapa');
+    const mp = $('#rMapa'); if(mp) mp.onclick = ()=>{ Mapa.verRecorrido(-1); ir('mapa'); };
     const nomA = (m.nombre || 'marcha').replace(/[^\w-]+/g, '_'), gp = $('#rGpx');
     if(gp) gp.onclick = ()=>descargar(nomA + '_recorrido.gpx', Seguir.gpx((m.nombre || '') + ' — recorrido real', E.track), 'application/gpx+xml');
     enlazarRecorridos(m);

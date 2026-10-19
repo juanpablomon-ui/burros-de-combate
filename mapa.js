@@ -38,6 +38,7 @@ const Mapa = (function(){
         <button class="btn mini ${pref.curvas ? 'on' : ''}" id="mCurvas" title="Curvas de nivel sobre cualquier capa">〰 Curvas</button>
         <button class="btn mini" id="mCartas" title="Cartas propias">🗺 Cartas</button>
         <button class="btn mini" id="mZonas" title="Guardar mapas para usar sin señal">⬇ Sin señal</button>
+        ${recorridos(m).length ? `<button class="btn mini${verReal!==null ? ' on' : ''}" id="mRec" title="Ver el recorrido realizado (GPS)">👣 Recorrido</button>` : ''}
       </div>
       <div class="m-lectura mono" id="mLect"></div>
       <div class="m-cruz"></div>
@@ -81,9 +82,15 @@ const Mapa = (function(){
     $('#mYo').onclick = miPosicion;
     $('#mCartas').onclick = dialogoCartas;
     $('#mZonas').onclick = dialogoZonas;
+    if($('#mRec')) $('#mRec').onclick = ()=>{ const L2 = recorridos(A.actual());
+      if(verReal!==null) return mostrarRec(null);
+      if(L2.length===1) return mostrarRec(L2[0].i);
+      A.dialogo(`<h3>👣 Recorrido realizado</h3><div class="s-mas">${L2.map(x=>`<button class="btn" data-rec="${x.i}">${A.esc(x.n)}</button>`).join('')}</div>
+        <div class="btns"><button class="btn" data-cerrar>Cancelar</button></div>`, d=>d.querySelectorAll('[data-rec]').forEach(b=>b.onclick = ()=>{ A.cerrarDialogo(); mostrarRec(+b.dataset.rec); })); };
     if(navigator.onLine===false) A.aviso('Sin señal: se ven las zonas de mapa guardadas');
     $('#mPerf').onclick = e=>{ pref.perfil = !pref.perfil; guardarPref(); e.currentTarget.classList.toggle('on', pref.perfil); perfil(); };
-    cargarCartas(); ruta(); grid(); lectura(map.getCenter()); perfil(); curvas(); horizontes();
+    if(verReal!==null && !recorridos(m).some(x=>x.i===verReal)) verReal = null;
+    cargarCartas(); ruta(); grid(); if(verReal!==null) encuadrarRec(); lectura(map.getCenter()); perfil(); curvas(); horizontes();
     ubicando = null; if(A.ubicar!==undefined && A.ubicar!==null){ const k = A.ubicar; A.ubicar = null; agregar = false; const b = $('#mAgregar'); if(b) b.classList.remove('pri'); modoUbicar(k); }
     const este = map; setTimeout(()=>{ if(map===este) map.invalidateSize({animate:false}); }, 50);
     return map;
@@ -159,18 +166,21 @@ const Mapa = (function(){
     if(!map) return; capaRuta.clearLayers();
     const m = A.actual(), R = A.calcular(m), ok = R.puntos;
     const llega = {}; R.tramos.forEach(t=>{ llega[t.iB] = t; });
-    // recorrido real del GPS (Seguir), debajo de la ruta planificada
-    // la ida en azul y el regreso en rojo (v0.99.10), aunque el regreso pise la ida
-    if(m.ejec && (m.ejec.track || []).length>1){ const T = Seguir.partes(m);
-      [[T.ida, Seguir.COL_IDA], [T.reg, Seguir.COL_REG]].forEach(([l, c])=>{ if(l.length>1) L.polyline(l, {color:c, weight:4, opacity:.85, dashArray:'6 5', interactive:false}).addTo(capaRuta); }); }
+    const vr = verReal!==null;   // viendo el recorrido realizado: la ruta planificada queda tenue debajo
     // tramos coloreados por pendiente (tocar para insertar un punto)
     R.tramos.forEach(t=>{ const a = ok[t.iA], b = ok[t.iB];
-      const ln = L.polyline([[a.lat, a.lon], [b.lat, b.lon]], {color:'#14150f', weight:9, opacity:.55}).addTo(capaRuta);
-      const l2 = L.polyline([[a.lat, a.lon], [b.lat, b.lon]], {color:colPte(t.pte), weight:5, opacity:.95}).addTo(capaRuta);
+      const ln = L.polyline([[a.lat, a.lon], [b.lat, b.lon]], {color:'#14150f', weight:vr ? 5 : 9, opacity:vr ? .25 : .55}).addTo(capaRuta);
+      const l2 = L.polyline([[a.lat, a.lon], [b.lat, b.lon]], {color:vr ? '#e3a63a' : colPte(t.pte), weight:vr ? 2.5 : 5, opacity:vr ? .6 : .95, dashArray:vr ? '6 6' : null}).addTo(capaRuta);
       [ln, l2].forEach(x=>{ x.on('click', e=>{ L.DomEvent.stop(e); if(agregar) return agregarPunto(e.latlng); insertar(t.iB, e.latlng); });
         x.on('contextmenu', e=>{ L.DomEvent.stop(e); L.DomEvent.preventDefault(e); menuTramo(t, e.latlng, e.originalEvent); }); });
       l2.bindTooltip(`${A.esc(t.de)} → ${A.esc(t.a)}: ${A.f(t.dist)} m · ${t.dv>=0 ? '+' : ''}${A.f(t.dv)} m (${A.f(t.pte*100, 0)} %) · rumbo ${A.f(t.azM, 0)}° / ${t.mils} ‰ · ${M.verDur(t.t)}`, {sticky:true});
     });
+    // recorrido real del GPS (Seguir) ENCIMA de la ruta (antes quedaba tapado por ella; v0.99.11): ida azul, regreso rojo, con borde blanco
+    { const sel2 = vr ? recorridos(m).find(x=>x.i===verReal) : recorridos(m).find(x=>x.i===-1);
+      if(sel2){ const T = Seguir.partes(Object.assign({}, m, {ejec:sel2.e}));
+        [[T.ida, Seguir.COL_IDA], [T.reg, Seguir.COL_REG]].forEach(([l, c])=>{ if(l.length<2) return;
+          L.polyline(l, {color:'#fff', weight:vr ? 9 : 7, opacity:.85, interactive:false}).addTo(capaRuta);
+          L.polyline(l, {color:c, weight:vr ? 5 : 4, opacity:1, interactive:false}).addTo(capaRuta); }); } }
     // los puntos en el mismo lugar (ida y vuelta) van en un solo marcador; al arrastrarlo se mueven todos
     const grupos = new Map(), nEv = {}; R.eventos.forEach((i, k)=>nEv[i] = k + 1);
     ok.forEach((p, i)=>{ if(!p.ok) return;
@@ -195,6 +205,19 @@ const Mapa = (function(){
     resumen(R);
     if(pref.perfil){ clearTimeout(ruta._t); ruta._t = setTimeout(perfil, 400); }
   }
+
+  /* ---------- recorrido realizado (v0.99.11, pedido del usuario: «cuando quiero ver el recorrido realizado aparece así») ----------
+     El actual (m.ejec) y los guardados al «Hacer de nuevo» (m.recorridos). Con «👣 Recorrido» se ve uno encima de la ruta tenue. */
+  let verReal = null, pedido = null;
+  function recorridos(m){ const L2 = [], fh = t=>new Date(t).toLocaleDateString('es-CL') + ' ' + new Date(t).toTimeString().slice(0, 5);
+    if(m.ejec && (m.ejec.track || []).length>1) L2.push({i:-1, e:m.ejec, n:'El último (' + fh(m.ejec.inicio) + ')'});
+    (m.recorridos || []).forEach((x, i)=>{ if((x.track || []).length>1) L2.push({i, e:x, n:'Anterior: ' + fh(x.inicio)}); });
+    return L2; }
+  function encuadrarRec(){ const x = recorridos(A.actual()).find(y=>y.i===verReal); if(x && map) map.fitBounds(L.latLngBounds(x.e.track.map(t=>[t[0], t[1]])), {padding:[40, 40], animate:false}); }
+  function mostrarRec(i){ verReal = i; const b = $('#mRec'); if(b) b.classList.toggle('on', i!==null); ruta();
+    if(i!==null){ encuadrarRec(); A.aviso('Recorrido realizado: azul la ida, rojo el regreso; la ruta planificada en amarillo. 👣 para volver'); } }
+  // desde Resultado: abrir el Mapa mostrando un recorrido (−1 = el último)
+  function verRecorrido(i){ verReal = i===undefined ? -1 : i; }
 
   /* ---------- perfil bajo el mapa: al pasar el dedo o el mouse se marca el lugar en el mapa ---------- */
   let capaCursor = null, terrenoAct = null;
@@ -717,6 +740,6 @@ const Mapa = (function(){
   }
 
   function cerrar(){ cerrarMenu(); if(!map) return; const m = map; map = null; capaCursor = null; capaCurvas = null; try { m.stop(); m.off(); m.remove(); } catch(e){} }
-  return {abrir, ruta, cerrar, BASES, vueltaHorizonte, comoH};
+  return {abrir, ruta, cerrar, BASES, vueltaHorizonte, comoH, verRecorrido};
 })();
 if(typeof globalThis!=='undefined') globalThis.Mapa = Mapa;
