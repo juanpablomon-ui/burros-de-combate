@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.99.20', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.99.21', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -91,6 +91,27 @@
     if(d.sec) setTimeout(()=>{ const el = [...vista.querySelectorAll('summary, .btn')].find(x=>x.textContent.includes(d.sec)); if(!el) return;
       const det = el.closest('details'); if(det) det.open = true; el.scrollIntoView({block:'center'}); el.classList.add('resalta'); setTimeout(()=>el.classList.remove('resalta'), 2500); }, 150);
   }
+  // ejemplo guiado (v0.99.21): franja arriba con el paso, ‹ Anterior · Salir · Siguiente ›; se apaga si se abre otra marcha
+  let tour = null; try { tour = JSON.parse(localStorage.getItem('burros_tour') || 'null'); } catch(e){}
+  const tourGuardar = ()=>{ try { localStorage.setItem('burros_tour', tour ? JSON.stringify(tour) : ''); } catch(e){} };
+  function tourIniciar(){ let e = S.marchas.find(x=>/\(EJEMPLO\)/.test(x.nombre)); if(!e) e = ejemplo(); S.actual = e.id; tour = {id:e.id, k:0}; tourGuardar(); tourIr(); }
+  function tourIr(){ const st = Guia.TOUR[tour.k]; irA({v:st.v, sec:st.sec}); }
+  const tourArriba = ()=>{ const b = $('#tourBar'), h = document.querySelector('.barra-sup'); if(b && h) b.style.top = Math.max(0, h.getBoundingClientRect().bottom) + 'px'; };
+  addEventListener('scroll', tourArriba, {passive:true}); addEventListener('resize', tourArriba);
+  function tourBarra(){
+    let b = $('#tourBar'); const on = !!(tour && S.actual===tour.id && S.marchas.some(x=>x.id===tour.id));
+    if(tour && !on){ tour = null; tourGuardar(); }
+    if(!on){ if(b) b.remove(); return; }
+    if(!b){ b = document.createElement('div'); b.id = 'tourBar'; document.body.appendChild(b); }
+    const T = Guia.TOUR, st = T[tour.k], ult = tour.k===T.length - 1;
+    b.innerHTML = `<div class="tb-t"><b>Ejemplo guiado · paso ${tour.k + 1} de ${T.length} · ${esc(st.n)}</b><span>${esc(st.t)}</span></div>
+      <div class="tb-b"><button data-tb="ant"${tour.k ? '' : ' disabled'}>‹ Anterior</button><button data-tb="sal">Salir del ejemplo</button><button data-tb="sig">${ult ? 'Terminar ✓' : 'Siguiente ›'}</button></div>`;
+    tourArriba();
+    if(S.v!=='mapa' && S.v!=='seguir') vista.insertAdjacentHTML('afterbegin', `<div class="tour-esp" style="height:${b.offsetHeight + 6}px"></div>`);
+    b.querySelectorAll('[data-tb]').forEach(x=>x.onclick = ()=>{ const k = x.dataset.tb;
+      if(k==='sal' || (k==='sig' && ult)){ tour = null; tourGuardar(); ir('marchas'); return aviso(k==='sal' ? 'Saliste del ejemplo guiado' : '✔ Terminaste el ejemplo guiado: crea tu marcha con «＋ Nueva marcha»'); }
+      tour.k += k==='sig' ? 1 : -1; tourGuardar(); tourIr(); });
+  }
   function abrirEjemplo(v){ let e = S.marchas.find(x=>/\(EJEMPLO\)/.test(x.nombre)); if(!e) e = ejemplo(); S.actual = e.id; guardar(); ir(v); aviso('Abriste la marcha de ejemplo; vuelve a la tuya en Marchas'); }
   function enlazarAyuda(cont, v, enDialogo){
     cont.querySelectorAll('[data-ay]').forEach(b=>b.onclick = ()=>{ const k = b.dataset.ay;
@@ -119,9 +140,10 @@
     if(S.v==='ruta' || S.v==='material') vista.insertAdjacentHTML('afterbegin', subDatos());
     else if(PESTANA[S.v] || S.v==='cuadro') vista.insertAdjacentHTML('afterbegin', subCuadro());
     // modo ayuda: la primera vez en cada pantalla, qué se hace aquí (no en el Mapa ni en Seguir, que son a pantalla completa: ahí el botón ?)
-    if(Guia.encendida() && !Guia.vistos()[S.v] && Guia.AYUDA[S.v] && S.v!=='mapa' && S.v!=='seguir'){
+    if(Guia.encendida() && !tour && !Guia.vistos()[S.v] && Guia.AYUDA[S.v] && S.v!=='mapa' && S.v!=='seguir'){
       const sub = vista.querySelector('.subv'); if(sub) sub.insertAdjacentHTML('afterend', Guia.tarjeta(S.v)); else vista.insertAdjacentHTML('afterbegin', Guia.tarjeta(S.v));
       enlazarAyuda(vista, S.v, false); }
+    tourBarra();
   }
 
   /* =====================================================================  MARCHAS  */
@@ -136,32 +158,41 @@
         <span class="flecha">${m.id===S.actual ? `<button class="btn mini" data-cierra="${m.id}" title="Deja la marcha guardada, sin seleccionar">Cerrar</button> ` : ''}<button class="btn mini" data-dup="${m.id}">Duplicar</button> <button class="btn mini peligro" data-borra="${m.id}">Borrar</button></span></div>`;
     }).join('');
     const mA = actual(), G = mA ? Guia.html(mA, ctxGuia(mA)) : null;
-    vista.innerHTML = `${G ? `<h2>${esc(mA.nombre)}</h2>` + G.html : ''}<div class="tarjeta uso"><div class="uso-t">${S.uso ? 'Uso de la app' : '¿Cómo vas a usar Burros de Combate?'}</div>
-        <div class="seg"><button data-uso="militar" class="${Uso.civil() ? '' : 'on'}">🪖 Militar</button><button data-uso="civil" class="${Uso.civil() ? 'on' : ''}">🥾 Civil</button></div>
-        <p class="nota">${Uso.civil() ? 'Montañismo, trekking, scouts, guías y rescate: sin armamento ni términos militares; plan de ruta para tu contacto de emergencia.' : 'Marchas militares: líneas de carga, nombres clave, mensajes al C2 y orden gráfica.'} Cambia cuando quieras: el cálculo es el mismo.</p>
-        <div class="btns"><button class="btn mini${Guia.encendida() ? ' on' : ''}" id="bModoAy">❔ Modo ayuda: ${Guia.encendida() ? 'encendido' : 'apagado'}</button></div></div>
-      <h2>Mis marchas</h2>
-      ${lista || `<div class="tarjeta vacio">Aún no hay marchas.<br>Crea una nueva o abre el ejemplo para ver cómo funciona.</div>`}
-      <div class="btns"><button class="btn pri" id="bNueva">＋ Nueva marcha</button><button class="btn" id="bEjemplo">Ver ejemplo</button>
-        <button class="btn" id="bImportar">⤓ Importar archivo (JSON, GPX o KML)</button><button class="btn" id="bRecibir">📨 Recibir plan (código o QR)</button><button class="btn" id="bIrA">🧭 Ir a un punto (navegar)</button></div>
-      <h2>Respaldo</h2>
-      <div class="tarjeta nota">Las marchas quedan guardadas solo en este equipo. Guarda un respaldo para pasarlas a otro equipo o no perderlas.
-        <div class="btns"><button class="btn" id="bResp">⬇ Guardar respaldo</button><button class="btn" id="bCargar">⬆ Cargar respaldo</button></div></div>
-      <h2>Paquete para terreno</h2>
-      <div class="tarjeta nota">Arma un solo archivo con las marchas, las <b>cartas ya calzadas</b> y las <b>zonas de mapa sin señal</b>, y pásalo a la unidad por AirDrop, Quick Share, Bluetooth o cable, <b>sin internet</b>. Cada teléfono lo carga y queda listo.
-        <div class="btns"><button class="btn pri" id="bPaq">📦 Armar o cargar un paquete</button></div></div>
-      <h2>Siglas y términos</h2>
-      <details class="tarjeta"><summary>Ver qué significa cada sigla</summary>
+    // inicio más claro (v0.99.21, etapa 2): la primera vez, tres caminos; con marchas, la guía resumida, la lista y lo demás en «Más»
+    const primera = !S.marchas.length, masAb = primera || (()=>{ try { return localStorage.getItem('burros_mas')==='1'; } catch(e){ return false; } })();
+    const guiaAb = (()=>{ try { return localStorage.getItem('burros_guia')==='1'; } catch(e){ return false; } })();
+    const usoSeg = `<div class="seg seg-uso"><button data-uso="militar" class="${Uso.civil() ? '' : 'on'}">🪖 Militar</button><button data-uso="civil" class="${Uso.civil() ? 'on' : ''}">🥾 Civil</button></div>`;
+    const mas = `<details class="tarjeta mas" id="mMas"${masAb ? ' open' : ''}><summary>Más</summary>
+        <div class="btns"><button class="btn" id="bImportar">⤓ Importar archivo (JSON, GPX o KML)</button><button class="btn" id="bRecibir">📨 Recibir plan (código o QR)</button>
+          <button class="btn" id="bEjemplo">Ver ejemplo (sin guía)</button>${primera ? '' : '<button class="btn" id="bTour2">▶ Ver ejemplo guiado</button>'}</div>
+        <h3>Respaldo</h3><p class="nota">Las marchas quedan guardadas solo en este equipo. Guarda un respaldo para pasarlas a otro equipo o no perderlas.</p>
+        <div class="btns"><button class="btn" id="bResp">⬇ Guardar respaldo</button><button class="btn" id="bCargar">⬆ Cargar respaldo</button></div>
+        <h3>Paquete para terreno</h3><p class="nota">Arma un solo archivo con las marchas, las <b>cartas ya calzadas</b> y las <b>zonas de mapa sin señal</b>, y pásalo a la unidad por AirDrop, Quick Share, Bluetooth o cable, <b>sin internet</b>. Cada teléfono lo carga y queda listo.</p>
+        <div class="btns"><button class="btn" id="bPaq">📦 Armar o cargar un paquete</button></div>
+        <h3>Uso de la app</h3>${primera ? '' : usoSeg}<p class="nota">${Uso.civil() ? 'Montañismo, trekking, scouts, guías y rescate: sin armamento ni términos militares; plan de ruta para tu contacto de emergencia.' : 'Marchas militares: líneas de carga, nombres clave, mensajes al C2 y orden gráfica.'} Cambia cuando quieras: el cálculo es el mismo.</p>
+        <div class="btns"><button class="btn mini${Guia.encendida() ? ' on' : ''}" id="bModoAy">❔ Modo ayuda: ${Guia.encendida() ? 'encendido' : 'apagado'}</button></div>
+        <details class="tarjeta"><summary>Ver qué significa cada sigla</summary>
         <table class="t glosario"><tbody>${Uso.glosario(GLOSARIO).map(([k, v])=>`<tr><td class="tx"><b>${esc(k)}</b></td><td class="tx">${esc(v)}</td></tr>`).join('')}</tbody></table></details>
-      <h2>Qué hace</h2>
-      <div class="tarjeta nota">Marca la ruta <b>sobre el mapa o tu carta</b> (con cuadrícula UTM y cota automática) y calcula el <b>cuadro de marcha y navegación</b> (distancia, desnivel, pendiente, rumbo magnético en grados y milésimas, tiempos, altos,
+        <details class="tarjeta"><summary>Qué hace la app</summary><div class="nota">Marca la ruta <b>sobre el mapa o tu carta</b> (con cuadrícula UTM y cota automática) y calcula el <b>cuadro de marcha y navegación</b> (distancia, desnivel, pendiente, rumbo magnético en grados y milésimas, tiempos, altos,
         imprevistos y hora de llegada a cada punto), dibuja el <b>perfil del itinerario</b>, lo deja listo para imprimir y
         <b>envía el plan</b> al C2 (código de texto, QR, GPX, KML, GeoJSON o Excel).<br><br>
         Tiempos para <b>montaña</b> (tabla de velocidades por tropa, terreno y carga), el método MIDE / DIN 33466 o la
         <b>marcha general</b> (a pie o montada, según la vía), con velocidades de día o de noche según la hora de cada tramo. Pestaña <b>Luz</b>: sol, crepúsculos y luna del día de la marcha.
         Columna y tiempo de paso, agua y calor, lista de verificación antes, durante y después.
         Declinación magnética automática con el modelo WMM2025 (NOAA).<br><br>App no oficial: verifica siempre los resultados con la carta.
-        <div class="mono" style="margin-top:8px;color:var(--tenue)">Versión ${VERSION}</div></div>`;
+        <div class="mono" style="margin-top:8px;color:var(--tenue)">Versión ${VERSION}</div></details></details>`;
+    if(primera) vista.innerHTML = `<h2>¿Qué quieres hacer?</h2>
+      <button class="inicio pri" id="bNueva"><i>⌖</i><span><b>Planificar una marcha</b><small>Marcas la ruta y la app calcula el cuadro de marcha</small></span></button>
+      <button class="inicio" id="bIrA"><i>🧭</i><span><b>Navegar a un punto</b><small>Sin ruta: brújula, distancia y rumbo a un lugar</small></span></button>
+      <button class="inicio" id="bTour"><i>▶</i><span><b>Ver ejemplo guiado</b><small>Una marcha de ejemplo, paso a paso</small></span></button>
+      <div class="uso-l"><span>Uso</span>${usoSeg}</div>${mas}`;
+    else vista.innerHTML = `${G ? `<details class="tarjeta g-res" id="gDet"${guiaAb ? ' open' : ''}><summary><span class="g-cab"><b>${esc(mA.nombre)}</b><span>${G.pasos.filter(x=>x.est==='v').length} de 9 listos</span></span>
+          <span class="g-bar"><i style="width:${Math.round(G.pasos.filter(x=>x.est==='v').length/9*100)}%"></i></span>
+          <span class="g-sig">${(()=>{ const sg = G.pasos.find(x=>x.est==='r') || G.pasos.find(x=>x.est==='a'); return sg ? 'Siguiente: ' + sg.k + ' ' + esc(sg.n) + ' · ' : ''; })()}${G.pasos.filter(x=>x.falta && (x.est==='r' || x.est==='a')).length ? G.pasos.filter(x=>x.falta && (x.est==='r' || x.est==='a')).length + ' pendientes · ' : ''}<u>${guiaAb ? 'ocultar' : 'ver la guía'}</u></span></summary>${G.html}</details>` : ''}
+      <h2>Mis marchas</h2>
+      ${lista}
+      <div class="btns"><button class="btn pri" id="bNueva">＋ Nueva marcha</button><button class="btn" id="bIrA">🧭 Navegar a un punto</button></div>
+      ${mas}`;
     vista.querySelectorAll('[data-abrir]').forEach(d=>d.onclick = e=>{
       const b = e.target.closest('button');
       // cerrar la marcha abierta (v0.99.5): queda guardada pero sin seleccionar (p. ej. para navegar a cualquier punto sin ver su ruta)
@@ -177,6 +208,9 @@
     $('#bModoAy').onclick = ()=>{ Guia.poner(!Guia.encendida()); aviso(Guia.encendida() ? '❔ Modo ayuda encendido: en cada pantalla aparece qué hacer' : 'Modo ayuda apagado (el botón ? sigue arriba)'); pintar(); };
     $('#bNueva').onclick = ()=>{ nueva(); ir('mapa'); };
     $('#bEjemplo').onclick = ()=>{ ejemplo(); ir('cuadro'); };
+    [$('#bTour'), $('#bTour2')].forEach(b=>{ if(b) b.onclick = ()=>tourIniciar(); });
+    $('#mMas').addEventListener('toggle', e=>{ if(!primera) try { localStorage.setItem('burros_mas', e.target.open ? '1' : ''); } catch(x){} });
+    const gd = $('#gDet'); if(gd) gd.addEventListener('toggle', ()=>{ try { localStorage.setItem('burros_guia', gd.open ? '1' : ''); } catch(x){} const u = gd.querySelector('.g-sig u'); if(u) u.textContent = gd.open ? 'ocultar' : 'ver la guía'; });
     $('#bImportar').onclick = importarArchivo;
     $('#bPaq').onclick = dialogoPaquete;
     $('#bIrA').onclick = ()=>{ Seguir.abrirIrA(); ir('seguir'); };
@@ -478,12 +512,14 @@
       <h2>Puntos de control</h2>
       <p class="nota">En orden de marcha: PIM, PC1, PC2… (y el regreso si corresponde). Coordenadas UTM o geográficas (escribe <span class="mono">33 21 36</span> o <span class="mono">33.36</span>; sur y oeste se asumen). La cota es obligatoria.</p>
       <div class="btns barra-puntos"><button class="btn pri" data-lp="punto">＋ Agregar punto</button><button class="btn" data-lp="regreso">↩ Agregar regreso (misma ruta)</button><button class="btn" data-lp="cotas">⛰ Completar cotas desde el terreno</button><button class="btn" data-lp="ver">Ver cuadro de marcha ›</button></div>
-      <div id="puntos"></div>
+      <div class="btns" style="margin:4px 0 0"><button class="btn mini${todosPuntos() ? ' on' : ''}" id="bTodosP">${todosPuntos() ? '▴ Un punto por línea' : '▾ Ver todos los campos'}</button></div>
+      <div id="puntos" class="${todosPuntos() ? 'puntos-todo' : ''}"></div>
       <div class="btns barra-puntos"><button class="btn pri" data-lp="punto">＋ Agregar punto</button><button class="btn" data-lp="regreso">↩ Agregar regreso (misma ruta)</button><button class="btn" data-lp="cotas">⛰ Completar cotas desde el terreno</button><button class="btn" data-lp="ver">Ver cuadro de marcha ›</button></div>`;
     pintarPuntos(); actualizarCalculos();
+    $('#bTodosP').onclick = ()=>{ try { localStorage.setItem('burros_puntos', todosPuntos() ? '' : 'todo'); } catch(e){} const y = window.scrollY; pintar(); window.scrollTo(0, y); };
     const lp = (k, fn)=>vista.querySelectorAll('[data-lp="' + k + '"]').forEach(b=>b.onclick = fn);
     lp('punto', ()=>{ const u = m.puntos[m.puntos.length - 1];
-      m.puntos.push(punto('PC' + M.calcular(m).eventos.length, Object.assign(u ? {tipo:u.tipo, zona:u.zona} : {}, {ev:true}))); guardar(); pintarPuntos(); actualizarCalculos();
+      m.puntos.push(punto('PC' + M.calcular(m).eventos.length, Object.assign(u ? {tipo:u.tipo, zona:u.zona} : {}, {ev:true}))); abiertoP = m.puntos.length - 1; guardar(); pintarPuntos(); actualizarCalculos();
       const c = vista.querySelectorAll('.punto'); c[c.length - 1].scrollIntoView({behavior:'smooth', block:'center'}); });
     lp('regreso', ()=>{ if(m.puntos.length<2) return aviso('Primero ingresa la ida');
       m.puntos.slice(0, -1).reverse().forEach(x=>m.puntos.push(Object.assign({}, x, {det:'', obs:x.obs ? 'Regreso — ' + x.obs : 'Regreso'})));
@@ -536,12 +572,24 @@
     const prom = k=>Math.round(res.reduce((x, r)=>x + r[k], 0)/res.length);
     return {temp:prom('temp'), hum:prom('hum'), hora:res[0].hora, viento:prom('viento'), tmin:prom('tmin'), fuente:'clima normal', anios:res.length};
   }
+  /* puntos en una línea (v0.99.21, etapa 2 de «app más didáctica»): cada punto es una línea (n.º, nombre, clave, coordenada corta, cota)
+     y se abre al tocarlo, uno a la vez; lo de menos uso queda en «Más detalles». «Ver todos los campos» (burros_puntos = 'todo') los abre todos. */
+  let abiertoP = null;
+  const todosPuntos = ()=>{ try { return localStorage.getItem('burros_puntos')==='todo'; } catch(e){ return false; } };
+  function lineaPunto(m, Rc, i){
+    const x = m.puntos[i], p = Rc.puntos[i], ev = p.ev, utm = x.tipo!=='GEO';
+    const c = utm ? (x.e!=='' || x.n!=='' ? esc(x.e) + ' ' + esc(x.n) : '') : (x.lat!=='' || x.lon!=='' ? esc(x.lat) + ' · ' + esc(x.lon) : '');
+    const falta = !p.ok ? (c ? 'coordenada incompleta' : 'sin coordenada') : x.cota==='' ? 'sin cota' : '';
+    return `<span class="pl-n">${ev ? esc(x.nombre || '(sin nombre)') : '<span class="pl-q">quiebre</span>'}</span>${ev && p.clave ? `<span class="pl-cl">${esc(p.clave)}</span>` : ''}`
+      + `<span class="pl-c">${c}${x.cota!=='' ? ' · ' + esc(x.cota) + ' m' : ''}${falta ? ` <b class="pl-mal">${falta}</b>` : ''}</span><span class="pl-e">${abiertoP===i ? '▴' : '✎'}</span>`;
+  }
   function pintarPuntos(){
     const m = actual(), cont = $('#puntos'); if(!cont) return; const Rc = M.calcular(m);
     cont.innerHTML = `<datalist id="listaClaves">${(m.par.claves==='propia' ? M.listaPropia(m.par.clavesPropias) : (M.CLAVES[m.par.claves] || M.CLAVES.otan).l).map(c=>`<option value="${c}">`).join('')}</datalist>` + m.puntos.map((x, i)=>{
       const utm = x.tipo!=='GEO';
       return `${i ? `<div class="tramo-entre" id="tr${i}"></div>` : ''}
-      <div class="tarjeta punto${Rc.puntos[i].ev ? '' : ' ruta'}" data-i="${i}"><span class="ord">${Rc.puntos[i].ev ? Rc.eventos.indexOf(i) + 1 || '·' : '·'}</span>
+      <div class="tarjeta punto${Rc.puntos[i].ev ? '' : ' ruta'}${abiertoP===i ? ' abierto' : ''}" data-i="${i}"><span class="ord">${Rc.puntos[i].ev ? Rc.eventos.indexOf(i) + 1 || '·' : '·'}</span>
+        <button class="p-lin" type="button" data-plin="${i}">${lineaPunto(m, Rc, i)}</button><div class="p-cuerpo">
         <label class="h-ev"><input type="checkbox" data-ev ${Rc.puntos[i].ev ? 'checked' : ''} ${Rc.eventos[0]===i || Rc.eventos[Rc.eventos.length - 1]===i ? 'disabled' : ''}> <b>Evento</b> (se informa por radio)${Rc.puntos[i].ev ? '' : ' — sin marcar es solo un punto de ruta'}</label>
         ${m.par.reabast==='si' && i>0 && i<m.puntos.length - 1 ? `<label class="h-ev"><input type="checkbox" data-agua ${x.agua ? 'checked' : ''}> <b>💧 Punto de agua</b> (se repone el agua)</label>` : ''}
         <div class="fila"><label class="c">Nombre del punto<input data-p="nombre" value="${esc(x.nombre)}" placeholder="${Rc.puntos[i].ev ? '' : 'punto de ruta'}"></label>
@@ -555,8 +603,9 @@
           <label class="c">Latitud ${x.norte ? 'N' : 'S'}<input class="num" data-p="lat" inputmode="decimal" value="${esc(x.lat)}" placeholder="33 21 36"></label>
           <label class="c">Longitud ${x.este ? 'E' : 'W'}<input class="num" data-p="lon" inputmode="decimal" value="${esc(x.lon)}" placeholder="70 34 28"></label>
           <label class="c cota">Cota (m)${x.cotaAuto ? ' ≈' : ''}<input class="num" data-p="cota" inputmode="numeric" value="${esc(x.cota)}"></label></div>`}
-        ${['general', 'forzada'].includes(actual().par.metodo) && i ? `<div class="extra" style="grid-template-columns:1fr"><label class="c">Vía desde el punto anterior<select data-p="via">${'<option value="">Igual que la marcha (' + esc(M.VIAS[actual().par.via]) + ')</option>' + Object.entries(M.VIAS).map(([k, n])=>`<option value="${k}"${x.via===k ? ' selected' : ''}>${n}</option>`).join('')}</select></label></div>` : ''}
         ${Rc.puntos[i].ev ? `<div class="extra" style="grid-template-columns:1fr"><label class="c">Nombre clave (vacío = automático)<input class="num clave" data-p="clave" value="${esc(x.clave||'')}" placeholder="${esc(Rc.puntos[i].clave || '')}" list="listaClaves"></label></div>` : ''}
+        <details class="p-mas"${todosPuntos() ? ' open' : ''}><summary>Más detalles: observación, detención, velocidad${!Uso.civil() ? ', técnica' : ''}${!m.par.sinMochila ? ', mochila' : ''}</summary>
+        ${['general', 'forzada'].includes(actual().par.metodo) && i ? `<div class="extra" style="grid-template-columns:1fr"><label class="c">Vía desde el punto anterior<select data-p="via">${'<option value="">Igual que la marcha (' + esc(M.VIAS[actual().par.via]) + ')</option>' + Object.entries(M.VIAS).map(([k, n])=>`<option value="${k}"${x.via===k ? ' selected' : ''}>${n}</option>`).join('')}</select></label></div>` : ''}
         <div class="extra"><label class="c">Observaciones (punto característico)<input data-p="obs" value="${esc(x.obs)}" placeholder="puente, portezuelo, cruce…"></label>
           <label class="c">Detención (min)<input class="num" data-p="det" inputmode="numeric" value="${esc(x.det)}" placeholder="0"></label></div>
         ${i ? (()=>{ const tr = Rc.tramos.find(z=>z.iB===i), vc = tr && !tr.velPropia ? tr.v : null;   // velocidad escrita a mano del tramo que llega aquí (v0.98; también en el Cuadro)
@@ -564,15 +613,17 @@
         ${i && !Uso.civil() ? `<div class="extra"><label class="c">Técnica desde el punto anterior<select data-p="tecnica"><option value="">Igual que la marcha (${esc((M.TECNICAS[m.par.tecnica] || M.TECNICAS.desplazamiento).n.toLowerCase())})</option>${Object.entries(M.TECNICAS).map(([k, t])=>`<option value="${k}"${x.tecnica===k ? ' selected' : ''}>${t.n}</option>`).join('')}</select></label>
           <label class="c">Formación en ese tramo<select data-p="formacion"><option value="">Igual que la marcha</option>${Object.entries(M.FORMACIONES).map(([k, t])=>`<option value="${k}"${x.formacion===k ? ' selected' : ''}>${t.n}</option>`).join('')}</select></label></div>` : ''}
         ${i && !m.par.sinMochila ? `<div class="extra" style="grid-template-columns:1fr"><label class="c">🎒 Mochila en este punto<select data-p="mochila"><option value="">— Sigue igual —</option><option value="deja"${x.mochila==='deja' ? ' selected' : ''}>Se deja la de sostenimiento (sigue con la de asalto)</option><option value="dejaTodo"${x.mochila==='dejaTodo' ? ' selected' : ''}>Se dejan las dos (sigue con 1.ª y 2.ª línea)</option><option value="recogeB"${x.mochila==='recogeB' ? ' selected' : ''}>Se recoge la de sostenimiento (3.ª B)</option><option value="recogeA"${x.mochila==='recogeA' ? ' selected' : ''}>Se recoge la de asalto (3.ª A)</option><option value="recoge"${x.mochila==='recoge' ? ' selected' : ''}>Se recogen las dos</option></select></label></div>` : ''}
+        </details>
         <div class="estado" id="est${i}"></div>
         <div class="acc"><button class="btn mini" data-acc="carta" title="Marcar o corregir este punto tocando la carta">🗺 Ubicar en la carta</button><button class="btn mini" data-acc="sube" ${i ? '' : 'disabled'} aria-label="Subir">▲</button><button class="btn mini" data-acc="baja" ${i<m.puntos.length - 1 ? '' : 'disabled'} aria-label="Bajar">▼</button>
           <button class="btn mini" data-acc="dup">Duplicar</button><button class="btn mini peligro" data-acc="borra">Borrar</button></div>
-      </div>`;
+      </div></div>`;
     }).join('');
   }
   // recalcula y actualiza los textos sin redibujar los campos (para no perder el foco al escribir)
   function actualizarCalculos(){
     const m = actual(), R = M.calcular(m);
+    vista.querySelectorAll('.punto [data-plin]').forEach(b=>{ const i = +b.dataset.plin; if(m.puntos[i] && R.puntos[i]) b.innerHTML = lineaPunto(m, R, i); });
     vista.querySelectorAll('.punto').forEach(c=>{ const k = c.querySelector('[data-p=clave]'), p = R.puntos[+c.dataset.i]; if(k && p) k.placeholder = p.clave || ''; });
     R.puntos.forEach((p, i)=>{ const e = $('#est' + i); if(!e) return;
       const x = m.puntos[i], tiene = x.tipo==='GEO' ? (x.lat!=='' || x.lon!=='') : (x.e!=='' || x.n!=='');
@@ -625,6 +676,9 @@
   vista.addEventListener('click', e=>{
     if(S.v!=='ruta') return; const m = actual(), b = e.target.closest('button'); if(!b) return;
     const c = b.closest('.punto'); if(!c) return; const i = +c.dataset.i, P = m.puntos;
+    if(b.dataset.plin!==undefined){ // abrir o cerrar el punto (uno a la vez)
+      const ya = c.classList.contains('abierto'); vista.querySelectorAll('.punto.abierto').forEach(x=>x.classList.remove('abierto')); abiertoP = ya ? null : i;
+      if(!ya){ c.classList.add('abierto'); c.scrollIntoView({block:'nearest'}); } actualizarCalculos(); return; }
     if(b.dataset.tipo){ if(P[i].tipo===b.dataset.tipo) return;
       // al cambiar de sistema, se convierte la coordenada que ya estaba escrita
       const R = M.calcular(m), p = R.puntos[i];

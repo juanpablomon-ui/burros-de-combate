@@ -778,3 +778,40 @@ a.btn{text-decoration:none;display:inline-flex;align-items:center;justify-conten
 .ayuda.en-dialogo{margin:0;border:0;background:none;padding:0}
 .ayuda-b{flex:none;width:30px;height:30px;border-radius:50%;border:1.5px solid var(--ocre,#e3a63a);background:none;color:var(--ocre,#e3a63a);font-weight:700;font-size:16px;cursor:pointer;margin-left:auto}
 .resalta{outline:2px solid var(--ocre,#e3a63a);outline-offset:3px;transition:outline-color .4s}
+/* v0.99.21: puntos en una línea (se abren al tocarlos) */
+.punto .p-lin{display:flex;align-items:center;gap:8px;width:100%;background:none;border:0;color:inherit;font:inherit;text-align:left;padding:2px 0 2px 34px;cursor:pointer;min-height:30px}
+.punto .p-cuerpo{display:none;margin-top:8px}
+.punto.abierto .p-cuerpo,.puntos-todo .punto .p-cuerpo{display:block}
+.punto:not(.abierto){padding-top:8px;padding-bottom:8px}
+.puntos-todo .punto .p-lin .pl-e{display:none}
+.pl-n{font-weight:600}.pl-q{color:var(--suave,#9c9a8a);font-weight:400;font-size:13px}
+.pl-cl{background:var(--ocre,#e3a63a);color:#1a1408;border-radius:4px;padding:0 5px;font-family:var(--mono,monospace);font-size:12px}
+.pl-c{font-family:var(--mono,monospace);color:var(--suave,#9c9a8a);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}
+.pl-mal{color:var(--rojo,#d9534f);font-family:var(--sans,inherit);font-weight:600}
+.pl-e{margin-left:auto;color:var(--ocre,#e3a63a);flex:none}
+.punto.ruta .p-lin{min-height:24px}
+.p-mas{margin:8px 0}.p-mas>summary{cursor:pointer;color:var(--suave,#9c9a8a);font-size:13px;padding:4px 0}
+/* v0.99.21: inicio con tres caminos, «Más», guía resumida y ejemplo guiado */
+.inicio{display:flex;align-items:center;gap:14px;width:100%;text-align:left;background:var(--panel,#1d1e18);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:14px;margin:0 0 10px;color:inherit;font:inherit;cursor:pointer}
+.inicio.pri{border-color:var(--ocre,#e3a63a);background:rgba(227,166,58,.08)}
+.inicio i{font-style:normal;font-size:26px;color:var(--ocre,#e3a63a);width:32px;text-align:center;flex:none}
+.inicio b{display:block;font-size:17px}.inicio small{display:block;color:var(--suave,#9c9a8a);font-size:14px;margin-top:2px}
+.uso-l{display:flex;align-items:center;gap:12px;margin:14px 0}.uso-l>span{color:var(--suave,#9c9a8a)}.uso-l .seg{flex:1}
+.mas>summary{cursor:pointer;font-weight:600;font-size:16px}.mas h3{margin:16px 0 4px;font-size:15px}
+.mas details.tarjeta{margin:10px 0 0}
+.g-res>summary{list-style:none;cursor:pointer}.g-res>summary::-webkit-details-marker{display:none}
+.g-res>summary .g-cab,.g-res>summary .g-bar,.g-res>summary .g-sig{display:flex}
+.g-res>summary .g-bar{display:block}.g-res .g-sig{color:var(--suave,#9c9a8a);font-size:13px;margin-top:4px;display:block}.g-res .g-sig u{color:var(--ocre,#e3a63a)}
+.g-res[open]>.tarjeta.guia{margin-top:10px}
+#tourBar{position:fixed;left:0;right:0;z-index:3000;background:var(--ocre,#e3a63a);color:#1a1408;padding:8px 14px 6px;box-shadow:0 2px 8px rgba(0,0,0,.4)}
+#tourBar .tb-t b{display:block;font-size:14px}#tourBar .tb-t span{font-size:13px;line-height:1.35;display:block}
+#tourBar .tb-b{display:flex;justify-content:space-between;gap:8px;margin-top:6px}
+#tourBar .tb-b button{background:#1a1408;color:var(--ocre,#e3a63a);border:0;border-radius:8px;padding:7px 12px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+#tourBar .tb-b button[disabled]{opacity:.35}
+#tourBar .tb-b button[data-tb=sal]{background:none;color:#1a1408;text-decoration:underline;font-weight:400}
+details.tarjeta.g-res>summary{display:block}
+.g-res>summary .g-cab{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.g-res>summary .g-bar{display:block;margin:8px 0 4px}
+.punto .p-lin{padding-left:0}
+.punto:not(.abierto) .ord{top:8px}
+.g-res>summary::marker{content:""}

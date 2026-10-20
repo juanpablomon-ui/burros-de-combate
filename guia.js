@@ -108,6 +108,17 @@ const Guia = (function(){
   const tarjeta = (v, enDialogo)=>{ const a = AYUDA[v]; if(!a) return '';
     return `<div class="ayuda${enDialogo ? ' en-dialogo' : ''}" id="ayudaC"><b>${esc(a[0])}</b>${a[1].map(t=>`<p>${esc(t)}</p>`).join('')}<p class="ej">${esc(a[2])}</p>
       <div class="btns"><button class="btn pri" data-ay="ok">Entendido</button><button class="btn" data-ay="ej">Ver con el ejemplo</button>${enDialogo ? '' : '<button class="btn" data-ay="no">No mostrar más</button>'}</div></div>`; };
-  return {estado, html, AYUDA, encendida, vistos, marcarVisto, poner, tarjeta};
+  /* ---------- ejemplo guiado (v0.99.21, etapa 2): los 9 pasos de la guía sobre la marcha de ejemplo ---------- */
+  const TOUR = [
+    {n:'Ruta en el mapa', v:'mapa', t:'La ruta se marca en el Mapa, en orden de marcha: PIM, PC1, PC2… y el regreso. La cota de cada punto se pone sola. El ejemplo sube al cerro Manquehue y vuelve por el mismo camino.'},
+    {n:'Cálculo de tiempos', v:'ruta', sec:'Cálculo de tiempos', t:'Aquí se elige cómo se calcula: montaña, MIDE, marcha general, forzada o carrera de combate. El ejemplo usa «montaña», tropa normal y 20 kg.'},
+    {n:'Unidad y material', v:'ruta', sec:'Unidad y columna', t:'Cuántos marchan, en qué formación y a qué distancia. Con el efectivo se calcula la columna; en «Material y carga» se marca lo que lleva cada uno.'},
+    {n:'Luz, calor y agua', v:'luz', t:'Sol, crepúsculos y luna del día de la marcha. En Datos → «Calor y agua» se trae la temperatura del pronóstico y la app calcula el agua y los altos por calor.'},
+    {n:'Cuadro y perfil', v:'cuadro', t:'El resultado del cálculo: por tramo, rumbo, distancia, desnivel, tiempo y hora de llegada. En «Perfil» se ven las subidas y bajadas.'},
+    {n:'Documento y envío', v:'enviar', t:'Se envía el plan: al C2 TOQUI como calco, a otro teléfono, a un GPS o a Excel. Con «Documento» queda listo para imprimir.'},
+    {n:'Antes de salir', v:'lista', t:'La lista de verificación de antes, durante y después. Antes de salir, guarda la zona del mapa para usarla sin señal (Mapa → ⬇ Sin señal).'},
+    {n:'Seguir la marcha', v:'seguir', t:'Durante la marcha: próximo punto, distancia, rumbo y si se va adelantado o atrasado. Al llegar a cada punto lo marca sola; mantén presionado «PASANDO» para enviar el mensaje.'},
+    {n:'Resultado y reseña', v:'resultado', t:'Después: se compara lo planificado con lo que se hizo y se escribe la reseña con las lecciones para la próxima.'}];
+  return {estado, html, AYUDA, encendida, vistos, marcarVisto, poner, tarjeta, TOUR};
 })();
 if(typeof globalThis!=='undefined') globalThis.Guia = Guia;
