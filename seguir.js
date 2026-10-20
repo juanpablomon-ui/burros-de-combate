@@ -534,7 +534,19 @@ const Seguir = (function(){
       pararGps(); pantalla(false); mensaje('FIN', {}); A.guardar(); pintar(); };
     if(auto) return fin();
     const P = plan(m), falta = P ? P.pts.filter((p, j)=>j && p.ev && !E.llegadas[j]).map(rotulo) : [];
-    A.confirmar('¿Terminar la marcha? Se detiene el GPS y queda el registro.' + (falta.length ? ' Faltan ' + falta.length + ' punto(s) (' + falta.join(', ') + '): quedan como no alcanzados.' : ''), fin);
+    // terminar y guardar, o descartar (v0.99.19, pedido del usuario: si se termina antes por algo, que no quede registrada)
+    A.dialogo(`<h3>¿Terminar la marcha?</h3><p class="nota">Se detiene el GPS.${falta.length ? ' Faltan ' + falta.length + ' punto(s) (' + A.esc(falta.join(', ')) + '): quedan como no alcanzados.' : ''}</p>
+      <div class="s-mas"><button class="btn pri" id="dSi">${ic('fin', 'Terminar y guardar el registro')}</button>
+        <button class="btn peligro" id="dDesc">🗑 Terminar y descartar: no queda registrada</button><button class="btn" data-cerrar>Seguir marchando</button></div>`, d=>{
+      d.querySelector('#dSi').onclick = ()=>{ A.cerrarDialogo(); fin(); };
+      d.querySelector('#dDesc').onclick = ()=>{ A.cerrarDialogo(); setTimeout(()=>descartar(m), 200); }; });
+  }
+
+  // borrar el registro de esta ejecución (horas, altos, novedades, recorrido GPS) sin guardarlo en «Recorridos anteriores»
+  function descartar(m){
+    A.confirmar('¿Descartar esta marcha? Se borran las horas, los altos, las novedades y el recorrido GPS de esta vez; no queda en el resultado ni en los recorridos guardados. Los mensajes ya enviados al C2 no se pueden retirar.', ()=>{
+      const E = m.ejec; if(E && E.estado!=='fin'){ pararGps(); pantalla(false); } irSolo = null;
+      delete m.ejec; A.guardar(); A.aviso('🗑 Marcha descartada: no quedó registrada'); pintar(); });
   }
 
   /* ---------- mensajes para el C2 ---------- */
@@ -795,7 +807,7 @@ const Seguir = (function(){
         return `<div class="${no.length || sal.length ? 'alerta' : 'info'}">Puntos de control: <b>${hechos.length} de ${ev.length}</b>${sal.length ? ' · saltados: ' + sal.map(x=>A.esc(rotulo(x.p))).join(', ') : ''}${no.length ? ' · no alcanzados: ' + no.map(x=>A.esc(rotulo(x.p))).join(', ') : ''}</div>`; })()}
       <div class="desglose"><span>partida <b>${hh(E.inicio)}</b></span><span>término <b>${hh(E.fin)}</b></span><span>altos <b>${dur(altos)}</b> (${E.altos.length})</span><span>novedades <b>${E.nov.length}</b></span></div>
       <h2>Matriz de eventos</h2><div id="sFicha"></div>
-      <div class="btns"><button class="btn pri" id="fMsg">📡 Mensaje de fin al C2</button><button class="btn" id="fRes">📊 Resultado y reseña</button><button class="btn" id="fGpx">⬇ Recorrido (GPX)</button><button class="btn" id="fRuta">🧭 Guardar el recorrido como ruta nueva</button><button class="btn" id="fImp">🖨 Imprimir</button><button class="btn peligro" id="fRe">↺ Hacer de nuevo</button></div>
+      <div class="btns"><button class="btn pri" id="fMsg">📡 Mensaje de fin al C2</button><button class="btn" id="fRes">📊 Resultado y reseña</button><button class="btn" id="fGpx">⬇ Recorrido (GPX)</button><button class="btn" id="fRuta">🧭 Guardar el recorrido como ruta nueva</button><button class="btn" id="fImp">🖨 Imprimir</button><button class="btn peligro" id="fRe">↺ Hacer de nuevo</button><button class="btn peligro" id="fDesc">🗑 Descartar (que no quede registrada)</button></div>
       <p class="nota">En <b>Cuadro → Resultado</b> está la comparación de lo planificado con lo ejecutado (horas, velocidades, altos) y la reseña.</p>`;
     ficha();
     $('#fMsg').onclick = ()=>verMensaje((E.msgs || []).filter(x=>x.k==='FIN').pop()?.msg || mensaje('FIN', {}));
@@ -808,6 +820,7 @@ ${E.track.map(t=>`<trkpt lat="${t[0]}" lon="${t[1]}"><time>${new Date(t[2]).toIS
     $('#fImp').onclick = ()=>window.print();
     $('#fRuta').onclick = ()=>A.rutaDeRecorrido(m, E);
     $('#fRes').onclick = ()=>A.ir('resultado');
+    $('#fDesc').onclick = ()=>descartar(m);
     $('#fRe').onclick = ()=>A.confirmar('¿Hacer la marcha de nuevo? El registro actual se quita de Seguir y su recorrido GPS queda guardado en Cuadro → Resultado (los 5 últimos).', ()=>{ archivar(m); delete m.ejec; A.guardar(); pintar(); });
   }
 

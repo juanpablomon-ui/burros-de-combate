@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.99.18', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.99.19', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -1182,7 +1182,7 @@
           `<label class="c ancho">${n}<textarea data-rs="${k}" rows="3" placeholder="${ph}">${esc(rs[k] || '')}</textarea></label>`).join('')}</div></div>
       ${recorridosHtml(m)}
       <div class="btns"><button class="btn pri" id="rDoc">📄 Documento con el resultado</button>${(E.track || []).length>1 ? '<button class="btn" id="rMapa">🗺 Ver el recorrido en el mapa</button><button class="btn" id="rGpx">⬇ Recorrido (GPX)</button><button class="btn" id="rRuta">🧭 Guardar como ruta nueva</button>' : ''}
-        ${E.manual ? '<button class="btn peligro" id="rBorrar">Borrar las horas anotadas</button>' : ''}</div>`;
+        ${E.manual ? '<button class="btn peligro" id="rBorrar">Borrar las horas anotadas</button>' : '<button class="btn peligro" id="rDesc">🗑 Descartar esta marcha (que no quede registrada)</button>'}</div>`;
     vista.querySelectorAll('[data-rs]').forEach(x=>x.oninput = ()=>{ rs[x.dataset.rs] = x.value; guardar(); });
     vista.querySelectorAll('[data-hreal]').forEach(x=>x.onchange = ()=>{ const k = +x.dataset.hreal;
       if(!x.value){ if(k) delete E.llegadas[k]; } else { const [hh, mm] = x.value.split(':').map(Number), d = new Date(E.inicio); d.setHours(hh, mm, 0, 0);
@@ -1196,6 +1196,8 @@
     const rr = $('#rRuta'); if(rr) rr.onclick = ()=>rutaDeRecorrido(m, E);
     if(gp) gp.onclick = ()=>descargar(nomA + '_recorrido.gpx', Seguir.gpx((m.nombre || '') + ' — recorrido real', E.track), 'application/gpx+xml');
     enlazarRecorridos(m);
+    const bd = $('#rDesc'); if(bd) bd.onclick = ()=>confirmar('¿Descartar esta marcha? Se borran las horas, los altos, las novedades y el recorrido GPS de esta vez; no queda en el resultado ni en los recorridos guardados. Los mensajes ya enviados al C2 no se pueden retirar.',
+      ()=>{ delete m.ejec; guardar(); pintar(); aviso('🗑 Marcha descartada: no quedó registrada'); });
     const bo = $('#rBorrar'); if(bo) bo.onclick = ()=>confirmar('¿Borrar las horas reales anotadas?', ()=>{ delete m.ejec; guardar(); pintar(); });
   }
   // matriz de eventos (v0.99.18, pedido del usuario: verla en Cuadro): cada punto de control con su nombre clave y hora planificada; con
