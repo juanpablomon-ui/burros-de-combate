@@ -45,23 +45,23 @@ if(typeof globalThis!=='undefined') globalThis.LISTA = LISTA;
 const MATERIAL = [
   {g:'Armamento y protección', items:[
     ['fusil', 'Fusil (con correa y accesorios)', c=>c.civil ? null : c.n, c=>'1 por hombre; las armas de apoyo van en los puestos (OME)'],
-    ['cargad', 'Cargadores con munición', c=>c.civil ? null : c.n*6, c=>'6 por hombre, en las baleras dobles del SPB (dotación sugerida: ajústala; también pueden ir en el cinturón)'],
+    ['cargad', 'Cargadores con munición', c=>c.civil ? null : c.instruccion ? 0 : c.n*6, c=>'6 por hombre, en las baleras dobles del SPB (dotación sugerida: ajústala; también pueden ir en el cinturón)'],
     ['muniExtra', 'Cargadores adicionales (mochila de asalto)', c=>c.civil ? null : 0, c=>'munición extra para la tarea: cuántos por hombre'],
-    ['granada', 'Granadas de mano', c=>c.civil ? null : c.n*2, c=>'2 por hombre, en las baleras del cinturón'],
+    ['granada', 'Granadas de mano', c=>c.civil ? null : c.instruccion ? 0 : c.n*2, c=>'2 por hombre, en las baleras del cinturón'],
     ['casco', 'Casco', c=>c.civil ? null : c.n, c=>'1 por hombre'],
     ['chaleco', 'Sistema de protección balística (SPB): porta placas o chaleco antibalas, con placas delantera y trasera y 3 baleras dobles', c=>c.civil ? null : c.n, c=>'si no se usa («No se lleva»), lo que va en él pasa al cinturón'],
     ['placasLat', 'Placas laterales del SPB (par)', c=>c.civil ? null : 0, c=>'opcional: escribe 1 por hombre si se usan'],
     ['pistola', 'Pistola', c=>c.civil ? null : c.n, c=>'en el cinturón del pantalón'],
-    ['cargPis', 'Cargadores de pistola', c=>c.civil ? null : c.n*2, c=>'2 por hombre, en el cinturón del pantalón'],
+    ['cargPis', 'Cargadores de pistola', c=>c.civil ? null : c.instruccion ? 0 : c.n*2, c=>'2 por hombre, en el cinturón del pantalón'],
     ['baqueta', 'Baqueta para el fusil', c=>c.civil ? null : c.n, c=>''],
-    ['granHumo', 'Granada de humo', c=>c.civil ? null : c.n, c=>'en las baleras del cinturón'],
+    ['granHumo', 'Granada de humo', c=>c.civil ? null : c.instruccion ? 0 : c.n, c=>'en las baleras del cinturón'],
     ['arnes', 'Arnés o sistema de carga (LBE, chest rig u otro)', c=>c.civil ? null : c.sinSPB ? c.n : 0, c=>'2.ª línea: con el SPB, en vez de él o los dos, según la misión (escribe 1 por hombre si se usa); lo que lleva se elige en «Va en»'],
     ['portaf', 'Cinturón de carga o de combate: baleras, tacho y morral', c=>c.civil ? null : c.n, c=>'con los cargadores, granadas, IFAK, cuchillo y lo que va en el morral'],
     ['radioH', 'Radio portátil de mano con batería', c=>c.civil ? null : c.n, c=>'puede que no todos la lleven: indica cuántos en «Lo llevan»']]},
   // equipo que sirve a toda la unidad para la misión o la marcha: se escribe el total y su peso se reparte entre todos
   {g:'Equipo especial de la patrulla', items:[
     ['radio', 'Radio', c=>c.n<=1 ? 1 : Math.max(1, c.unidades) + 1, c=>'1 por unidad de marcha + la del comandante'],
-    ['batRad', 'Baterías de repuesto para radio', c=>(c.n<=1 ? 1 : Math.max(1, c.unidades) + 1)*Math.max(1, Math.ceil(c.horas/8)), c=>'1 por radio cada 8 h'],
+    ['batRad', 'Baterías de repuesto para radio', c=>(c.n<=1 ? 1 : Math.max(1, c.unidades) + 1)*Math.max(1, Math.ceil(c.hOp/8)), c=>'1 por radio cada 8 h' + (c.dias ? ' (' + c.dias + ' día' + (c.dias===1 ? '' : 's') + ')' : '')],
     ['camilla', 'Camilla plegable', c=>c.n>=10 ? Math.ceil(c.n/40) : null, c=>'1 cada 40 hombres'],
     ['cuerda', 'Cuerda de seguridad', c=>c.montana || c.nieve ? Math.max(1, Math.ceil(c.n/10)) : null, c=>'1 cada 10 hombres para pasos difíciles'],
     ['otroEq', 'Otro equipo de la unidad', c=>0, c=>'o agrega elementos propios con «＋ Agregar»']]},
@@ -73,8 +73,8 @@ const MATERIAL = [
     ['aguaT', 'Agua total de la unidad', c=>c.hay ? Math.ceil(c.n*(c.aguaH*c.horas + 1)) + ' L' : null, c=>'consumo de ' + c.n + ' hombres en toda la marcha'],
     ['reabast', 'Reabastecimiento de agua en ruta', c=>c.reabast ? c.agua.puntos + ' punto(s)' : null, c=>c.agua.puntos ? 'en cada punto de agua se repone hasta ' + litros(c.agua.max) + ' L por hombre' : 'marca los puntos de agua en Puntos'],
     ['sales', 'Sales de rehidratación / electrolitos', c=>c.horas>4 || c.calorCat>=3 ? c.n*Math.ceil(c.horas/4) + ' sobres' : null, c=>'1 sobre cada 4 h de marcha'],
-    ['racion24', 'Ración de combate de 24 h (tipo MRE)', c=>(c.civil ? c.racion!=='12' : true) && c.horas>=6 ? c.n*Math.ceil(c.horas/24) : null, c=>'1 por hombre cada 24 h (3 comidas, ≈ 1,3 kg)'],
-    ['racion12', 'Ración de combate de 12 h (tipo MRE)', c=>c.civil ? (c.racion==='12' && c.horas>=6 ? c.n*Math.ceil(c.horas/12) : null) : c.n, c=>c.civil ? '1 por hombre cada 12 h (2 comidas, ≈ 0,9 kg)' : '1 por hombre, en la mochila de asalto'],
+    ['racion24', 'Ración de combate de 24 h (tipo MRE)', c=>(c.civil ? c.racion!=='12' : true) && c.hOp>=6 ? c.n*Math.ceil(c.hOp/24) : null, c=>'1 por hombre cada 24 h (3 comidas, ≈ 1,3 kg)' + (c.dias ? ' × ' + c.dias + ' día' + (c.dias===1 ? '' : 's') : '')],
+    ['racion12', 'Ración de combate de 12 h (tipo MRE)', c=>c.civil ? (c.racion==='12' && c.hOp>=6 ? c.n*Math.ceil(c.hOp/12) : null) : c.n, c=>c.civil ? '1 por hombre cada 12 h (2 comidas, ≈ 0,9 kg)' : '1 por hombre, en la mochila de asalto'],
 ]},
   {g:'Sanidad', items:[
     ['torniq1', 'Torniquete del SPB', c=>c.civil ? null : c.n, c=>'además del que trae el IFAK; puede llevar más o menos (cambia la cantidad)'],
@@ -84,7 +84,7 @@ const MATERIAL = [
     ['ifak', 'IFAK: botiquín individual de combate', c=>c.n, c=>'torniquete, vendaje compresivo, gasa hemostática, sello de tórax, cánula, guantes y manta térmica'],
     ['botPA', 'Botiquín de primeros auxilios pequeño', c=>c.n, c=>'heridas menores, ampollas y cuidado de pies, medicamentos básicos'],
     ['socorr', 'Enfermero u operador de trauma (personas)', c=>Math.max(1, Math.ceil(c.n/30)), c=>'1 cada 30 hombres como mínimo; su equipo va en Puestos (OME)'],
-    ['calcet', 'Calcetines de recambio', c=>c.n*(c.horas>8 ? 2 : 1) + ' pares', c=>'cambio a mitad de la marcha'],
+    ['calcet', 'Calcetines de recambio', c=>c.n*Math.max(c.horas>8 ? 2 : 1, c.dias) + ' pares', c=>c.dias ? '1 par por día' : 'cambio a mitad de la marcha'],
     ['manta', 'Manta térmica', c=>c.civil ? c.n : null, c=>'1 por persona'],
     ['solar', 'Protector solar y labial', c=>c.noche<0.9 ? Math.max(1, Math.ceil(c.n/5)) : null, c=>'marcha con luz de día'],
     ['evac', 'Plan de evacuación (punto, vehículo, frecuencia)', c=>'1', c=>'para lesionados o rezagados']]},
@@ -106,8 +106,8 @@ const MATERIAL = [
     ['poncho', 'Poncho o chaqueta impermeable', c=>c.n, c=>''],
     ['abrigo', 'Segunda capa de abrigo (polar)', c=>c.n, c=>'en la mochila de sostenimiento'],
     ['abrigo3', 'Tercera capa de abrigo (chaqueta de abrigo o pluma)', c=>!c.civil || c.noche>0 || c.montana || c.nieve || c.pernocta ? c.n : null, c=>'en la mochila de sostenimiento'],
-    ['gorro', 'Gorro de abrigo y guantes', c=>c.civil && (c.nieve || c.montana) ? c.n : null, c=>'montaña o nieve'],
-    ['lentes', 'Lentes de sol', c=>c.nieve || c.montana ? c.n : null, c=>'reflejo de la nieve o del sol en altura'],
+    ['gorro', 'Gorro de abrigo y guantes', c=>(c.civil && (c.nieve || c.montana)) || c.invierno ? c.n : null, c=>'montaña o nieve'],
+    ['lentes', 'Lentes de sol', c=>c.nieve || c.montana || c.invierno ? c.n : null, c=>'reflejo de la nieve o del sol en altura'],
     ['saco', 'Saco de dormir', c=>c.pernocta || !c.civil ? c.n : null, c=>c.civil ? 'marcha con pernocta' : ''],
     ['aislante', 'Aislante (colchoneta)', c=>c.pernocta || !c.civil ? c.n : null, c=>c.civil ? 'marcha con pernocta' : ''],
     ['carpa', 'Carpa o vivisac', c=>c.pernocta || !c.civil ? Math.ceil(c.n/2) : null, c=>'1 cada 2 (repartida)'],
@@ -161,7 +161,7 @@ const MATERIAL = [
     ['vision', 'Visor nocturno (si se dispone)', c=>c.civil ? null : c.noche>0 ? c.n : null, c=>'puede ser uno por hombre (escribe 0 si no hay)']]},
   {g:'Montaña y nieve', items:[
     ['bastones', 'Bastones de marcha', c=>c.montana ? c.n + ' pares' : null, c=>'pendientes fuertes'],
-    ['polainas', 'Polainas', c=>c.nieve ? c.n + ' pares' : null, c=>'nieve'],
+    ['polainas', 'Polainas', c=>c.nieve || c.invierno ? c.n + ' pares' : null, c=>'nieve'],
     ['raquetas', 'Raquetas', c=>c.terreno==='raquetas' ? c.n + ' pares' : null, c=>'terreno «sobre raquetas»'],
     ['esquies', 'Esquíes y pieles de foca', c=>c.terreno==='esquies' ? c.n + ' equipos' : null, c=>'terreno «sobre esquíes»'],
     ['pala', 'Pala de nieve y sonda', c=>c.nieve ? Math.max(1, Math.ceil(c.n/10)) : null, c=>'1 cada 10 hombres']]}
@@ -173,6 +173,11 @@ function contextoMaterial(m, R){
   const c0 = {sinSPB:sinSPBde(m), mochilaModo:p.mochilaModo || 'dentro', civil:typeof Uso!=='undefined' && Uso.civil(), pernocta:!!p.pernocta, n:hay ? Math.round(+p.efectivo) : 1, hay, horas:R.res.total || 0, reabast:p.reabast==='si', racion:String(p.racion || '24'), km:R.res.dist/1000, noche:R.fracNoche || 0, aguaH, calorDato:!!(cal && cal.lh),
     calorCat:cal ? cal.cat : 0, montana:['montana', 'mide'].includes(p.metodo), nieve:p.terreno && p.terreno!=='sinNieve' && ['montana', 'mide'].includes(p.metodo), terreno:p.terreno,
     unidades:Math.max(1, Math.round(+p.unidades||1)), carga:p.metodo!=='general' ? p.carga : null};
+  // tipo de marcha y días (v0.99.22, pedido del usuario: las patrullas duran de 24 h a los días que sean; se multiplica por los días):
+  // con días, lo que se consume por tiempo (raciones, baterías, calcetines) se calcula para toda la operación y hay pernocta
+  c0.tipo = p.tipoMat || ''; c0.dias = Math.max(0, Math.round(+p.dias || 0));
+  c0.hOp = Math.max(c0.horas, c0.dias*24); if(c0.dias>=1) c0.pernocta = true;
+  c0.invierno = c0.tipo==='invierno'; c0.instruccion = c0.tipo==='instruccion';
   c0.agua = aguaPlan(m, R, aguaH, c0.reabast); return c0;
 }
 const litros = (x, d)=>String(Math.round(x*(d===2 ? 100 : d===1 ? 10 : 2))/(d===2 ? 100 : d===1 ? 10 : 2)).replace('.', ',');

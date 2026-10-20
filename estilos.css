@@ -815,3 +815,37 @@ details.tarjeta.g-res>summary{display:block}
 .punto .p-lin{padding-left:0}
 .punto:not(.abierto) .ord{top:8px}
 .g-res>summary::marker{content:""}
+/* v0.99.22: material por pasos (tipo de marcha con días) y líneas que se pliegan con su total */
+.mat-tipo{padding:8px 10px}
+.mt-op{display:flex;gap:10px;align-items:center;width:100%;text-align:left;background:none;border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:9px;margin:6px 0;color:inherit;font:inherit;cursor:pointer}
+.mt-op.on{border-color:var(--ocre,#e3a63a);background:rgba(227,166,58,.08)}
+.mt-op .rd{width:14px;height:14px;border-radius:50%;border:2px solid var(--suave,#77766a);flex:none}.mt-op.on .rd{border-color:var(--ocre,#e3a63a);background:var(--ocre,#e3a63a)}
+.mt-op small{display:block;color:var(--suave,#9c9a8a);font-size:13px}
+.mt-dias{display:block;margin:8px 0 2px}.mt-dias input{max-width:120px;display:block}.mt-dias small{display:block;color:var(--suave,#9c9a8a);font-size:12.5px}
+details.mat-lin{border:1px solid rgba(255,255,255,.1);border-radius:10px;margin:8px 0;padding:0 10px}
+details.mat-lin>summary{list-style:none;cursor:pointer;display:flex;align-items:baseline;gap:8px;padding:10px 0}
+details.mat-lin>summary::-webkit-details-marker{display:none}details.mat-lin>summary::marker{content:""}
+details.mat-lin>summary::before{content:"▸";color:var(--ocre,#e3a63a)}details.mat-lin[open]>summary::before{content:"▾"}
+details.mat-lin>summary h3.mat-g{margin:0;flex:1}details.mat-lin>summary .mat-n{color:var(--suave,#9c9a8a);font-size:12.5px;white-space:nowrap}
+details.mat-lin[open]{border-color:var(--ocre,#e3a63a)}
+details.mat-lin>summary{align-items:center}
+details.mat-lin .ml-t{flex:1;min-width:0}details.mat-lin .ml-t h3.mat-g{text-transform:none;letter-spacing:0;font-family:inherit;font-size:16px;margin:0;color:var(--texto,#e9e6d8)}
+details.mat-lin .ml-t small{display:block;color:var(--suave,#9c9a8a);font-size:12.5px}
+details.mat-lin .ml-k{text-align:right;flex:none}details.mat-lin .ml-k b{display:block;font-family:var(--mono,monospace);color:var(--ocre,#e3a63a);font-size:16px}
+details.mat-lin .ml-k small{color:var(--suave,#9c9a8a);font-size:12px}
+details.carga-det{margin-top:10px;border-top:1px solid rgba(255,255,255,.08);padding-top:6px}
+details.carga-det>summary{cursor:pointer;color:var(--ocre,#e3a63a);font-weight:600;padding:6px 0}details.carga-det>summary small{display:block;color:var(--suave,#9c9a8a);font-weight:400;font-size:12.5px}
+details.puestos-ome>summary{list-style:none;display:flex;align-items:center;gap:8px;cursor:pointer}
+details.puestos-ome>summary::-webkit-details-marker{display:none}details.puestos-ome>summary::marker{content:""}
+details.puestos-ome>summary::before{content:"▸";color:var(--ocre,#e3a63a)}details.puestos-ome[open]>summary::before{content:"▾"}
+details.puestos-ome .ml-t{flex:1}details.puestos-ome .ml-t small{display:block;color:var(--suave,#9c9a8a);font-size:12.5px}
+details.puestos-ome .ml-k{text-align:right}details.puestos-ome .ml-k b{display:block;font-family:var(--mono,monospace);color:var(--ocre,#e3a63a)}details.puestos-ome .ml-k small{color:var(--suave,#9c9a8a);font-size:12px}
+details.puestos-ome:not([open])>h3{display:none}
+/* elementos del material en una fila: se abren al tocar «✎ cambiar» */
+.mat-lista .mf:not(.abierta):not(.mf-nuevo)>:not(.mf1):not(.mf-res){display:none}
+.mat-lista .mf:not(.abierta) .mf-n small{display:none}
+.mat-lista .mf:not(.abierta):not(.mf-nuevo){padding-top:8px;padding-bottom:8px}
+.mf-res{display:block;width:100%;text-align:left;background:none;border:0;color:var(--suave,#9c9a8a);font:inherit;font-size:13px;padding:2px 0 0 34px;cursor:pointer}
+.mf-res .ce{display:none}.mf.abierta .mf-res .r1,.mf.abierta .mf-res .ed{display:none}.mf.abierta .mf-res .ce{display:inline;margin-left:0}
+.mf-res span.ed{color:var(--ocre,#e3a63a);margin-left:6px}.mf-res span.ce{color:var(--ocre,#e3a63a)}
+.mat-lista .mf-grupo .mf-grupo-t{margin-bottom:4px}

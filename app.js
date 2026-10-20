@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.99.21', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.99.22', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -932,6 +932,8 @@
   // en pantalla: una ficha por elemento, del ancho del teléfono: cantidad con su unidad × kg por unidad = kg (total y por hombre)
   // qué es cada línea, en el selector de línea de cada elemento (v0.99.6)
   const LINEA_OPC = {1:'1.ª línea · en el cuerpo y cinturón', 2:'2.ª línea · arma, casco, SPB o arnés', 5:'3.ª A · mochila de asalto', 3:'3.ª B · mochila de sostenimiento', 4:'4.ª · vehículo (no se carga)'};
+  const mfAbiertos = new Set();
+  const matAbiertas = ()=>{ try { const v = localStorage.getItem('burros_matlin'); return v==='todas' ? 'todas' : JSON.parse(v || '[]'); } catch(e){ return []; } };
   function fichasMaterial(m, R, filas){
     const Mt = m.material || {}, pm = R.carga || pesoMaterial(m, R), porId = {}; (pm ? pm.items : []).forEach(x=>porId[x.id] = x);
     // contenedores (cinturón de carga y SPB) con lo que llevan dentro: una sola ficha con el peso del conjunto; el contenido va adentro, plegado
@@ -947,7 +949,11 @@
     // dónde va un elemento individual (uso militar): en el SPB, en el cinturón o suelto (con su línea)
     const vaEn = (it, x)=>Uso.civil() || !x || (x.modo!=='i' && x.modo!=='h') || Object.values(CONTENEDORES).some(C=>C.id===it.id) ? '' : (()=>{ const e = enDe(m, it.id);
       return `<select data-men="${it.id}" aria-label="Va en"><option value="spb"${e==='spb' ? ' selected' : ''}${sinSPBde(m) ? ' disabled' : ''}>Va en el SPB</option><option value="arnes"${e==='arnes' ? ' selected' : ''}${conArnesDe(m) ? '' : ' disabled'}>Va en el arnés</option><option value="cinturon"${e==='cinturon' ? ' selected' : ''}>Va en el cinturón</option><option value="-"${!e ? ' selected' : ''}>Suelto (elige la línea)</option></select>`; })();
-    return filas.map(({g, its, linea})=>`<h3 class="mat-g">${esc(g)}${linea && pm ? ` <span class="mat-kg">${f(pm.lineas[linea], 1)} kg por hombre${linea===4 ? ' (no se suma)' : (linea===3 || linea===5) && pm.sinMochila ? ' (se deja)' : linea===3 && pm.mochilaModo==='solo' ? ' (no se lleva)' : ''}</span>` : ''}</h3>
+    // cada línea se pliega con su total (v0.99.22, etapa 3): se abre solo la que se ajusta; burros_matlin recuerda las abiertas ('todas' = todas)
+    const ab = matAbiertas();
+    return filas.map(({g, its, linea})=>`<details class="mat-lin" data-mlg="${esc(linea || g)}"${ab==='todas' || (ab.includes && ab.includes(String(linea || g))) ? ' open' : ''}><summary>${(()=>{ const [t, sub] = String(g).split(' — '), nIt = its.filter(it=>!(Mt[it.id] || {}).no).length;
+        const kg = linea && pm ? f(pm.lineas[linea], 1) + ' kg' : '', nota = linea===4 ? 'no se suma' : (linea===3 || linea===5) && pm && pm.sinMochila ? 'se deja' : linea===3 && pm && pm.mochilaModo==='solo' ? 'no se lleva' : '';
+        return `<span class="ml-t"><h3 class="mat-g">${esc(t)}</h3>${sub ? `<small>${esc(sub)}</small>` : ''}</span><span class="ml-k">${kg ? `<b>${kg}</b>` : ''}<small>${nota ? nota + ' · ' : ''}${nIt} elemento${nIt===1 ? '' : 's'}</small></span>`; })()}</summary>
       ${linea && linea!==4 && pm ? `<div class="mat-pl"><label>Peso de la línea sin detallar los elementos <span class="mf-c"><input class="num" data-pl="${linea}" value="${esc((m.par.pesoLinea || {})[linea] || '')}" placeholder="${f(pm.lineasCalc[linea], 1)}" inputmode="decimal" aria-label="kg por hombre"><em>kg por hombre</em></span></label>
         <small>${(m.par.pesoLinea || {})[linea] ? '<b>reemplaza</b> la suma de los elementos (' + f(pm.lineasCalc[linea], 1) + ' kg)' + (linea===2 ? '; incluye el agua' : '') : 'vacío = la suma de los elementos de abajo'}</small></div>` : ''}
       <div class="mat-lista">${its.length ? '' : '<p class="nota">Sin elementos en esta línea.</p>'}${agrupar(its, it=>{
@@ -960,8 +966,12 @@
       const pesoTxt = noCarga ? '<span class="mf-nc">no se carga</span>' : g ? `<b>${f(x.porPortador, x.porPortador<1 ? 2 : 1)} kg</b><small>por portador</small>` : x ? `<b>${f(x.porHombre, x.porHombre<1 ? 2 : 1)} kg</b><small>por hombre</small>` : '';
       const botones = `<span class="mf-op">${it.propio===undefined ? `<button class="btn mini" data-mnom="${it.id}" title="Cambiar el nombre" aria-label="Cambiar el nombre">✎</button>` : ''}<button class="btn mini" data-mno="${it.id}">${st.no ? '↺ Se lleva' : 'No se lleva'}</button></span>`;
       if(st.no) return `<div class="mf mf-no"><div class="mf1"><span class="mf-n"><b>${esc(it.n)}</b><small>no se lleva en esta marcha</small></span>${botones}</div></div>`;
-      return `<div class="mf${st.ok ? ' hecho' : ''}">
+      // una fila por elemento (v0.99.22, etapa 3): cantidad y peso en una línea; se abre al tocarla para cambiar cantidad, peso o dónde va
+      const cantTxt = indiv ? (st.cantH!==undefined && st.cantH!=='' ? st.cantH : st.cant ? fq(numCant(st.cant)/n) : fq(numCant(num0)/n)) + ' ' + (u==='u' ? 'por hombre' : u + ' por hombre') : (st.cant || num0) + (u==='u' ? '' : ' ' + u) + (x && x.modo==='c' ? ' para la unidad' : '');
+      const abierta = ab==='todas' || mfAbiertos.has(it.id);
+      return `<div class="mf${st.ok ? ' hecho' : ''}${abierta ? ' abierta' : ''}">
         <label class="mf1"><input type="checkbox" data-mt="${it.id}" ${st.ok ? 'checked' : ''}><span class="mf-n"><b>${esc(it.n)}</b>${it.nota ? `<small>${esc(it.nota)}</small>` : ''}</span><span class="mf-kg">${pesoTxt}</span></label>
+        <button type="button" class="mf-res" data-mfed="${it.id}"><span class="r1">${esc(String(cantTxt))}${noCarga ? '' : ' · ' + esc(String(st.kg || kg0).replace('.', ',')) + ' kg c/u'}</span> <span class="ed">✎ cambiar</span><span class="ce">▴ Listo</span></button>
         <div class="mf2">${indiv ? `<span class="mf-c"><input class="num" data-mch="${it.id}" value="${esc(st.cantH!==undefined && st.cantH!=='' ? st.cantH : st.cant ? fq(numCant(st.cant)/n) : '')}" placeholder="${fq(numCant(num0)/n)}" inputmode="decimal" aria-label="Cantidad por hombre"><em>${esc(u==='u' ? 'unid.' : u)} por hombre</em></span>`
           : `<span class="mf-c"><input class="num" data-mc="${it.id}" value="${esc(st.cant || '')}" placeholder="${esc(num0)}" inputmode="decimal" aria-label="Cantidad"><em>${esc(u==='u' ? 'unid.' : u)}${x && x.modo==='c' ? ' para la unidad' : ''}</em></span>`}
           ${noCarga ? '' : `<span class="mf-x">×</span><span class="mf-c"><input class="num" data-mk="${it.id}" value="${esc(st.kg || '')}" placeholder="${String(kg0).replace(".", ",")}" inputmode="decimal" aria-label="kg por ${esc(u1)}"><em>${u1==='unidad' ? 'kg c/u' : 'kg/' + esc(u1)}</em></span>
@@ -978,7 +988,7 @@
           <div class="mf-s">en la unidad: ${fq(x.q)} ${esc(u==='u' ? 'unid.' : u)} · ${f(total, 1)} kg${x.llevan<n ? ' — lo llevan ' + x.llevan + ' de ' + n + ' (cuenta entero para ellos)' : ' (' + n + ' hombres)'}</div>` : ''}</div>`; })}
       ${linea ? `<div class="mf mf-nuevo"><div class="mf2" style="margin-left:0"><input data-an="${linea}" placeholder="Agregar a la ${LINEAS[linea]}: nombre" aria-label="Nombre">
         <span class="mf-c"><input class="num" data-ac="${linea}" placeholder="1" inputmode="decimal" aria-label="Cantidad"><em>cant.</em></span><span class="mf-c"><input class="num" data-ak="${linea}" placeholder="kg" inputmode="decimal" aria-label="kg c/u"><em>kg c/u</em></span>
-        <select data-am="${linea}" aria-label="Cómo se lleva"><option value="i">por hombre (cada uno lleva uno)</option><option value="c"${linea===4 ? ' selected' : ''}>de la unidad (se reparte)</option></select><button class="btn mini pri" data-aa="${linea}">＋ Agregar</button></div></div>` : ''}</div>`).join('');
+        <select data-am="${linea}" aria-label="Cómo se lleva"><option value="i">por hombre (cada uno lleva uno)</option><option value="c"${linea===4 ? ' selected' : ''}>de la unidad (se reparte)</option></select><button class="btn mini pri" data-aa="${linea}">＋ Agregar</button></div></div>` : ''}</div></details>`).join('');
   }
   /* puesto de cada integrante (pedido del usuario): una fila por hombre con su puesto; los hombres de cada puesto se cuentan de ahí */
   function integrantesHtml(m, R){
@@ -1034,7 +1044,8 @@
     const pm = R.carga || pesoMaterial(m, R); if(!pm) return '';
     const lista = pm.puestos.filter(o=>OMES[o.key] || o.propio!==undefined), nomComun = id=>{ const x = pm.items.find(y=>y.id===id); return x ? x.n.replace(/ \(.*\)$/, '').toLowerCase() : id; };
     const selL = (attr, v)=>`<select ${attr} aria-label="Línea">${ORDEN_LINEAS.map(l=>`<option value="${l}"${v===l ? ' selected' : ''}>${LINEAS[l].replace(' línea', '')}</option>`).join('')}</select>`;
-    return `<div class="tarjeta puestos-ome"><h3>Puestos (OME)</h3>
+    const abP = matAbiertas(), maxP = pm.especial.length ? Math.max(...pm.especial.map(g=>g.total - (pm.fusilero ? pm.fusilero.total : pm.comun))) : 0;
+    return `<details class="tarjeta puestos-ome" data-mlg="ome"${abP==='todas' || (abP.includes && abP.includes('ome')) ? ' open' : ''}><summary><span class="ml-t"><b>Puestos (OME)</b><small>${pm.especial.length ? pm.especial.length + ' puesto' + (pm.especial.length===1 ? '' : 's') + ' con equipo propio' : 'todos iguales: nadie con equipo propio'}</small></span>${maxP>0 ? `<span class="ml-k"><b>+${f(maxP, 1)} kg</b><small>el que más</small></span>` : ''}</summary><h3>Puestos (OME)</h3>
       <p class="nota">Todos llevan el <b>equipo común</b> (las líneas de abajo). Cada puesto lleva además su equipo, o en reemplazo de algo común. Los puestos son eventuales:
         escribe cuántos hombres lo cumplen (0 = no hay). Los pesos son <b>estimados</b>: corrígelos con los de tu unidad.</p>
       ${lista.map(o=>{ const st = o.propio!==undefined ? (m.omeExtra || [])[o.propio] || {} : (m.ome || {})[o.key] || {};
@@ -1058,7 +1069,7 @@
                 <span class="mf-c"><input class="num" data-oac="${o.key}" placeholder="1" inputmode="decimal" aria-label="Cantidad"><em>unid.</em></span><span class="mf-c"><input class="num" data-oak="${o.key}" placeholder="kg" inputmode="decimal" aria-label="kg c/u"><em>kg c/u</em></span>
                 ${selL(`data-oal="${o.key}"`, 2)}<button class="btn mini pri" data-oaa="${o.key}">＋ Agregar</button></div></div></div>`}
         </details>`; }).join('')}
-      <div class="campos" style="margin-top:10px"><label class="c ancho">Otro puesto (zapador, jefe de patrulla, guía…)<input id="omeNuevo" placeholder="nombre del puesto"></label><div class="c"><span>&nbsp;</span><button class="btn" id="omeAgregar">＋ Agregar puesto</button></div></div></div>`;
+      <div class="campos" style="margin-top:10px"><label class="c ancho">Otro puesto (zapador, jefe de patrulla, guía…)<input id="omeNuevo" placeholder="nombre del puesto"></label><div class="c"><span>&nbsp;</span><button class="btn" id="omeAgregar">＋ Agregar puesto</button></div></div></details>`;
   }
   // carga por hombre: peso base + material individual + parte del colectivo; con la opción de usarla en el cálculo de tiempos
   function cargaHtml(m, R){
@@ -1069,6 +1080,7 @@
       <div class="kpis">
         <div class="kpi ocre"><div class="k">${pm.mas ? 'El más cargado al partir' : 'Total por hombre al partir'}</div><div class="v">${f(pm.total, 1)} <small>kg</small></div>${pm.mas ? `<div class="s"><b>${esc(pm.mas.nombre)}</b>: con esta carga se calcula el tiempo</div>` : ''}<div class="s">${pm.balanza ? 'según la balanza' : pm.sinMochila ? 'sin mochila (se deja la 3.ª línea)' : 'con mochila'}${pm.final!==undefined && Math.abs(pm.final - pm.total)>0.05 ? ' · al llegar ' + f(pm.final, 1) + ' kg' : ''}</div></div>
         ${pm.balanza ? `<div class="kpi"><div class="k">Carga promedio de la unidad</div><div class="v">${f(pm.promedio, 1)} <small>kg</small></div><div class="s">pesada en la balanza (sin detalle por líneas)</div></div>` : [1, 2, 5, 3].map(l=>`<div class="kpi"${(l===3 || l===5) && pm.sinMochila || l===3 && pm.mochilaModo==='solo' ? ' style="opacity:.5"' : ''}><div class="k">${LINEAS[l]}</div><div class="v">${f(pm.lineas[l], 1)} <small>kg</small></div><div class="s">${esc(LINEAS_TXT[l])}${l===3 && pm.sinMochila ? ' · <b>se deja</b>' : ''}</div></div>`).join('')}</div>
+      ${(()=>{ const ab = matAbiertas(); return `<details class="carga-det" data-mlg="carga"${ab==='todas' || (ab.includes && ab.includes('carga')) ? ' open' : ''}><summary>Detalle y opciones de la carga <small>carga de cada puesto, límites de referencia, mochila, agua y ración</small></summary>`; })()}
       ${pm.especial.length ? `<h4 class="carga-h">Carga de cada puesto (por línea)</h4><div class="tabla-env"><table class="t puestos"><thead><tr><th class="tx">Puesto</th><th>H.</th>${[1, 2, 5, 3].map(l=>`<th>${LINEAS[l].replace(' línea', '')}</th>`).join('')}<th>Total</th></tr></thead><tbody>
         ${[Object.assign({}, pm.fusilero || {nombre:PUESTOS.fusilero, lineas:pm.lineas, total:pm.comun}, {n:pm.fusileros, fus:true})].concat(pm.especial.slice().sort((a, b)=>b.total - a.total)).map(g=>`<tr class="${pm.mas===g || (g.fus && pm.mas===pm.fusilero) ? 'mas' : ''}"><td class="tx">${esc(g.nombre)}${pm.mas===g || (g.fus && pm.mas===pm.fusilero) ? ' <b class="mas-tag">más cargado</b>' : ''}${g.fus ? '<small>equipo común</small>' : g.reemplaza && g.reemplaza.length ? '<small>sin fusil</small>' : ''}</td>
           <td>${pm.hay ? g.n : '—'}</td>${[1, 2, 5, 3].map(l=>`<td>${f(g.lineas[l] || 0, 1)}</td>`).join('')}<td><b>${f(g.total, 1)} kg</b></td></tr>`).join('')}
@@ -1094,27 +1106,35 @@
       <p class="nota">Esta carga se usa en toda la marcha: tiempos de cada tramo, calor y descansos. ${m.par.cargaManual ? '<b style="color:var(--ocre)">Ahora la carga está escrita a mano (Datos → Cálculo de tiempos).</b>' : ''}
         ${Uso.civil() ? 'Lo que sirve a todo el grupo (radio, botiquín grande, cuerda, carpas) va en «Equipo especial de la patrulla» y se reparte.' : 'El fusil, la munición, el casco y los chalecos están en la lista (Armamento y protección); el equipo que sirve a toda la unidad, en «Equipo especial de la patrulla».'} Usa «Otro peso» solo para lo que no esté en la lista${!Uso.civil() && +String(m.par.cargaBase || '').replace(',', '.')>0 ? ` — <b style="color:var(--ocre)">si ahí habías escrito el fusil, casco y chaleco, bórralo para no contarlos dos veces</b>` : ''}.
         Material de grupo repartido: ${f(pm.colect, 1)} kg por hombre, entre ${pm.hay ? pm.n + ' hombres' : '1 hombre: indica el efectivo en Datos → Unidad y columna'}. Más pesado por hombre: ${top || '—'}.
-        Los pesos son <b>sugeridos</b>: cámbialos en «kg» de cada elemento. El agua de reabastecimiento en ruta no se suma.</p></div>`;
+        Los pesos son <b>sugeridos</b>: cámbialos en «kg» de cada elemento. El agua de reabastecimiento en ruta no se suma.</p></details></div>`;
   }
   function vMaterial(){
     const m = actual(), R = M.calcular(m);
     if(!R.tramos.length){ vista.innerHTML = '<div class="tarjeta vacio">Completa la ruta para calcular el material.</div>'; return; }
     const H = htmlMaterial(m, R), tot = H.filas.reduce((a, g)=>a + g.its.length, 0), hechos = ()=>H.filas.reduce((a, g)=>a + g.its.filter(it=>(m.material||{})[it.id] && m.material[it.id].ok).length, 0);
+    // paso 1: qué marcha es (v0.99.22, etapa 3; pedido del usuario: las patrullas duran de 24 h a los días necesarios → se multiplica por los días)
+    const TIPOS = [['patrulla', 'Patrulla', 'raciones, baterías y calcetines por cada día; con pernocta (saco, carpa, cocinilla)'], ['invierno', 'Montaña en invierno', 'como la patrulla, más ropa de frío, gorro, guantes, lentes y polainas'],
+      ['instruccion', 'Marcha de instrucción', 'equipo de combate sin munición ni granadas'], ['', 'Según la ruta', 'lo que corresponde a la duración y al terreno de la marcha (como hasta ahora)']];
+    const tipo = m.par.tipoMat || '', conDias = tipo==='patrulla' || tipo==='invierno';
     vista.innerHTML = `<h2>Material para la marcha</h2>
+      <h3 class="mat-parte">1. ¿Qué marcha es?</h3>
+      <div class="tarjeta mat-tipo">${TIPOS.filter(([k])=>!Uso.civil() || k!=='instruccion').map(([k, n, d])=>`<button class="mt-op${tipo===k ? ' on' : ''}" data-tipo-mat="${k}"><span class="rd"></span><span><b>${n}</b><small>${d}</small></span></button>`).join('')}
+        ${conDias ? `<label class="c mt-dias">Días de la ${tipo==='invierno' ? 'actividad' : 'patrulla'}<input class="num" id="mtDias" inputmode="numeric" value="${esc(m.par.dias || '')}" placeholder="1"><small>las raciones, baterías y calcetines se multiplican por los días</small></label>` : ''}</div>
+      <h3 class="mat-parte">2. ¿Cómo se calcula el peso?</h3>
       <div class="seg" style="margin-bottom:8px"><button data-modo-carga="detalle" class="${m.par.modoCarga!=='sop' ? 'on' : ''}">Detallado por elementos</button><button data-modo-carga="sop" class="${m.par.modoCarga==='sop' ? 'on' : ''}">Por peso según SOP</button><button data-modo-carga="unidad" class="${m.par.modoCarga==='unidad' ? 'on' : ''}">Por peso de la unidad</button></div>
       <p class="nota" id="mtCuenta"></p>
-      ${m.par.modoCarga==='sop' || m.par.modoCarga==='unidad' ? '' : `<label class="nota" style="display:block"><input type="checkbox" id="mtVerTodo" ${m.par.verTodo ? 'checked' : ''} style="width:auto;vertical-align:middle"> <b>Mostrar todo el equipo</b> (también lo que no corresponde a esta marcha, como lo de noche, montaña o nieve, en 0, para poder llevarlo). Cada elemento se puede marcar «No se lleva» y cambiar de nombre (✎).</label>`}
+      ${m.par.modoCarga==='sop' || m.par.modoCarga==='unidad' ? '' : `<div class="seg seg-vt" style="margin:6px 0"><button data-vt="0" class="${m.par.verTodo ? '' : 'on'}">Solo lo que corresponde</button><button data-vt="1" class="${m.par.verTodo ? 'on' : ''}">Todo el equipo</button></div>`}
       <div class="info">Calculado para <b>${H.c.hay ? H.c.n + ' hombres' : '1 hombre (indica el efectivo en Datos → Unidad y columna)'}</b>, ${M.verDur(H.c.horas)} de marcha y ${f(H.c.km, 1)} km${H.c.noche ? ', con ' + Math.round(H.c.noche*100) + ' % de noche' : ''}.
         El agua sale de la tabla de calor (${H.c.calorDato ? 'con el índice WBGT indicado' : 'sin índice WBGT: se usa calor bajo'}); las demás cantidades son <b>sugerencias</b>: escribe la tuya si la orden dice otra cosa.
         Aparecen solo los elementos que corresponden (noche, montaña, nieve, calor).</div>
       <h3 class="mat-parte">Carga de cada hombre</h3>
       ${cargaHtml(m, R)}
       ${integrantesHtml(m, R)}
-      ${m.par.modoCarga==='unidad' ? `<h3 class="mat-parte">Peso de cada integrante</h3>${unidadHtml(m, R)}` : m.par.modoCarga==='sop' ? `<h3 class="mat-parte">1. Peso de cada puesto según SOP</h3>${sopHtml(m, R)}` : `<h3 class="mat-parte">1. Equipo que llevan todos (por línea)</h3>
+      ${m.par.modoCarga==='unidad' ? `<h3 class="mat-parte">Peso de cada integrante</h3>${unidadHtml(m, R)}` : m.par.modoCarga==='sop' ? `<h3 class="mat-parte">3. Peso de cada puesto según SOP</h3>${sopHtml(m, R)}` : `<h3 class="mat-parte">3. Equipo que llevan todos (por línea)</h3>
       <div class="tarjeta">${H.lineas}</div>
-      <h3 class="mat-parte">2. Equipo de cada puesto (OME)</h3>
+      <h3 class="mat-parte">4. Equipo de cada puesto (OME)</h3>
       ${puestosHtml(m, R)}`}
-      ${H.resto && m.par.modoCarga!=='unidad' ? `<h3 class="mat-parte">${m.par.modoCarga==='sop' ? '2' : '3'}. Equipo especial común</h3><div class="tarjeta">${H.resto}</div>` : ''}
+      ${H.resto && m.par.modoCarga!=='unidad' ? `<h3 class="mat-parte">${m.par.modoCarga==='sop' ? '4' : '5'}. Equipo especial común</h3><div class="tarjeta">${H.resto}</div>` : ''}
       ${m.par.modoCarga==='unidad' ? '<div class="btns"><button class="btn pri" id="mtDoc">📄 Documento con la carga</button></div>' : `      <div class="tarjeta"><div class="campos"><label class="c ancho">Agregar otro elemento<input id="mtNuevo" placeholder="Ej: pala de campaña"></label><label class="c">Cantidad<input id="mtNuevoC" placeholder="Ej: 4"></label><label class="c">kg c/u<input id="mtNuevoK" placeholder="Ej: 1,2" inputmode="decimal"></label></div>
         <div class="btns"><button class="btn" id="mtAgregar">＋ Agregar</button><button class="btn" id="mtLimpia">Desmarcar todo</button><button class="btn pri" id="mtDoc">📄 Documento con el material</button></div></div>`}`;
     const cuenta = ()=>$('#mtCuenta').innerHTML = `<b>${hechos()} de ${tot}</b> listos.`; cuenta();
@@ -1129,7 +1149,13 @@
     vista.querySelectorAll('[data-mno]').forEach(b=>b.onclick = ()=>{ const o = Mt()[b.dataset.mno] || (Mt()[b.dataset.mno] = {}); if(o.no) delete o.no; else o.no = true; guardar(); const y = window.scrollY; pintar(); window.scrollTo(0, y); });
     vista.querySelectorAll('[data-mnom]').forEach(b=>b.onclick = ()=>{ const o = Mt()[b.dataset.mnom] || (Mt()[b.dataset.mnom] = {}); const v = prompt('Nombre del elemento (vacío = el nombre original)', o.nombre || '');
       if(v===null) return; if(v.trim()) o.nombre = v.trim(); else delete o.nombre; guardar(); const y = window.scrollY; pintar(); window.scrollTo(0, y); });
-    const vt = $('#mtVerTodo'); if(vt) vt.onchange = ()=>{ m.par.verTodo = vt.checked; guardar(); const y = window.scrollY; pintar(); window.scrollTo(0, y); };
+    vista.querySelectorAll('[data-mfed]').forEach(b=>b.onclick = ()=>{ const c = b.closest('.mf'); c.classList.toggle('abierta'); if(c.classList.contains('abierta')) mfAbiertos.add(b.dataset.mfed); else mfAbiertos.delete(b.dataset.mfed); });
+    vista.querySelectorAll('[data-vt]').forEach(b=>b.onclick = ()=>{ m.par.verTodo = b.dataset.vt==='1'; guardar(); const y = window.scrollY; pintar(); window.scrollTo(0, y); });
+    vista.querySelectorAll('[data-tipo-mat]').forEach(b=>b.onclick = ()=>{ m.par.tipoMat = b.dataset.tipoMat; if((b.dataset.tipoMat==='patrulla' || b.dataset.tipoMat==='invierno') && !(+m.par.dias>0)) m.par.dias = 1;
+      guardar(); const y = window.scrollY; pintar(); window.scrollTo(0, y); });
+    const md = $('#mtDias'); if(md) md.onchange = ()=>{ m.par.dias = String(Math.max(1, Math.round(+md.value.replace(',', '.') || 1))); guardar(); const y = window.scrollY; pintar(); window.scrollTo(0, y); };
+    vista.querySelectorAll('details.mat-lin, details.carga-det, details.puestos-ome').forEach(d=>d.addEventListener('toggle', ()=>{ let a = matAbiertas(); if(a==='todas' && d.open) return; if(a==='todas') a = [...vista.querySelectorAll('details.mat-lin, details.carga-det, details.puestos-ome')].map(x=>x.dataset.mlg);
+      const k = d.dataset.mlg; a = a.filter(x=>x!==k); if(d.open) a.push(k); try { localStorage.setItem('burros_matlin', JSON.stringify(a)); } catch(e){} }));
     vista.querySelectorAll('[data-men]').forEach(x=>x.onchange = ()=>{ const o = Mt()[x.dataset.men] || (Mt()[x.dataset.men] = {}); o.en = x.value; if(x.value!=='-') delete o.linea; guardar(); const y = window.scrollY; pintar(); window.scrollTo(0, y); });
     vista.querySelectorAll('[data-ml]').forEach(x=>x.onchange = ()=>{ const o = Mt()[x.dataset.ml] || (Mt()[x.dataset.ml] = {}); o.linea = +x.value; guardar(); const y = window.scrollY; pintar(); window.scrollTo(0, y); });
     vista.querySelectorAll('[data-mk]').forEach(x=>x.oninput = ()=>{ const o = Mt()[x.dataset.mk] || (Mt()[x.dataset.mk] = {}); o.kg = x.value; guardar(); recarga(); });
