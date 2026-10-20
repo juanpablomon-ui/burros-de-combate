@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.99.23', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.99.24', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -283,10 +283,10 @@
     i.onchange = ()=>{ const fl = i.files[0]; if(!fl) return; const r = new FileReader(); r.onload = ()=>cb(String(r.result), fl.name); r.readAsText(fl); }; i.click();
   }
   function importarArchivo(){
-    elegirArchivo('.json,.gpx,.kml,application/json,application/gpx+xml,application/vnd.google-earth.kml+xml', (t, nombre)=>{
+    elegirArchivo('', (t, nombre)=>{   // sin filtro (v0.99.24): el iPhone no deja elegir .gcarta ni .gpx si no los conoce
       // JSON de Burros (una marcha o varias, con todo: material, puestos, pesos): se agregan; si ya existe una con el mismo id, como copia
       // carta ya calzada que compartieron (v0.99.23)
-      if(/^\s*\{/.test(t) && /"app"\s*:\s*"burros-cartas?"/.test(t.slice(0, 200))){ Mapa.importarCartas(t).then(n=>aviso('✔ ' + (n===1 ? 'Carta ya calzada cargada' : n + ' cartas ya calzadas cargadas') + ': se ve en el Mapa (🗺 Cartas)')).catch(e=>aviso('⚠ ' + e.message)); return; }
+      if(/^\s*\{/.test(t) && (/\.gcarta$/i.test(nombre) || /"app"\s*:\s*"burros-cartas?"/.test(t.slice(0, 300)) || (/"image"\s*:\s*"data:image/.test(t.slice(0, 600)) && /"bounds"/.test(t)))){ Mapa.importarCartas(t).then(n=>aviso('✔ ' + (n===1 ? 'Carta ya calzada cargada' : n + ' cartas ya calzadas cargadas') + ': se ve en el Mapa (🗺 Cartas)')).catch(e=>aviso('⚠ ' + e.message)); return; }
       if(/^\s*\{/.test(t)){ try { const d = JSON.parse(t), ms = (d.marchas || (d.puntos ? [d] : [])).filter(x=>x && Array.isArray(x.puntos)); if(!ms.length) throw 0;
           const ids = new Set(S.marchas.map(x=>x.id)); let ult = null;
           ms.forEach(x=>{ const o = JSON.parse(JSON.stringify(x)); if(!o.id || ids.has(o.id)){ o.id = nid(); if(S.marchas.some(y=>y.nombre===o.nombre)) o.nombre += ' (importada)'; }

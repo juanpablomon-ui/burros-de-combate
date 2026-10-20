@@ -598,7 +598,7 @@ const Mapa = (function(){
     let cs = []; try { cs = await BD.todas(); } catch(e){}
     A.dialogo(`<h3>🗺 Cartas propias</h3>
       <p class="nota">Carga tu carta IGM o un croquis en <b>PDF</b> o como imagen (JPG o PNG) y cálzala con dos puntos de coordenadas conocidas (cruces de cuadrícula lejanos entre sí),
-        o carga una <b>carta ya calzada</b> que te compartieron (archivo <span class="mono">.carta.json</span>): queda lista sin calzar nada. Queda guardada en este equipo y se ve sin señal.</p>
+        o carga una <b>carta ya calzada</b> que te compartieron (archivo <span class="mono">.gcarta</span>, el mismo del TOQUI y de LONKO): queda lista sin calzar nada. Queda guardada en este equipo y se ve sin señal.</p>
       ${cs.map(c=>`<div class="tarjeta" style="padding:10px"><b>${A.esc(c.nombre)}</b>
         <div class="campos" style="margin-top:6px"><label class="c">Transparencia<input type="range" min="0.2" max="1" step="0.05" value="${c.opacidad || .8}" data-op="${c.id}"></label>
         <label class="c"><span><input type="checkbox" data-vis="${c.id}" ${c.visible!==false ? 'checked' : ''} style="width:auto"> Mostrar</span></label></div>
@@ -606,9 +606,9 @@ const Mapa = (function(){
       ${cs.length>1 ? '<div class="btns"><button class="btn" id="cTodas">↗ Compartir todas (' + cs.length + ')</button></div>' : ''}
       <p class="nota">Para pasar las cartas ya calzadas a otros teléfonos sin internet: <a href="#" id="cPaq">📦 Paquete para terreno</a>.</p>
       <div class="btns"><button class="btn pri" id="cNueva">＋ Cargar carta (PDF, imagen o carta compartida)</button><button class="btn" data-cerrar>Cerrar</button></div>`, d=>{
-      d.querySelector('#cNueva').onclick = ()=>{ const i = document.createElement('input'); i.type = 'file'; i.accept = 'image/*,application/pdf,.pdf,application/json,.json';
+      d.querySelector('#cNueva').onclick = ()=>{ const i = document.createElement('input'); i.type = 'file'; i.removeAttribute('accept');   // sin filtro: el iPhone no deja elegir extensiones que no conoce (.gcarta)
         i.onchange = ()=>{ const f = i.files[0]; if(!f) return; const nombre = f.name.replace(/\.\w+$/, '');
-          if(/json$/i.test(f.type) || /\.json$/i.test(f.name)){ const r = new FileReader(); r.onload = async()=>{ try { const n = await importarCartas(String(r.result)); A.aviso('✔ ' + (n===1 ? 'Carta cargada' : n + ' cartas cargadas') + ' ya calzada' + (n===1 ? '' : 's') + ': lista para usar'); dialogoCartas(); } catch(e){ A.aviso('⚠ ' + e.message); } }; r.readAsText(f); return; }
+          if(esCartaArchivo(f)){ const r = new FileReader(); r.onload = async()=>{ try { const n = await importarCartas(String(r.result)); A.aviso('✔ ' + (n===1 ? 'Carta cargada' : n + ' cartas cargadas') + ' ya calzada' + (n===1 ? '' : 's') + ': lista para usar'); dialogoCartas(); } catch(e){ A.aviso('⚠ ' + e.message); } }; r.readAsText(f); return; }
           if(/pdf$/i.test(f.type) || /\.pdf$/i.test(f.name)) return abrirPdf(f, nombre);
           const r = new FileReader(); r.onload = ()=>calzar(String(r.result), nombre); r.readAsDataURL(f); }; i.click(); };
       d.querySelector('#cPaq').onclick = e=>{ e.preventDefault(); A.paquete(); };
@@ -620,31 +620,35 @@ const Mapa = (function(){
       d.querySelectorAll('[data-del]').forEach(x=>x.onclick = async()=>{ await BD.borrar(x.dataset.del); await cargarCartas(); dialogoCartas(); });
     });
   }
-  /* ---------- compartir cartas ya calzadas (v0.99.23, pedido del usuario: «agregar una carta es muy engorroso; que alguien la mande o
-     comparta en un archivo»): «.carta.json» = {app:'burros-carta', v:1, nombre, bounds:[[s, o], [n, e]], img (data URL), opacidad} o, con
-     varias, {app:'burros-cartas', v:1, cartas:[…]}. Se comparte (WhatsApp, correo, AirDrop) o se descarga; al cargarlo queda calzada. */
-  const pickCarta = c=>({nombre:c.nombre, bounds:c.bounds, img:c.img, opacidad:c.opacidad || .8});
+  /* ---------- compartir cartas ya calzadas (v0.99.23–24, pedido del usuario: «agregar una carta es muy engorroso; que alguien la mande»;
+     «y formato gcarta»): se usa el formato **.gcarta** del graficador TOQUI y de LONKO, así una carta calzada en cualquiera de las tres
+     apps sirve en las otras: {version:1, name, bounds:[[s, o], [n, e]], opacity, image (data URL)} (+ app:'burros-carta'). Se lee también
+     el .carta.json de la v0.99.23 y las esquinas como {lat, lng}. Con varias cartas se comparten varios archivos a la vez. */
+  const aGcarta = c=>({version:1, app:'burros-carta', name:c.nombre, bounds:c.bounds, opacity:c.opacidad || .8, image:c.img});
+  const nombreArch = c=>String(c.nombre || 'carta').replace(/[^a-zA-Z0-9_\-áéíóúñÁÉÍÓÚÑ]/g, '_') + '.gcarta';
   async function compartirCartas(cs){
-    if(!cs.length) return; const una = cs.length===1;
-    const o = una ? Object.assign({app:'burros-carta', v:1, fecha:Date.now()}, pickCarta(cs[0])) : {app:'burros-cartas', v:1, fecha:Date.now(), cartas:cs.map(pickCarta)};
-    const nombre = (una ? cs[0].nombre : 'cartas_burros').replace(/[^\w\-]+/g, '_') + '.carta.json', txt = JSON.stringify(o);
-    const f = new File([txt], nombre, {type:'application/json'});
-    if(navigator.canShare && navigator.canShare({files:[f]})){
-      try { await navigator.share({files:[f], title:'Carta de Burros de Combate', text:'Carta ya calzada: ábrela en Burros de Combate → Mapa → 🗺 Cartas → Cargar carta'}); return A.aviso('✔ Carta compartida'); }
+    if(!cs.length) return;
+    const fs = cs.map(c=>new File([JSON.stringify(aGcarta(c))], nombreArch(c), {type:'application/json'}));
+    if(navigator.canShare && navigator.canShare({files:fs})){
+      try { await navigator.share({files:fs, title:'Carta de Burros de Combate', text:'Carta ya calzada (.gcarta): ábrela en Burros (Mapa → 🗺 Cartas → Cargar carta), en el TOQUI o en LONKO'}); return A.aviso('✔ ' + (fs.length===1 ? 'Carta compartida' : fs.length + ' cartas compartidas')); }
       catch(e){ if(e && e.name==='AbortError') return; } }
-    A.descargar(nombre, txt, 'application/json'); A.aviso('⬇ Archivo «' + nombre + '» descargado: mándalo por WhatsApp o correo; se carga en Mapa → 🗺 Cartas');
+    cs.forEach((c, i)=>setTimeout(()=>A.descargar(nombreArch(c), JSON.stringify(aGcarta(c)), 'application/json'), i*400));
+    A.aviso('⬇ ' + (cs.length===1 ? 'Archivo «' + nombreArch(cs[0]) + '» descargado' : cs.length + ' archivos .gcarta descargados') + ': mándalo por WhatsApp o correo');
   }
+  // esquinas: [[lat, lon], [lat, lon]] o [{lat, lng}, {lat, lng}]
+  const esquinas = b=>Array.isArray(b) && b.length===2 ? b.map(p=>Array.isArray(p) ? [+p[0], +p[1]] : p && typeof p==='object' ? [+p.lat, +(p.lng!==undefined ? p.lng : p.lon)] : null) : null;
   async function importarCartas(texto){
-    let d; try { d = JSON.parse(texto); } catch(e){ throw new Error('el archivo no es una carta de Burros de Combate'); }
-    const L = d && d.app==='burros-carta' ? [d] : d && d.app==='burros-cartas' && Array.isArray(d.cartas) ? d.cartas : null;
-    if(!L) throw new Error('el archivo no es una carta de Burros de Combate');
-    const ok = L.filter(c=>c && typeof c.img==='string' && /^data:image\//.test(c.img) && Array.isArray(c.bounds) && c.bounds.length===2 && c.bounds.every(p=>Array.isArray(p) && p.length===2 && p.every(isFinite)));
-    if(!ok.length) throw new Error('la carta no trae la imagen o su calce');
+    let d; try { d = JSON.parse(texto); } catch(e){ throw new Error('el archivo no es una carta calzada (.gcarta)'); }
+    const L = d && Array.isArray(d.cartas) ? d.cartas : [d];
+    const ok = L.map(c=>c && {nombre:c.name || c.nombre, img:c.image || c.img, bounds:esquinas(c.bounds), opacidad:+(c.opacity || c.opacidad) || .8})
+      .filter(c=>c && typeof c.img==='string' && /^data:image\//.test(c.img) && c.bounds && c.bounds.every(p=>p && p.every(x=>isFinite(x))));
+    if(!ok.length) throw new Error(L.some(c=>c && (c.image || c.img)) ? 'la carta no trae su calce' : 'el archivo no es una carta calzada (.gcarta)');
     const base = Date.now().toString(36);
-    for(let i=0; i<ok.length; i++){ const c = ok[i]; await BD.poner({id:base + i, nombre:String(c.nombre || 'Carta compartida'), img:c.img, bounds:c.bounds, opacidad:+c.opacidad || .8, visible:true}); }
+    for(let i=0; i<ok.length; i++){ const c = ok[i]; await BD.poner({id:base + i, nombre:String(c.nombre || 'Carta compartida'), img:c.img, bounds:c.bounds, opacidad:c.opacidad, visible:true}); }
     if(map){ await cargarCartas(); map.fitBounds(ok[ok.length - 1].bounds); }
     return ok.length;
   }
+  const esCartaArchivo = (f, t)=>/\.(gcarta|json)$/i.test(f.name) || /json/i.test(f.type) || (t!==undefined && /^\s*\{/.test(t));
 
   /* ---------- cartas en PDF (pdf.js 3.11.174 de Mozilla, Apache-2.0, el mismo del graficador; se carga solo al usarlo) ----------
      Se elige la página y se convierte en imagen de buena resolución (hasta 6.000 px de lado y 16 millones de píxeles, el límite del iPhone);
