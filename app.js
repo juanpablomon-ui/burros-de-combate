@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.99.17', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.99.18', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -82,20 +82,20 @@
   $('#pestanas').addEventListener('click', e=>{ const b = e.target.closest('button[data-v]'); if(b) ir(b.dataset.v); });
   // Perfil y Lista van dentro de la pestaña Cuadro
   // Perfil y Lista van dentro de Cuadro; Material va dentro de Datos de la marcha (pedido del usuario)
-  const PESTANA = {perfil:'cuadro', lista:'cuadro', resultado:'cuadro', material:'ruta'};
+  const PESTANA = {perfil:'cuadro', lista:'cuadro', resultado:'cuadro', matriz:'cuadro', material:'ruta'};
   const subDatos = ()=>`<div class="seg subv no-imp">${[['ruta', 'Ruta y cálculo'], ['material', 'Material y carga']].map(([k, n])=>`<button data-sv="${k}" class="${S.v===k ? 'on' : ''}">${n}</button>`).join('')}</div>`;
-  const subCuadro = ()=>`<div class="seg subv no-imp">${[['cuadro', 'Cuadro de marcha y navegación'], ['perfil', 'Perfil'], ['lista', 'Lista'], ['resultado', 'Resultado']].map(([k, n])=>`<button data-sv="${k}" class="${S.v===k ? 'on' : ''}">${n}</button>`).join('')}</div>`;
+  const subCuadro = ()=>`<div class="seg subv no-imp">${[['cuadro', 'Cuadro de marcha y navegación'], ['perfil', 'Perfil'], ['matriz', 'Matriz'], ['lista', 'Lista'], ['resultado', 'Resultado']].map(([k, n])=>`<button data-sv="${k}" class="${S.v===k ? 'on' : ''}">${n}</button>`).join('')}</div>`;
   vista.addEventListener('click', e=>{ const b = e.target.closest('[data-sv]'); if(b) ir(b.dataset.sv); });
   function pintar(){
     const m = actual(); if(!m && S.v!=='marchas' && S.v!=='seguir') S.v = 'marchas';
     if(S.v==='ficha') S.v = 'cuadro';   // la ficha de navegación ahora está dentro del cuadro
-    if(!({marchas:1, mapa:1, ruta:1, cuadro:1, perfil:1, lista:1, resultado:1, material:1, luz:1, seguir:1, enviar:1})[S.v]) S.v = 'marchas';
+    if(!({marchas:1, mapa:1, ruta:1, cuadro:1, perfil:1, lista:1, resultado:1, matriz:1, material:1, luz:1, seguir:1, enviar:1})[S.v]) S.v = 'marchas';
     if(S.v!=='mapa') Mapa.cerrar();
     if(S.v!=='seguir') Seguir.cerrar();
     document.body.classList.toggle('con-mapa', S.v==='mapa');
     document.querySelectorAll('#pestanas button').forEach(b=>{ b.classList.toggle('on', b.dataset.v===(PESTANA[S.v] || S.v)); b.disabled = !m && b.dataset.v!=='marchas' && b.dataset.v!=='seguir'; b.style.opacity = b.disabled ? .35 : 1; });
     $('#subtitulo').textContent = m ? m.nombre + (m.unidad ? ' · ' + m.unidad : '') : 'Planificación de marchas';
-    ({marchas:vMarchas, mapa:vMapa, ruta:vRuta, cuadro:vCuadro, perfil:vPerfil, material:vMaterial, luz:vLuz, lista:vLista, resultado:vResultado, seguir:vSeguir, enviar:vEnviar})[S.v]();
+    ({marchas:vMarchas, mapa:vMapa, ruta:vRuta, cuadro:vCuadro, perfil:vPerfil, material:vMaterial, luz:vLuz, lista:vLista, resultado:vResultado, matriz:vMatriz, seguir:vSeguir, enviar:vEnviar})[S.v]();
     if(S.v==='ruta' || S.v==='material') vista.insertAdjacentHTML('afterbegin', subDatos());
     else if(PESTANA[S.v] || S.v==='cuadro') vista.insertAdjacentHTML('afterbegin', subCuadro());
   }
@@ -1197,6 +1197,17 @@
     if(gp) gp.onclick = ()=>descargar(nomA + '_recorrido.gpx', Seguir.gpx((m.nombre || '') + ' — recorrido real', E.track), 'application/gpx+xml');
     enlazarRecorridos(m);
     const bo = $('#rBorrar'); if(bo) bo.onclick = ()=>confirmar('¿Borrar las horas reales anotadas?', ()=>{ delete m.ejec; guardar(); pintar(); });
+  }
+  // matriz de eventos (v0.99.18, pedido del usuario: verla en Cuadro): cada punto de control con su nombre clave y hora planificada; con
+  // la marcha en curso o terminada, la hora real y la diferencia (≈ estimada, saltado), y los altos y novedades registrados
+  function vMatriz(){
+    const m = actual(), R = M.calcular(m);
+    if(!R.tramos.length){ vista.innerHTML = '<div class="tarjeta vacio">Faltan datos: la marcha necesita al menos dos puntos con coordenadas y cota.</div>'; return; }
+    vista.innerHTML = `<h2>Matriz de eventos</h2><p class="nota">Los puntos de control en orden de marcha, con su nombre clave para la radio y la hora planificada.
+        Durante la marcha (pestaña Seguir) se completan la hora real y la diferencia con el plan.</p>
+      <div class="tabla-env">${Documento.matrizHtml(apiMapa, m, R)}</div>
+      <div class="btns"><button class="btn" id="mxDoc">📄 Documento con la matriz</button>${m.ejec && m.ejec.inicio && !m.ejec.manual ? '<button class="btn" id="mxSeg">Ir a Seguir</button>' : ''}</div>`;
+    $('#mxDoc').onclick = ()=>documento('matriz'); const sg = $('#mxSeg'); if(sg) sg.onclick = ()=>ir('seguir');
   }
   function vLista(){
     const LS = Uso.civil() ? Uso.LISTA : LISTA, ids = new Set(LS.flatMap(g=>g.items.map(x=>x[0])));

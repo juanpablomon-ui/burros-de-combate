@@ -168,8 +168,23 @@ const Seguir = (function(){
     L.circleMarker([pos.lat, pos.lon], {radius:8, color:'#fff', weight:3, fillColor:'#2a7fd4', fillOpacity:1}).addTo(capas);
     if(centrar){ if(primera){ mapa.setView([pos.lat, pos.lon], 15, {animate:false}); primera = false; } else mapa.panTo([pos.lat, pos.lon], {animate:false}); } }
   // navegación sola a un punto (sin marcha): la misma carta con las dos barras
+  // navegación sola a un punto: también con los tres tipos de pantalla (v0.99.18, pedido del usuario: «no puedo ver los tipos de pantalla»)
   function pintarSolo(c, P){
+    const ctrl = `<div class="s-ctrl">${modoVistaBtn()}<button class="btn" id="sOrient" title="Norte arriba o destino arriba" aria-label="Orientación"></button><button class="btn" id="sCapa" title="Cambiar el mapa" aria-label="Mapa">${ic('capa', 'Mapa')}</button><button class="btn" id="sCentrar" title="Centrar en mi posición" aria-label="Centrar">${ic('centro', 'Centrar')}</button></div>`;
+    if(modo==='nav'){
+      c.innerHTML = `<div class="seg s-modos">${MODOS.filter(([k])=>k!=='reg').map(([k, n])=>`<button data-smodo="${k}" class="${modo===k ? 'on' : ''}">${n}</button>`).join('')}</div>
+        <div class="tarjeta" id="sCab"></div><div class="s-acc"><button class="btn pri" id="sSoloFin">${ic('fin', 'Terminar la navegación')}</button></div>`;
+      c.querySelectorAll('[data-smodo]').forEach(b=>b.onclick = ()=>cambiarModo(b.dataset.smodo));
+      $('#sSoloFin').onclick = ()=>{ irSolo = null; pintar(); }; iniciarGps(); pintarSoloVivo(); return; }
     document.body.classList.add('con-mapa');
+    if(modo==='atak'){
+      c.innerHTML = `<div class="mapa-env s-carta s-atak${panelOculto ? ' oculto' : ''}"><div id="sMapa"></div><div class="s-franja" id="sFranja"></div>
+        <div class="s-panel"><div class="s-pcab" id="sCab"></div></div><button class="s-pest" id="sPest" aria-label="Mostrar u ocultar los datos"></button>
+        <div class="s-flecha s-flecha-g desvio" id="sFlecha">↑</div>${ctrl}<button class="btn pri s-pasando" id="sSoloFin">${ic('fin', 'Terminar la navegación')}</button></div>`;
+      const pe = $('#sPest'), env = c.querySelector('.s-atak'), pp = ()=>{ pe.innerHTML = panelOculto ? '‹' : '›'; env.classList.toggle('oculto', panelOculto); };
+      pp(); pe.onclick = ()=>{ panelOculto = !panelOculto; try { localStorage.setItem('burros_panel', panelOculto ? '1' : ''); } catch(e){} pp(); setTimeout(()=>{ if(mapa) mapa.invalidateSize({animate:false}); }, 300); };
+      $('#sSoloFin').onclick = ()=>{ irSolo = null; pintar(); };
+      centrar = true; hacerMapa(null); iniciarGps(); pintarSoloVivo(); return; }
     c.innerHTML = `<div class="mapa-env s-carta s-dos"><div id="sMapa"></div><div class="s-bsup" id="sCab"></div>
       <div class="s-flecha s-flecha-g desvio" id="sFlecha">↑</div><div class="s-ctrl">${modoVistaBtn()}<button class="btn" id="sOrient" title="Norte arriba o destino arriba" aria-label="Orientación"></button><button class="btn" id="sCapa" title="Cambiar el mapa" aria-label="Mapa">${ic('capa', 'Mapa')}</button><button class="btn" id="sCentrar" title="Centrar en mi posición" aria-label="Centrar">${ic('centro', 'Centrar')}</button></div>
       <div class="s-binf"><button class="btn pri" id="sSoloFin">${ic('fin', 'Terminar la navegación')}</button></div></div>`;
@@ -185,8 +200,14 @@ const Seguir = (function(){
     const r = pos ? M.rumboEntre(pos, irSolo, gr.zona, gr.dec) : null, V = velAhora();
     if(r){ c.dataset.az = r.azM; if(r.dist<=Math.max(40, 15 + (pos.acc || 0)) && !irSolo.llego){ irSolo.llego = true; if(navigator.vibrate) navigator.vibrate([200, 100, 200]); A.aviso('📍 Llegaste a ' + irSolo.nombre); } }
     const dist = r ? (r.dist>=1000 ? A.f(r.dist/1000, 2) + ' km' : A.f(r.dist) + ' m') : '—', cel = (rot, val, sub, cl)=>`<div class="bc"><span>${rot}</span><b class="${cl || ''}">${val}</b>${sub ? `<small>${sub}</small>` : ''}</div>`;
-    c.innerHTML = `<div class="bcs">${cel(irSolo.llego ? 'Llegaste a' : 'Ir a', A.esc(irSolo.nombre), 'en línea recta', 'desv')}${cel('Distancia', dist)}${cel('Rumbo mag.', r ? A.f(r.azM, 0) + '°' : '—', r ? r.mils + ' ‰' : '', 'ocre')}
-      ${cel('Ahora', V ? A.f(V, 1) + ' km/h' : '—', V ? M.verRitmo(V) : '')}${cel('Llega aprox.', r ? hh(ahora() + r.dist/1000/(V>1 ? V : 4)*36e5) : '—', 'a ' + A.f(V>1 ? V : 4, 1) + ' km/h')}${cel('GPS', pos ? '±' + Math.round(pos.acc || 0) + ' m' : '—', pos ? '' : 'esperando señal')}</div>`;
+    const celdas = `${cel(irSolo.llego ? 'Llegaste a' : 'Ir a', A.esc(irSolo.nombre), 'en línea recta', 'desv')}${cel('Distancia', dist)}${cel('Rumbo mag.', r ? A.f(r.azM, 0) + '°' : '—', r ? r.mils + ' ‰' : '', 'ocre')}
+      ${cel('Ahora', V ? A.f(V, 1) + ' km/h' : '—', V ? M.verRitmo(V) : '')}${cel('Llega aprox.', r ? hh(ahora() + r.dist/1000/(V>1 ? V : 4)*36e5) : '—', 'a ' + A.f(V>1 ? V : 4, 1) + ' km/h')}${cel('GPS', pos ? '±' + Math.round(pos.acc || 0) + ' m' : '—', pos ? '' : 'esperando señal')}`;
+    if(modo==='nav') c.innerHTML = `<div class="s-prox">🧭 <b class="clave-tx">${irSolo.llego ? 'LLEGASTE A' : 'IR A'} ${A.esc(irSolo.nombre)}</b><small>en línea recta</small></div>
+        <div class="s-grande"><div><span>Distancia</span><b>${dist}</b></div><div><span>Rumbo mag.</span><b class="ocre">${r ? A.f(r.azM, 0) + '°' : '—'}</b><small>${r ? r.mils + ' ‰' : ''}</small></div>
+          <div class="s-flecha" id="sFlecha" title="Dirección al punto según la brújula del teléfono">↑</div></div>
+        <div class="bcs">${cel('Ahora', V ? A.f(V, 1) + ' km/h' : '—', V ? M.verRitmo(V) : '')}${cel('Llega aprox.', r ? hh(ahora() + r.dist/1000/(V>1 ? V : 4)*36e5) : '—', 'a ' + A.f(V>1 ? V : 4, 1) + ' km/h')}${cel('GPS', pos ? '±' + Math.round(pos.acc || 0) + ' m' : '—', pos ? '' : 'esperando señal')}</div>`;
+    else if(modo==='atak'){ c.innerHTML = `<div class="pcs">${celdas}</div>`; const fr = $('#sFranja'); if(fr) fr.innerHTML = `<b class="clave-tx">${A.esc(irSolo.nombre)}</b><span>${dist}</span><b class="ocre">${r ? A.f(r.azM, 0) + '°' : '—'}</b>`; }
+    else c.innerHTML = `<div class="bcs">${celdas}</div>`;
     flecha(); if(mapa && capas){ capas.clearLayers(); L.circleMarker([irSolo.lat, irSolo.lon], {radius:12, color:'#6fb3d9', weight:3, fill:false}).addTo(capas);
       if(pos){ L.polyline([[pos.lat, pos.lon], [irSolo.lat, irSolo.lon]], {color:'#6fb3d9', weight:3, dashArray:'6 6'}).addTo(capas); L.circleMarker([pos.lat, pos.lon], {radius:8, color:'#fff', weight:3, fillColor:'#2a7fd4', fillOpacity:1}).addTo(capas);
         if(r) girar(azGiro(M.rumboEntre(pos, irSolo, gr.zona, 0).azG)); if(centrar) seguirPos(irSolo); } }
@@ -898,7 +919,7 @@ ${T.map(t=>`<trkpt lat="${t[0]}" lon="${t[1]}"><time>${new Date(t[2]).toISOStrin
     if(curvasS){ mapa.removeLayer(curvasS); curvasS = null; }
     if(pr.curvas!==false && typeof Curvas!=='undefined') curvasS = Curvas.capa({claro:base==='sat', pane:'curvas'}).addTo(mapa);
   }
-  const modoVistaBtn = ()=>(A && A.actual() && A.actual().ejec && A.actual().ejec.estado!=='fin' && !irSolo) ? `<button class="btn" id="sVista" title="Tipo de pantalla" aria-label="Pantalla">${ic('lista', 'Pantalla')}</button>` : '';
+  const modoVistaBtn = ()=>(irSolo || (A && A.actual() && A.actual().ejec && A.actual().ejec.estado!=='fin')) ? `<button class="btn" id="sVista" title="Tipo de pantalla" aria-label="Pantalla">${ic('lista', 'Pantalla')}</button>` : '';
   function marcarCentrar(){ const b = $('#sCentrar'); if(b) b.classList.toggle('pri', !centrar || explorando); }
   function controles(){
     const bo = $('#sOrient'), bc = $('#sCapa'), bz = $('#sCentrar'), bv = $('#sVista'); if(!bo) return; if(bv) bv.onclick = elegirVista;

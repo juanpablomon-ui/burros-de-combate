@@ -228,7 +228,7 @@ const Documento = (function(){
       let real = '', dif = '';
       if(E && E.inicio){ const j = sec.indexOf(p.i), x = E.llegadas ? E.llegadas[j] : null;
         if(x>0){ real = hh(x); const d = Math.round((x - (E.inicio + (hp - R.res.partida)*36e5))/60000); dif = (d>0 ? '+' : d<0 ? '−' : '±') + Math.abs(d) + ' min'; }
-        else if(x===-1) real = 'no marcado'; }
+        else if(x===-1) real = 'saltado'; if(x>0 && E.estim && E.estim[j]) real = '≈' + real; }
       return `<tr><td class="tx"><b>${esc(p.nombre)}</b></td><td class="tx">${p.clave ? A.evento(p.clave) : ''}</td><td>${M.verHora(hp)}</td><td>${real}</td><td>${dif}</td><td class="tx obs">${esc(p.obs)}${k===0 ? ' (inicio de marcha)' : ''}</td></tr>`; });
     let extra = '';
     if(E){ const ev = [];
@@ -376,6 +376,8 @@ const Documento = (function(){
     if(pie) pie.innerHTML = `Escala ${d.escala==='auto' ? 'aproximada ' : ''}1:${A.f(d.escala==='auto' ? esc : +d.escala)} (al imprimir al 100 %) · cuadrícula UTM zona ${zona} · ruta en ${(RUTAS[d.ruta] || RUTAS.azul)[0].toLowerCase()}; eventos con nombre clave y hora.
       ${cabe ? '' : '<br><b>La ruta no cabe completa a esta escala: se muestra la parte central. Usa «Ajustar a la ruta» u otra escala.</b>'}`;
   }
-  return {abrir, cerrar, exportar, SECCIONES};
+  // la matriz también se ve en Cuadro → Matriz (v0.99.18, pedido del usuario)
+  function matrizHtml(api, m, R){ if(!A) A = api; return matriz(m, R); }
+  return {abrir, cerrar, exportar, SECCIONES, matrizHtml};
 })();
 if(typeof globalThis!=='undefined') globalThis.Documento = Documento;
