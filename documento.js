@@ -85,6 +85,7 @@ const Documento = (function(){
   function cerrar(){ const ov = $('#docVista'); if(ov){ ov.hidden = true; ov.innerHTML = ''; } if(mapaDoc){ try { mapaDoc.remove(); } catch(e){} mapaDoc = null; }
     document.body.classList.remove('con-doc'); const st = $('#docPagina'); if(st) st.remove(); }
   function imprimir(){
+    try { const m = A.actual(); m.difundido = Date.now(); A.guardar(); } catch(e){}   // para la guía: el plan ya salió (v0.99.20)
     document.body.classList.add('doc-imprimir');
     const fin = ()=>{ document.body.classList.remove('doc-imprimir'); removeEventListener('afterprint', fin); };
     addEventListener('afterprint', fin);

@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.99.19', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.99.20', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -79,6 +79,26 @@
     const abajo = getComputedStyle(t).position==='fixed' ? t.offsetHeight : 0; document.documentElement.style.setProperty('--alto-libre', Math.max(200, window.innerHeight - h.offsetHeight - abajo) + 'px'); }
   addEventListener('resize', ()=>{ medirAlto(); setTimeout(medirAlto, 300); }); addEventListener('orientationchange', ()=>setTimeout(medirAlto, 400)); setTimeout(medirAlto, 0);
   function ir(v){ S.v = v; guardar(); pintar(); window.scrollTo(0, 0); }
+  /* guía de la marcha y ayuda (v0.99.20): datos para el semáforo, ir al paso (y a su sección) y «¿Qué hago aquí?» */
+  function ctxGuia(m){
+    const R = M.calcular(m), LS = Uso.civil() ? Uso.LISTA : LISTA, g = LS[0], L = m.lista || {};
+    const ok = R.puntos.filter(p=>p.ok), zonaOk = ok.length>0 && Zonas.lista().some(z=>z.caja && ok.every(p=>p.lat>=z.caja[0] && p.lat<=z.caja[2] && p.lon>=z.caja[1] && p.lon<=z.caja[3]));
+    return {R, civil:Uso.civil(), lista:{t:g.items.length, h:g.items.filter(x=>L[x[0]]).length}, zonaOk};
+  }
+  function irA(d){
+    if(!d) return; ir(d.v);
+    if(d.zonas) return setTimeout(()=>{ const b = $('#mZonas'); if(b) b.click(); }, 400);
+    if(d.sec) setTimeout(()=>{ const el = [...vista.querySelectorAll('summary, .btn')].find(x=>x.textContent.includes(d.sec)); if(!el) return;
+      const det = el.closest('details'); if(det) det.open = true; el.scrollIntoView({block:'center'}); el.classList.add('resalta'); setTimeout(()=>el.classList.remove('resalta'), 2500); }, 150);
+  }
+  function abrirEjemplo(v){ let e = S.marchas.find(x=>/\(EJEMPLO\)/.test(x.nombre)); if(!e) e = ejemplo(); S.actual = e.id; guardar(); ir(v); aviso('Abriste la marcha de ejemplo; vuelve a la tuya en Marchas'); }
+  function enlazarAyuda(cont, v, enDialogo){
+    cont.querySelectorAll('[data-ay]').forEach(b=>b.onclick = ()=>{ const k = b.dataset.ay;
+      if(enDialogo) cerrarDialogo(); else { Guia.marcarVisto(v); const c = $('#ayudaC'); if(c) c.remove(); }
+      if(k==='no'){ Guia.poner(false); aviso('Modo ayuda apagado: el botón ? de arriba sigue explicando cada pantalla'); }
+      if(k==='ej') abrirEjemplo(v); }); }
+  $('#bAyuda').onclick = ()=>{ const v = PESTANA[S.v] && Guia.AYUDA[S.v] ? S.v : S.v; if(!Guia.AYUDA[v]) return aviso('Sin ayuda para esta pantalla');
+    dialogo(Guia.tarjeta(v, true), d=>enlazarAyuda(d, v, true)); };
   $('#pestanas').addEventListener('click', e=>{ const b = e.target.closest('button[data-v]'); if(b) ir(b.dataset.v); });
   // Perfil y Lista van dentro de la pestaña Cuadro
   // Perfil y Lista van dentro de Cuadro; Material va dentro de Datos de la marcha (pedido del usuario)
@@ -98,6 +118,10 @@
     ({marchas:vMarchas, mapa:vMapa, ruta:vRuta, cuadro:vCuadro, perfil:vPerfil, material:vMaterial, luz:vLuz, lista:vLista, resultado:vResultado, matriz:vMatriz, seguir:vSeguir, enviar:vEnviar})[S.v]();
     if(S.v==='ruta' || S.v==='material') vista.insertAdjacentHTML('afterbegin', subDatos());
     else if(PESTANA[S.v] || S.v==='cuadro') vista.insertAdjacentHTML('afterbegin', subCuadro());
+    // modo ayuda: la primera vez en cada pantalla, qué se hace aquí (no en el Mapa ni en Seguir, que son a pantalla completa: ahí el botón ?)
+    if(Guia.encendida() && !Guia.vistos()[S.v] && Guia.AYUDA[S.v] && S.v!=='mapa' && S.v!=='seguir'){
+      const sub = vista.querySelector('.subv'); if(sub) sub.insertAdjacentHTML('afterend', Guia.tarjeta(S.v)); else vista.insertAdjacentHTML('afterbegin', Guia.tarjeta(S.v));
+      enlazarAyuda(vista, S.v, false); }
   }
 
   /* =====================================================================  MARCHAS  */
@@ -111,9 +135,11 @@
         <div class="d">${ok ? km(r.res.dist) + ' km · +' + f(r.res.sube) + ' m · ' + M.verDur(r.res.total) : (m.puntos.length + ' puntos · faltan datos')}</div></div>
         <span class="flecha">${m.id===S.actual ? `<button class="btn mini" data-cierra="${m.id}" title="Deja la marcha guardada, sin seleccionar">Cerrar</button> ` : ''}<button class="btn mini" data-dup="${m.id}">Duplicar</button> <button class="btn mini peligro" data-borra="${m.id}">Borrar</button></span></div>`;
     }).join('');
-    vista.innerHTML = `<div class="tarjeta uso"><div class="uso-t">${S.uso ? 'Uso de la app' : '¿Cómo vas a usar Burros de Combate?'}</div>
+    const mA = actual(), G = mA ? Guia.html(mA, ctxGuia(mA)) : null;
+    vista.innerHTML = `${G ? `<h2>${esc(mA.nombre)}</h2>` + G.html : ''}<div class="tarjeta uso"><div class="uso-t">${S.uso ? 'Uso de la app' : '¿Cómo vas a usar Burros de Combate?'}</div>
         <div class="seg"><button data-uso="militar" class="${Uso.civil() ? '' : 'on'}">🪖 Militar</button><button data-uso="civil" class="${Uso.civil() ? 'on' : ''}">🥾 Civil</button></div>
-        <p class="nota">${Uso.civil() ? 'Montañismo, trekking, scouts, guías y rescate: sin armamento ni términos militares; plan de ruta para tu contacto de emergencia.' : 'Marchas militares: líneas de carga, nombres clave, mensajes al C2 y orden gráfica.'} Cambia cuando quieras: el cálculo es el mismo.</p></div>
+        <p class="nota">${Uso.civil() ? 'Montañismo, trekking, scouts, guías y rescate: sin armamento ni términos militares; plan de ruta para tu contacto de emergencia.' : 'Marchas militares: líneas de carga, nombres clave, mensajes al C2 y orden gráfica.'} Cambia cuando quieras: el cálculo es el mismo.</p>
+        <div class="btns"><button class="btn mini${Guia.encendida() ? ' on' : ''}" id="bModoAy">❔ Modo ayuda: ${Guia.encendida() ? 'encendido' : 'apagado'}</button></div></div>
       <h2>Mis marchas</h2>
       ${lista || `<div class="tarjeta vacio">Aún no hay marchas.<br>Crea una nueva o abre el ejemplo para ver cómo funciona.</div>`}
       <div class="btns"><button class="btn pri" id="bNueva">＋ Nueva marcha</button><button class="btn" id="bEjemplo">Ver ejemplo</button>
@@ -147,6 +173,8 @@
         return confirmar('¿Borrar la marcha «' + x.nombre + '»? No se puede deshacer.', ()=>{ S.marchas = S.marchas.filter(y=>y!==x); if(S.actual===x.id) S.actual = null; guardar(); pintar(); }); }
       S.actual = d.dataset.abrir; ir('mapa'); });
     vista.querySelectorAll('[data-uso]').forEach(b=>b.onclick = ()=>{ S.uso = b.dataset.uso; Uso.poner(S.uso); guardar(); pintar(); aviso(Uso.civil() ? '🥾 Uso civil' : '🪖 Uso militar'); });
+    vista.querySelectorAll('[data-gpaso]').forEach(b=>b.onclick = e=>{ e.stopPropagation(); const x = G.pasos.find(y=>y.k===+b.dataset.gpaso); if(x) irA(x.ir); });
+    $('#bModoAy').onclick = ()=>{ Guia.poner(!Guia.encendida()); aviso(Guia.encendida() ? '❔ Modo ayuda encendido: en cada pantalla aparece qué hacer' : 'Modo ayuda apagado (el botón ? sigue arriba)'); pintar(); };
     $('#bNueva').onclick = ()=>{ nueva(); ir('mapa'); };
     $('#bEjemplo').onclick = ()=>{ ejemplo(); ir('cuadro'); };
     $('#bImportar').onclick = importarArchivo;
@@ -1281,7 +1309,7 @@
     if($('#bQr')) $('#bQr').onclick = ()=>{
       try { const q = qrcode(0, 'L'); q.addData(cod, 'Byte'); q.make(); $('#qr').innerHTML = `<div class="qr">${q.createSvgTag({cellSize:4, margin:2, scalable:true})}</div><p class="nota">Léelo con «Recibir plan» en el otro equipo.</p>`; }
       catch(e){ $('#qr').innerHTML = '<div class="alerta">La ruta es demasiado larga para un QR: usa el archivo o el código.</div>'; } };
-    $('#bEnviar').onclick = async()=>{ const r = await enviar(S.envDest, sel); if(r==='compartido') aviso('✔ Enviado'); else if(r==='descargado') aviso('⬇ Archivo descargado' + (S.envDest==='wsp' ? ' y resumen copiado' : '')); else if(r==='copiado') aviso('📋 Mensaje copiado'); };
+    $('#bEnviar').onclick = async()=>{ const r = await enviar(S.envDest, sel); if(r){ sel.forEach(x=>{ const mm = x && x.m ? x.m : S.marchas.find(y=>y.id===x); if(mm) mm.difundido = Date.now(); }); guardar(); } if(r==='compartido') aviso('✔ Enviado'); else if(r==='descargado') aviso('⬇ Archivo descargado' + (S.envDest==='wsp' ? ' y resumen copiado' : '')); else if(r==='copiado') aviso('📋 Mensaje copiado'); };
   }
   function textoEnvio(dest, x){ return dest==='contacto' ? planCivil(x.m, x.R) : dest==='wsp' ? BDC.lineaPlan(x.m, x.R) : BDC.mensajePlan(x.m, x.R); }
   async function enviar(dest, sel){
