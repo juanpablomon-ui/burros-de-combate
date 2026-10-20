@@ -25,6 +25,13 @@ const Guia = (function(){
     paso(2, 'A', 'Cálculo de tiempos', hayRuta ? 'v' : 'g', hayRuta ? (M.METODOS[p.metodo] || '').split(':')[0].replace(/\s*\(.*$/, '').toLowerCase() : '', {v:'ruta', sec:'Cálculo de tiempos'});
     const conMaterial = Object.keys(m.material || {}).length>0 || p.cargaManual;   // se tocó algo del material, o la carga se escribió a mano
     if(!(+p.efectivo>0)) paso(3, 'A', 'Unidad y material', 'r', 'falta efectivo', {v:'ruta', sec:'Unidad y columna'}, {t:'Falta el efectivo', p:'Sin él no se calcula la columna ni la carga de cada uno'});
+    // qué se revisa depende de cómo se calcula la carga (v0.99.25, pedido del usuario): por elementos → el material; por SOP → los kilos del
+    // SOP; por peso de la unidad (balanza) → que estén anotados los pesos, no el material
+    else if(p.modoCarga==='unidad'){ const n = Math.max(1, Math.round(+p.efectivo)), k = (m.pesoUnidad || []).slice(0, n).filter(x=>x && Object.values(x).some(v=>v!=='' && v!==null && v!==undefined)).length;
+      if(k>=n) paso(3, 'A', 'Unidad y material', 'v', 'pesos de ' + n + (civil ? ' personas' : ' hombres'), {v:'material'});
+      else paso(3, 'A', 'Unidad y material', 'a', k ? k + ' de ' + n + ' pesados' : 'faltan los pesos', {v:'material'}, {t:k ? 'Faltan pesos de la unidad: ' + k + ' de ' + n : 'Faltan los pesos de la unidad', p:'Anota el peso de cada integrante (en la balanza o por líneas); con eso se calcula la marcha'}); }
+    else if(p.modoCarga==='sop'){ if(Object.keys(m.sop || {}).length) paso(3, 'A', 'Unidad y material', 'v', 'pesos según SOP', {v:'material'});
+      else paso(3, 'A', 'Unidad y material', 'a', 'SOP sin revisar', {v:'material'}, {t:'Pesos del SOP sin revisar', p:'Revisa los kilos por línea de cada puesto según el SOP de tu unidad (vacío = lo que da el detalle)'}); }
     else if(!conMaterial) paso(3, 'A', 'Unidad y material', 'a', 'material sin revisar', {v:'material'}, {t:'Material sin revisar', p:'La carga sale de lo escrito (' + fmt(p.carga || 20) + ' kg), no del material que se lleva'});
     else paso(3, 'A', 'Unidad y material', 'v', fmt(p.efectivo) + (civil ? ' personas' : ' hombres'), {v:'material'});
     if(!m.fecha) paso(4, 'A', 'Luz, calor y agua', 'r', 'sin fecha', {v:'ruta', sec:'Fecha, hora y coordenadas'}, {t:'Sin fecha', p:'Sin fecha no se calculan la luz, la luna ni la declinación'});
