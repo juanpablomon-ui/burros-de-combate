@@ -10,6 +10,13 @@ const Seguir = (function(){
     x:'<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>', capa:'<path d="M12 4l9 5-9 5-9-5z"/><path d="M3 14l9 5 9-5"/>', centro:'<circle cx="12" cy="12" r="6.5"/><path d="M12 2.5v4M12 17.5v4M2.5 12h4M17.5 12h4"/><circle cx="12" cy="12" r="1.2"/>',
     norte:'<path d="M12 3.5l5 15-5-3.5-5 3.5z"/>', dest:'<path d="M12 4v16M6 10l6-6 6 6"/>', pos:'<circle cx="12" cy="11" r="3"/><path d="M12 21s-7-6.2-7-11a7 7 0 0114 0c0 4.8-7 11-7 11z"/>', horiz:'<path d="M2 17l6-7 4 4 3-3 7 6"/><path d="M2 20h20"/>', lista:'<path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" />'};
   const ic = (n, t)=>`<svg class="ico s-ico" viewBox="0 0 24 24" aria-hidden="true">${IC[n]}</svg><span>${t}</span>`;
+  // puntero de la brújula (v0.99.28, elegido por el usuario): sobre la carta una punta de flecha maciza (A); en Navegar y en los datos
+  // de la marcha un anillo con la marca hacia el punto y al centro cuánto girar y hacia qué lado (C). Verde < 10°, ocre, rojo > 90°.
+  const punteroCarta = `<svg viewBox="-50 -50 100 100" aria-hidden="true"><path class="fa" d="M0,-42 L23,17 L0,5 L-23,17 Z"/></svg>`;
+  const punteroAnillo = `<div class="s-anillo" title="Dirección al punto según la brújula del teléfono"><svg viewBox="-80 -80 160 160" aria-hidden="true">
+    <circle class="an-fondo" r="72"/><circle class="an-pista" r="60"/>
+    <g class="an-gira" id="sFlecha"><circle r="80" fill="none"/><circle class="an-arco" r="60" pathLength="360" stroke-dasharray="40 320" transform="rotate(-110)"/><path class="an-punta" d="M0,-79 L13,-53 L-13,-53 Z"/></g>
+    <text class="an-num" id="sGiro" y="8">—</text><text class="an-sub" id="sGiroTx" y="31"></text></svg></div>`;
   let plegada = false; try { plegada = localStorage.getItem('burros_barra')==='1'; } catch(e){}
   let irSolo = null, eligiendo = null;
   let A = null, watch = null, pos = null, rumboDisp = null, wake = null, mapa = null, capas = null, centrar = true;
@@ -180,13 +187,13 @@ const Seguir = (function(){
     if(modo==='atak'){
       c.innerHTML = `<div class="mapa-env s-carta s-atak${panelOculto ? ' oculto' : ''}"><div id="sMapa"></div><div class="s-franja" id="sFranja"></div>
         <div class="s-panel"><div class="s-pcab" id="sCab"></div></div><button class="s-pest" id="sPest" aria-label="Mostrar u ocultar los datos"></button>
-        <div class="s-flecha s-flecha-g desvio" id="sFlecha">↑</div>${ctrl}<button class="btn pri s-pasando" id="sSoloFin">${ic('fin', 'Terminar la navegación')}</button></div>`;
+        <div class="s-flecha s-flecha-g desvio" id="sFlecha">${punteroCarta}</div>${ctrl}<button class="btn pri s-pasando" id="sSoloFin">${ic('fin', 'Terminar la navegación')}</button></div>`;
       const pe = $('#sPest'), env = c.querySelector('.s-atak'), pp = ()=>{ pe.innerHTML = panelOculto ? '‹' : '›'; env.classList.toggle('oculto', panelOculto); };
       pp(); pe.onclick = ()=>{ panelOculto = !panelOculto; try { localStorage.setItem('burros_panel', panelOculto ? '1' : ''); } catch(e){} pp(); setTimeout(()=>{ if(mapa) mapa.invalidateSize({animate:false}); }, 300); };
       $('#sSoloFin').onclick = ()=>{ irSolo = null; pintar(); };
       centrar = true; hacerMapa(null); iniciarGps(); pintarSoloVivo(); return; }
     c.innerHTML = `<div class="mapa-env s-carta s-dos"><div id="sMapa"></div><div class="s-bsup" id="sCab"></div>
-      <div class="s-flecha s-flecha-g desvio" id="sFlecha">↑</div><div class="s-ctrl">${modoVistaBtn()}<button class="btn" id="sOrient" title="Norte arriba o destino arriba" aria-label="Orientación"></button><button class="btn" id="sCapa" title="Cambiar el mapa" aria-label="Mapa">${ic('capa', 'Mapa')}</button><button class="btn" id="sCentrar" title="Centrar en mi posición" aria-label="Centrar">${ic('centro', 'Centrar')}</button></div>
+      <div class="s-flecha s-flecha-g desvio" id="sFlecha">${punteroCarta}</div><div class="s-ctrl">${modoVistaBtn()}<button class="btn" id="sOrient" title="Norte arriba o destino arriba" aria-label="Orientación"></button><button class="btn" id="sCapa" title="Cambiar el mapa" aria-label="Mapa">${ic('capa', 'Mapa')}</button><button class="btn" id="sCentrar" title="Centrar en mi posición" aria-label="Centrar">${ic('centro', 'Centrar')}</button></div>
       <div class="s-binf"><button class="btn pri" id="sSoloFin">${ic('fin', 'Terminar la navegación')}</button></div></div>`;
     $('#sSoloFin').onclick = ()=>{ irSolo = null; pintar(); };
     centrar = true; hacerMapa(null); iniciarGps(); pintarSoloVivo();   // sin la ruta de ninguna marcha: solo tu ubicación y el destino (v0.99.4)
@@ -204,7 +211,7 @@ const Seguir = (function(){
       ${cel('Ahora', V ? A.f(V, 1) + ' km/h' : '—', V ? M.verRitmo(V) : '')}${cel('Llega aprox.', r ? hh(ahora() + r.dist/1000/(V>1 ? V : 4)*36e5) : '—', 'a ' + A.f(V>1 ? V : 4, 1) + ' km/h')}${cel('GPS', pos ? '±' + Math.round(pos.acc || 0) + ' m' : '—', pos ? '' : 'esperando señal')}`;
     if(modo==='nav') c.innerHTML = `<div class="s-prox">🧭 <b class="clave-tx">${irSolo.llego ? 'LLEGASTE A' : 'IR A'} ${A.esc(irSolo.nombre)}</b><small>en línea recta</small></div>
         <div class="s-grande"><div><span>Distancia</span><b>${dist}</b></div><div><span>Rumbo mag.</span><b class="ocre">${r ? A.f(r.azM, 0) + '°' : '—'}</b><small>${r ? r.mils + ' ‰' : ''}</small></div>
-          <div class="s-flecha" id="sFlecha" title="Dirección al punto según la brújula del teléfono">↑</div></div>
+          ${punteroAnillo}</div>
         <div class="bcs">${cel('Ahora', V ? A.f(V, 1) + ' km/h' : '—', V ? M.verRitmo(V) : '')}${cel('Llega aprox.', r ? hh(ahora() + r.dist/1000/(V>1 ? V : 4)*36e5) : '—', 'a ' + A.f(V>1 ? V : 4, 1) + ' km/h')}${cel('GPS', pos ? '±' + Math.round(pos.acc || 0) + ' m' : '—', pos ? '' : 'esperando señal')}</div>`;
     else if(modo==='atak'){ c.innerHTML = `<div class="pcs">${celdas}</div>`; const fr = $('#sFranja'); if(fr) fr.innerHTML = `<b class="clave-tx">${A.esc(irSolo.nombre)}</b><span>${dist}</span><b class="ocre">${r ? A.f(r.azM, 0) + '°' : '—'}</b>`; }
     else c.innerHTML = `<div class="bcs">${celdas}</div>`;
@@ -664,7 +671,7 @@ const Seguir = (function(){
       document.body.classList.add('con-mapa');
       c.innerHTML = `<div class="mapa-env s-carta s-dos"><div id="sMapa"></div>
         <div class="s-bsup${plegada ? ' plegada' : ''}" id="sCab" title="Tocar para achicar o agrandar"></div>
-        <div class="s-flecha s-flecha-g" id="sFlecha" title="Hacia el próximo punto, según la brújula del teléfono">↑</div>
+        <div class="s-flecha s-flecha-g" id="sFlecha" title="Hacia el próximo punto, según la brújula del teléfono">${punteroCarta}</div>
         <div class="s-ctrl">${modoVistaBtn()}<button class="btn" id="sOrient" title="Norte arriba o destino arriba" aria-label="Orientación"></button><button class="btn" id="sCapa" title="Cambiar el mapa" aria-label="Mapa">${ic('capa', 'Mapa')}</button><button class="btn" id="sCentrar" title="Centrar en mi posición" aria-label="Centrar">${ic('centro', 'Centrar')}</button></div>
         <div class="s-binf"><button class="btn pri" id="sLleg"></button>${bAlto}<button class="btn" id="sNov">${ic('nov', 'Novedad')}</button>${bIr}<button class="btn" id="sMas">${ic('mas', 'Más')}</button><button class="btn peligro" id="sFin">${ic('fin', 'Fin')}</button></div></div>`;
     } else if(modo==='atak'){
@@ -674,7 +681,7 @@ const Seguir = (function(){
         <div class="s-franja" id="sFranja"></div>
         <div class="s-panel"><div class="s-pcab" id="sCab"></div><div class="s-pbtn">${bAlto}${bIr}<button class="btn" id="sMas">${ic('mas', 'Más')}</button><button class="btn peligro" id="sFin">${ic('fin', 'Fin')}</button></div></div>
         <button class="s-pest" id="sPest" aria-label="Mostrar u ocultar los datos"></button>
-        <div class="s-flecha s-flecha-g" id="sFlecha" title="Hacia el próximo punto, según la brújula del teléfono">↑</div>
+        <div class="s-flecha s-flecha-g" id="sFlecha" title="Hacia el próximo punto, según la brújula del teléfono">${punteroCarta}</div>
         <div class="s-ctrl">${modoVistaBtn()}<button class="btn" id="sOrient" title="Norte arriba o destino arriba" aria-label="Orientación"></button><button class="btn" id="sCapa" title="Cambiar el mapa" aria-label="Mapa">${ic('capa', 'Mapa')}</button><button class="btn" id="sCentrar" title="Centrar en mi posición" aria-label="Centrar">${ic('centro', 'Centrar')}</button></div>
         <button class="btn pri s-pasando" id="sLleg"></button></div>`;
     } else if(modo==='nav'){
@@ -745,7 +752,7 @@ const Seguir = (function(){
       c.innerHTML = `<div class="s-estado"><span>⏱ ${dur(t - E.inicio)} de marcha</span><span class="hud-est ${cls}">${at===null ? '' : dif(at)}</span></div>${enAlto}
         ${p || O ? `<div class="s-prox">${O ? `🧭 <b class="clave-tx">${O.vuelta ? 'VOLVER A LA RUTA' : 'IR A ' + A.esc(O.nombre)}</b><small>${A.esc(O.modo)} · en línea recta</small>` : `PRÓXIMO <b class="clave-tx">${A.esc(rotulo(p))}</b><small>${A.esc(p.clave ? p.nombre + (p.obs ? ' · ' + p.obs : '') : p.obs || '')}</small>`}</div>
         <div class="s-grande"><div><span>Distancia</span><b>${dist}</b></div><div><span>Rumbo mag.</span><b class="ocre">${rumbo}</b><small>${mils}</small></div>
-          <div class="s-flecha" id="sFlecha" title="Dirección al punto según la brújula del teléfono">↑</div></div>
+          ${punteroAnillo}</div>
         ${quiebre ? `<div class="nota">↪ ${quiebre}</div>` : ''}` : ''}${velHtml(velocidades(m, P, k, ke), p ? {plan:hh(E.inicio + p.lleg*3600000), est:at!==null ? hh(E.inicio + p.lleg*3600000 + at*60000) : ''} : null)}${fuera}<div class="nota mono" id="sGps">${gps}</div>`;
     }
     flecha();
@@ -780,15 +787,26 @@ const Seguir = (function(){
   // la flecha gira por el camino corto (v0.99.27: de 359° a 1° daba una vuelta entera por la animación)
   let flechaAcum = null;
   const angFlecha = a=>{ flechaAcum = flechaAcum===null ? ((a%360) + 360)%360 : flechaAcum + ((((a - flechaAcum)%360) + 540)%360 - 180); return +flechaAcum.toFixed(1); };
+  // color según cuánto hay que girar (d: -180..180, null sin brújula) y, en el anillo, los grados y el lado; vibra al quedar de frente (Android)
+  let estRumbo = '';
+  function marcarRumbo(f, d){
+    const ab = d===null ? null : Math.abs(d), est = ab===null ? '' : ab < 10 ? 'ok' : ab > 90 ? 'lejos' : 'cerca', cont = f.closest('.s-anillo') || f;
+    ['ok', 'cerca', 'lejos'].forEach(k=>cont.classList.toggle('r-' + k, est===k));
+    if(est==='ok' && estRumbo && estRumbo!=='ok' && navigator.vibrate) navigator.vibrate(60);
+    estRumbo = est;
+    const g = $('#sGiro'), gt = $('#sGiroTx'); if(!g) return;
+    g.textContent = ab===null ? '—' : Math.round(ab) + '°';
+    gt.textContent = ab===null ? 'sin brújula' : ab < 3 ? 'de frente' : d > 0 ? 'a la derecha' : 'a la izquierda';
+  }
   function flecha(){
     // panorama del horizonte abierto: mover la línea de la brújula y centrarla
     const g = document.getElementById('hRumbo'), env = document.getElementById('sHorEnv');
     if(g && env && rumboDisp){ const h = rumboDisp.mag ? rumboDisp.h : rumboDisp.h - horDec, x = ((h%360) + 360)%360/360*1440;
       g.setAttribute('transform', 'translate(' + x.toFixed(1) + ',0)'); env.scrollLeft = x - env.clientWidth/2; }
     const f = $('#sFlecha'), c = $('#sCab'); if(!f || !c || c.dataset.az===undefined) return;
-    if(!rumboDisp){ f.style.opacity = f.classList.contains('s-flecha-g') ? .9 : .25; if(f.classList.contains('s-flecha-g')) f.style.transform = 'rotate(' + angFlecha(+c.dataset.az + decPlan() - (giro || 0)) + 'deg)'; f.title = 'Sin brújula: apunta con el norte hacia arriba, como la carta'; return; }
+    if(!rumboDisp){ f.style.opacity = f.classList.contains('s-flecha-g') ? .9 : .35; if(f.classList.contains('s-flecha-g')) f.style.transform = 'rotate(' + angFlecha(+c.dataset.az + decPlan() - (giro || 0)) + 'deg)'; f.title = 'Sin brújula: apunta con el norte hacia arriba, como la carta'; marcarRumbo(f, null); return; }
     const dec = decPlan(), h = rumboDisp.mag ? rumboDisp.h : rumboDisp.h - dec;
-    f.style.opacity = 1; f.style.transform = 'rotate(' + angFlecha(+c.dataset.az - h) + 'deg)';
+    f.style.opacity = 1; f.style.transform = 'rotate(' + angFlecha(+c.dataset.az - h) + 'deg)'; marcarRumbo(f, ((((+c.dataset.az - h)%360) + 540)%360) - 180);
     if(orient==='brujula' && mapa && giro!==null && !explorando){ const g = rumboGeo(); if(Math.abs((((g - giro)%360) + 540)%360 - 180)>2) girar(g); }
   }
   // matriz de eventos: eventos planificados (paso por cada punto) y reales (inicio, pasos, altos, novedades, fin) en orden de hora

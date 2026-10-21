@@ -244,6 +244,16 @@ body.con-mapa .m-lectura{top:auto;bottom:118px;right:10px}
 .s-grande b.ocre{color:var(--ocre)}
 .s-grande small{display:block;font-family:var(--mono);color:var(--suave);font-size:13px}
 .s-flecha{width:64px;height:64px;border-radius:50%;border:2px solid var(--ocre);display:flex;align-items:center;justify-content:center;font-size:34px;color:var(--ocre);transition:transform .3s}
+/* puntero en Navegar y en los datos de la marcha (v0.99.28): anillo con la marca hacia el punto y al centro cuánto girar */
+.s-anillo{grid-column:1/-1;justify-self:center;width:176px;height:176px;margin:4px 0}
+.s-anillo svg{width:100%;height:100%;display:block}
+.an-fondo{fill:var(--panel2)} .an-pista{fill:none;stroke:var(--linea);stroke-width:12}
+.an-gira{transition:transform .3s;transform-box:fill-box;transform-origin:center}
+.an-arco{fill:none;stroke:var(--ocre);stroke-width:12;stroke-linecap:round} .an-punta{fill:var(--ocre)}
+.an-num{fill:var(--texto);font-family:var(--mono);font-size:32px;font-weight:700;text-anchor:middle}
+.an-sub{fill:var(--suave);font-size:13px;text-anchor:middle}
+.s-anillo.r-ok .an-arco{stroke:var(--verde)} .s-anillo.r-ok .an-punta{fill:var(--verde)} .s-anillo.r-ok .an-num{fill:var(--verde)}
+.s-anillo.r-lejos .an-arco{stroke:var(--rojo)} .s-anillo.r-lejos .an-punta{fill:var(--rojo)} .s-anillo.r-lejos .an-num{fill:var(--rojo)}
 .s-mapa{height:230px;border-radius:var(--r);overflow:hidden;border:1px solid var(--linea);margin:0 0 12px;background:#d8d4c4}
 .s-acc{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .s-acc #sLleg{grid-column:1/-1;padding:14px;font-size:16px}
@@ -633,6 +643,11 @@ table.sop td.sop-x{color:var(--suave);font-family:var(--mono)}
 .s-dos .s-modos{display:none}
 .s-flecha-g{position:absolute;z-index:1000;left:12px;bottom:calc(64px + env(safe-area-inset-bottom));width:92px;height:92px;font-size:58px;border:4px solid var(--ocre);background:#14150fee;box-shadow:0 3px 14px #000a;font-weight:700}
 .s-flecha-g.desvio{border-color:#6fb3d9;color:#6fb3d9}
+/* puntero sobre la carta (v0.99.28): punta de flecha maciza; color según el rumbo */
+.s-flecha-g{width:140px;height:140px;color:var(--ocre)}
+.s-flecha-g svg{width:82%;height:82%;display:block}
+.s-flecha-g .fa{fill:currentColor;stroke:#14150f;stroke-width:4;stroke-linejoin:round}
+.s-flecha-g.r-ok{color:var(--verde)} .s-flecha-g.r-cerca{color:var(--ocre)} .s-flecha-g.r-lejos{color:var(--rojo)}
 .s-dos .s-centrar{bottom:calc(70px + env(safe-area-inset-bottom))}
 .s-binf{position:absolute;z-index:1001;left:0;right:0;bottom:0;display:flex;gap:5px;padding:6px;background:#14150ff2;border-top:1px solid var(--linea)}
 .s-binf .btn{flex:1;margin:0;padding:9px 2px;font-size:12px;line-height:1.15;min-width:0}
@@ -647,7 +662,7 @@ table.sop td.sop-x{color:var(--suave);font-family:var(--mono)}
   .mapa-env{height:calc(100dvh - 36px - 44px - env(safe-area-inset-bottom) - env(safe-area-inset-top))}
   .s-bsup .bcs{grid-template-columns:repeat(6,minmax(0,1fr))}
   .s-bsup .bc{border-bottom:0}.s-bsup .bc:nth-child(3n){border-right:1px solid #2c2d24}.s-bsup .bc:last-child{border-right:0}
-  .s-flecha-g{width:72px;height:72px;font-size:44px;bottom:calc(56px + env(safe-area-inset-bottom))}
+  .s-flecha-g{width:96px;height:96px;font-size:44px;bottom:calc(56px + env(safe-area-inset-bottom))}
   .s-binf{padding:4px}.s-binf .btn{padding:6px 2px}
 }
 @media (orientation:landscape) and (max-height:520px) and (min-width:900px){ .pestanas button{padding:4px 8px} }
@@ -865,8 +880,8 @@ details.puestos-ome:not([open])>h3{display:none}
 }
 @media (orientation:landscape) and (max-height:540px){
   .s-nav .s-vel b{white-space:nowrap}.s-nav .s-vel b i{min-width:0;margin-right:6px}
-  .s-nav .s-grande{grid-template-columns:auto auto;justify-content:start;column-gap:16px;row-gap:4px}.s-nav .s-grande b{white-space:nowrap;font-size:clamp(24px,3.8vw,38px)}
-  .s-nav .s-grande .s-flecha{grid-column:1/-1;justify-self:start;width:52px;height:52px;font-size:26px}
+  .s-nav .s-grande{grid-template-columns:auto auto auto;justify-content:start;align-items:center;column-gap:16px;row-gap:4px}.s-nav .s-grande b{white-space:nowrap;font-size:clamp(24px,3.8vw,38px)}
+  .s-nav .s-grande .s-anillo{grid-column:auto;width:92px;height:92px;margin:0}
   .s-nav #sGps{font-size:11.5px;margin-top:2px}
   .s-nav .s-vel .vg{grid-template-columns:max-content minmax(0,1fr)}.s-nav .s-vel .vg i{font-size:10px}.s-nav .s-vel .vg b{font-size:13px}
 }
