@@ -849,3 +849,30 @@ details.puestos-ome:not([open])>h3{display:none}
 .mf-res .ce{display:none}.mf.abierta .mf-res .r1,.mf.abierta .mf-res .ed{display:none}.mf.abierta .mf-res .ce{display:inline;margin-left:0}
 .mf-res span.ed{color:var(--ocre,#e3a63a);margin-left:6px}.mf-res span.ce{color:var(--ocre,#e3a63a)}
 .mat-lista .mf-grupo .mf-grupo-t{margin-bottom:4px}
+/* v0.99.26: Seguir · Datos en horizontal — datos a la izquierda, selector y botones a la derecha (todo en una pantalla) */
+.s-nav{display:flex;flex-direction:column}.s-nav-b{display:contents}
+.s-nav .s-modos{order:0}.s-nav-d{order:1}.s-nav .s-acc{order:2}
+@media (orientation:landscape) and (max-height:540px){
+  .s-nav{display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:10px;align-items:start}
+  .s-nav-d{grid-column:1;grid-row:1;min-width:0}.s-nav-b{grid-column:2;grid-row:1;display:flex;flex-direction:column;gap:8px}
+  .s-nav .s-modos{margin:0}.s-nav .s-modos button{padding:5px 4px;font-size:12px}
+  .s-nav #sCab{margin:0;padding:10px 12px}
+  .s-nav .s-acc{grid-template-columns:1fr 1fr;gap:6px}
+  .s-nav .s-acc #sLleg{grid-column:1/-1;padding:10px;font-size:15px}
+  .s-nav .s-acc .btn{padding:6px 4px;font-size:12.5px;min-height:38px}
+  .s-nav .s-grande{margin:4px 0 2px}.s-nav .s-vel{margin:6px 0;gap:6px}.s-nav .s-vel>div{padding:5px 8px}
+  .s-nav .s-prox{margin-top:4px}
+}
+@media (orientation:landscape) and (max-height:540px){
+  .s-nav .s-vel b{white-space:nowrap}.s-nav .s-vel b i{min-width:0;margin-right:6px}
+  .s-nav .s-grande{grid-template-columns:auto auto;justify-content:start;column-gap:16px;row-gap:4px}.s-nav .s-grande b{white-space:nowrap;font-size:clamp(24px,3.8vw,38px)}
+  .s-nav .s-grande .s-flecha{grid-column:1/-1;justify-self:start;width:52px;height:52px;font-size:26px}
+  .s-nav #sGps{font-size:11.5px;margin-top:2px}
+  .s-nav .s-vel .vg{grid-template-columns:max-content minmax(0,1fr)}.s-nav .s-vel .vg i{font-size:10px}.s-nav .s-vel .vg b{font-size:13px}
+}
+/* el selector de pantallas dentro de .s-nav va en su lugar (no flotando arriba como en la carta) */
+.s-nav .s-modos{position:static;transform:none;display:flex;width:fit-content;max-width:100%;margin-bottom:12px;box-shadow:none}
+@media (orientation:landscape) and (max-height:540px){ .s-nav .s-modos{width:100%;margin:0}.s-nav .s-modos button{flex:1} }
+/* teléfonos chicos en horizontal (iPhone SE): sin las dos medias para que quepa todo */
+@media (orientation:landscape) and (max-height:380px){ .s-nav .s-vel>div:nth-child(n+5){display:none} .s-nav .s-prox small{display:none} }
+@media (orientation:landscape) and (max-height:540px) and (max-width:720px){ .s-nav .s-vel .vg{grid-template-columns:1fr}.s-nav .s-vel .vg i{display:none}.s-nav .s-vel>div>small{font-size:10.5px} }

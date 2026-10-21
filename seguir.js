@@ -150,7 +150,7 @@ const Seguir = (function(){
     if(enMarcha && E && E.estado!=='fin'){ const P = plan(m), k = siguiente(m, P), q = P.pts[Math.max(0, (k===null ? P.pts.length : k) - 1)];
       E.desvio = {dest, modo:mo, fase:'ida', ini:ahora(), salida:{lat:pos ? pos.lat : q.lat, lon:pos ? pos.lon : q.lon, nombre:'donde dejaste la ruta'}}; A.guardar();
       A.aviso('🧭 Ir a ' + dest.nombre + (mo==='volver' ? ' y volver a la ruta' : '')); }
-    else { irSolo = Object.assign({}, dest, {ini:ahora()}); A.aviso('🧭 Navegando a ' + dest.nombre); }
+    else { irSolo = Object.assign({}, dest, {ini:ahora()}); A.aviso('🧭 Navegando a ' + dest.nombre); brujula(); }   // la brújula también al navegar a un punto (v0.99.27)
     pintar();
   }
   // sin marcha abierta o sin ruta: la carta con tu posición y «Ir a un punto»
@@ -300,13 +300,17 @@ const Seguir = (function(){
   // error visto en terreno): se suma el giro de la pantalla (iPhone: window.orientation; Android: screen.orientation.angle)
   const anguloPantalla = ios=>{ const w = typeof window.orientation==='number' ? window.orientation : null, s = screen.orientation && typeof screen.orientation.angle==='number' ? screen.orientation.angle : null;
     return (ios ? (w!==null ? w : s) : (s!==null ? s : w)) || 0; };
-  let conBrujula = false;
+  let conBrujula = false, cuadroFlecha = 0;
   function brujula(){
     if(conBrujula) return; conBrujula = true;
     const fn = e=>{ let h = null; const ios = typeof e.webkitCompassHeading==='number';
       if(ios) h = e.webkitCompassHeading;                                                  // iPhone: respecto del norte magnético
       else if(e.absolute && typeof e.alpha==='number') h = (360 - e.alpha + 360)%360;      // Android: norte geográfico
-      if(h!==null){ rumboDisp = {h:((h + anguloPantalla(ios))%360 + 360)%360, mag:ios}; flecha(); } };
+      if(h===null) return; h = ((h + anguloPantalla(ios))%360 + 360)%360;
+      // suavizado (v0.99.27): cada lectura acerca un tercio, por el camino corto; un salto de más de 45° (giro real o de pantalla) se toma entero
+      const d = rumboDisp ? ((h - rumboDisp.h + 540)%360) - 180 : 0;
+      rumboDisp = {h:!rumboDisp || Math.abs(d)>45 ? h : ((rumboDisp.h + d*0.35)%360 + 360)%360, mag:ios};
+      if(!cuadroFlecha) cuadroFlecha = requestAnimationFrame(()=>{ cuadroFlecha = 0; flecha(); }); };   // una vez por cuadro, no 60 veces por segundo
     const activar = ()=>{ addEventListener('deviceorientationabsolute', fn); addEventListener('deviceorientation', fn); };
     if(typeof DeviceOrientationEvent!=='undefined' && typeof DeviceOrientationEvent.requestPermission==='function')
       DeviceOrientationEvent.requestPermission().then(r=>{ if(r==='granted') activar(); else conBrujula = false; }).catch(()=>{ conBrujula = false; });
@@ -614,8 +618,12 @@ const Seguir = (function(){
   function abrir(cont, api){
     A = api; cerrarMapa();
     const m = A.actual(), E = m && m.ejec;
+    decMarcha = null; flechaAcum = null;
     if(E && E.estado!=='fin'){ iniciarGps(); pantalla(true); }
     cont.innerHTML = '<div id="seguir"></div>';
+    // la brújula (v0.99.27): al volver a la app con la marcha o la navegación en curso se enciende sola; el iPhone pide un toque para el
+    // permiso, así que también se enciende con el primer toque en la pantalla
+    if((E && E.estado!=='fin') || irSolo){ brujula(); cont.addEventListener('pointerdown', ()=>{ if(!rumboDisp) brujula(); }, {once:true}); }
     if(pedirIrA){ pedirIrA = false; pintar(); setTimeout(()=>dialogoIrA(!!(E && E.estado!=='fin')), 300); return; }
     if(pendiente){ const d = pendiente; pendiente = null; const en = !!(E && E.estado!=='fin'); if(en) modo = 'carta'; empezarIrA(d, en, en ? 'volver' : 'solo'); return; }
     pintar();
@@ -670,7 +678,9 @@ const Seguir = (function(){
         <div class="s-ctrl">${modoVistaBtn()}<button class="btn" id="sOrient" title="Norte arriba o destino arriba" aria-label="Orientación"></button><button class="btn" id="sCapa" title="Cambiar el mapa" aria-label="Mapa">${ic('capa', 'Mapa')}</button><button class="btn" id="sCentrar" title="Centrar en mi posición" aria-label="Centrar">${ic('centro', 'Centrar')}</button></div>
         <button class="btn pri s-pasando" id="sLleg"></button></div>`;
     } else if(modo==='nav'){
-      c.innerHTML = `${sel}<div class="tarjeta" id="sCab"></div>${acc}`;
+      // en vertical: selector, datos y botones uno debajo del otro; en horizontal (v0.99.26, pedido del usuario): datos a la izquierda y
+      // selector y botones en una columna a la derecha, para que todo quepa sin desplazar la pantalla
+      c.innerHTML = `<div class="s-nav"><div class="s-nav-d"><div class="tarjeta" id="sCab"></div></div><div class="s-nav-b">${sel}${acc}</div></div>`;
     } else {
       c.innerHTML = `${sel}<h2>Matriz de eventos</h2>
         <p class="nota">Todos los eventos de la marcha en orden: los planificados (paso por cada punto con su nombre clave y hora prevista) y lo que va ocurriendo
@@ -694,7 +704,7 @@ const Seguir = (function(){
     pintarVivo();
   }
   function pintarVivo(){
-    const m = A.actual(), E = m && m.ejec; if(!E || E.estado==='fin' || !$('#seguir')) return; const P = plan(m);
+    const m = A.actual(), E = m && m.ejec; if(!E || E.estado==='fin' || !$('#seguir')) return; const P = plan(m); decMarcha = P.R.decl.valor;
     const k = siguiente(m, P), q = k!==null ? P.pts[k] : null, ke = proxEv(m, P), p = ke!==null ? P.pts[ke] : null, at = atraso(m, P), t = ahora(), c = $('#sCab');
     const O = objetivo(m, P), b = $('#sLleg'), tl = O ? 'Llegué ' + (O.vuelta ? 'a la ruta' : 'a ' + O.nombre) : p ? verbo() + ' ' + rotulo(p) : ''; if(b && b.dataset.t!==tl){ b.dataset.t = tl; b.innerHTML = ic('ok', A.esc(tl)); }
     ficha(); mapaVivo();
@@ -764,16 +774,21 @@ const Seguir = (function(){
   }
   let horDec = 0;
   // sin brújula, la flecha grande apunta como en la carta (norte geográfico arriba): rumbo magnético + declinación
-  const decPlan = ()=>{ const m = A && A.actual(), P = m && plan(m); return irSolo || !P ? decSolo : P.R.decl.valor; };
+  // declinación de la marcha, guardada al pintar (v0.99.27: antes se recalculaba toda la marcha en cada lectura de la brújula)
+  let decMarcha = null;
+  const decPlan = ()=>{ if(irSolo) return decSolo; if(decMarcha!==null) return decMarcha; const m = A && A.actual(), P = m && plan(m); return P ? (decMarcha = P.R.decl.valor) : decSolo; };
+  // la flecha gira por el camino corto (v0.99.27: de 359° a 1° daba una vuelta entera por la animación)
+  let flechaAcum = null;
+  const angFlecha = a=>{ flechaAcum = flechaAcum===null ? ((a%360) + 360)%360 : flechaAcum + ((((a - flechaAcum)%360) + 540)%360 - 180); return +flechaAcum.toFixed(1); };
   function flecha(){
     // panorama del horizonte abierto: mover la línea de la brújula y centrarla
     const g = document.getElementById('hRumbo'), env = document.getElementById('sHorEnv');
     if(g && env && rumboDisp){ const h = rumboDisp.mag ? rumboDisp.h : rumboDisp.h - horDec, x = ((h%360) + 360)%360/360*1440;
       g.setAttribute('transform', 'translate(' + x.toFixed(1) + ',0)'); env.scrollLeft = x - env.clientWidth/2; }
     const f = $('#sFlecha'), c = $('#sCab'); if(!f || !c || c.dataset.az===undefined) return;
-    if(!rumboDisp){ f.style.opacity = f.classList.contains('s-flecha-g') ? .9 : .25; if(f.classList.contains('s-flecha-g')) f.style.transform = 'rotate(' + (+c.dataset.az + decPlan() - (giro || 0)) + 'deg)'; f.title = 'Sin brújula: apunta con el norte hacia arriba, como la carta'; return; }
-    const P = plan(A.actual()), dec = irSolo || !P ? decSolo : P.R.decl.valor, h = rumboDisp.mag ? rumboDisp.h : rumboDisp.h - dec;
-    f.style.opacity = 1; f.style.transform = 'rotate(' + ((+c.dataset.az - h + 360)%360) + 'deg)';
+    if(!rumboDisp){ f.style.opacity = f.classList.contains('s-flecha-g') ? .9 : .25; if(f.classList.contains('s-flecha-g')) f.style.transform = 'rotate(' + angFlecha(+c.dataset.az + decPlan() - (giro || 0)) + 'deg)'; f.title = 'Sin brújula: apunta con el norte hacia arriba, como la carta'; return; }
+    const dec = decPlan(), h = rumboDisp.mag ? rumboDisp.h : rumboDisp.h - dec;
+    f.style.opacity = 1; f.style.transform = 'rotate(' + angFlecha(+c.dataset.az - h) + 'deg)';
     if(orient==='brujula' && mapa && giro!==null && !explorando){ const g = rumboGeo(); if(Math.abs((((g - giro)%360) + 540)%360 - 180)>2) girar(g); }
   }
   // matriz de eventos: eventos planificados (paso por cada punto) y reales (inicio, pasos, altos, novedades, fin) en orden de hora
