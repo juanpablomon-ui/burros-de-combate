@@ -964,3 +964,18 @@ details.puestos-ome:not([open])>h3{display:none}
   .s-avc{padding:4px 2px 2px}.s-avc .av-ln{padding-bottom:12px}.s-avc .av-tx{font-size:11px}.s-avc .av-p{width:11px;height:11px}.s-avc .av-p small{top:11px}
   .s-nav .s-acc{gap:4px}.s-nav .s-acc .btn{min-height:34px;padding:4px}.s-nav .s-acc #sLleg{padding:8px}
 }
+/* v0.99.31: línea de avance en horizontal — en la Carta en una sola fila (deja más carta); en Datos solo el nombre del próximo */
+@media (orientation:landscape) and (max-height:540px){
+  .s-bsup .avance{display:flex;align-items:center;gap:14px;padding:3px 14px 2px}
+  .s-bsup .avance .av-ln{flex:1;padding-bottom:12px}.s-bsup .avance .av-p small{font-size:8.5px;top:12px}
+  .s-bsup .avance .av-tx{flex-direction:column;align-items:flex-end;gap:0;white-space:nowrap;font-size:11.5px}
+  .s-avc .av-p:not(.prox) small{display:none}.s-avc .av-ln{padding-bottom:13px}
+  .s-avc .av-tx{white-space:nowrap;font-size:10.5px}
+}
+@media (orientation:landscape) and (max-height:540px){
+  .s-nav .s-grande{grid-template-columns:auto auto}.s-nav .s-grande .s-anillo{grid-column:1/-1;justify-self:start;width:78px;height:78px}
+  .s-avc .av-tx{flex-direction:column;gap:0}
+}
+@media (orientation:landscape) and (max-height:380px){ .s-nav .s-grande .s-anillo{width:60px;height:60px} .s-nav #sGps{font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .s-nav .s-estado{font-size:12px} }
+@media (orientation:landscape) and (max-height:540px){ .s-nav .s-grande .s-anillo{width:64px;height:64px} .s-nav #sGps{white-space:nowrap;overflow:hidden;text-overflow:ellipsis} }
+@media (orientation:landscape) and (max-height:380px){ .s-nav .s-grande .s-anillo{width:58px;height:58px} }
