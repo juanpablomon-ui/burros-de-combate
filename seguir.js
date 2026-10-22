@@ -179,8 +179,8 @@ const Seguir = (function(){
   function pintarSolo(c, P){
     const ctrl = `<div class="s-ctrl">${modoVistaBtn()}<button class="btn" id="sOrient" title="Norte arriba o destino arriba" aria-label="Orientación"></button><button class="btn" id="sCapa" title="Cambiar el mapa" aria-label="Mapa">${ic('capa', 'Mapa')}</button><button class="btn" id="sCentrar" title="Centrar en mi posición" aria-label="Centrar">${ic('centro', 'Centrar')}</button></div>`;
     if(modo==='nav'){
-      c.innerHTML = `<div class="seg s-modos">${MODOS.filter(([k])=>k!=='reg').map(([k, n])=>`<button data-smodo="${k}" class="${modo===k ? 'on' : ''}">${n}</button>`).join('')}</div>
-        <div class="tarjeta" id="sCab"></div><div class="s-acc"><button class="btn pri" id="sSoloFin">${ic('fin', 'Terminar la navegación')}</button></div>`;
+      c.innerHTML = `<div class="s-nav s-nav-solo"><div class="s-nav-d"><div class="tarjeta" id="sCab"></div></div><div class="s-nav-b"><div class="seg s-modos">${MODOS.filter(([k])=>k!=='reg').map(([k, n])=>`<button data-smodo="${k}" class="${modo===k ? 'on' : ''}">${n}</button>`).join('')}</div>
+        <div class="s-acc"><button class="btn pri" id="sSoloFin">${ic('fin', 'Terminar la navegación')}</button></div></div></div>`;
       c.querySelectorAll('[data-smodo]').forEach(b=>b.onclick = ()=>cambiarModo(b.dataset.smodo));
       $('#sSoloFin').onclick = ()=>{ irSolo = null; pintar(); }; iniciarGps(); pintarSoloVivo(); return; }
     document.body.classList.add('con-mapa');
@@ -316,7 +316,8 @@ const Seguir = (function(){
       if(h===null) return; h = ((h + anguloPantalla(ios))%360 + 360)%360;
       // suavizado (v0.99.27): cada lectura acerca un tercio, por el camino corto; un salto de más de 45° (giro real o de pantalla) se toma entero
       const d = rumboDisp ? ((h - rumboDisp.h + 540)%360) - 180 : 0;
-      rumboDisp = {h:!rumboDisp || Math.abs(d)>45 ? h : ((rumboDisp.h + d*0.35)%360 + 360)%360, mag:ios};
+      rumboDisp = {h:!rumboDisp || Math.abs(d)>45 ? h : ((rumboDisp.h + d*0.5)%360 + 360)%360, mag:ios};
+      if(!document.body.classList.contains('con-brujula')) document.body.classList.add('con-brujula');   // la flecha sin animación CSS: sigue al teléfono sin retraso (v0.99.32)
       if(!cuadroFlecha) cuadroFlecha = requestAnimationFrame(()=>{ cuadroFlecha = 0; flecha(); }); };   // una vez por cuadro, no 60 veces por segundo
     const activar = ()=>{ addEventListener('deviceorientationabsolute', fn); addEventListener('deviceorientation', fn); };
     if(typeof DeviceOrientationEvent!=='undefined' && typeof DeviceOrientationEvent.requestPermission==='function')
@@ -1063,9 +1064,11 @@ ${T.map(t=>`<trkpt lat="${t[0]}" lon="${t[1]}"><time>${new Date(t[2]).toISOStrin
     const el = $('#sMapa'); if(!el || !mapa) return; const cont = el.parentElement;
     if(az===null || az===undefined || orient==='norte' || explorando){ if(giro!==null){ giro = null; rotAcum = null; el.style.cssText = ''; delete el.dataset.dims; mapa.dragging.enable(); mapa.invalidateSize({animate:false}); } return; }
     const w = cont.clientWidth, h = cont.clientHeight, D = Math.ceil(Math.hypot(w, h)), dims = w + 'x' + h;
-    if(giro===null || el.dataset.dims!==dims){ el.dataset.dims = dims; el.style.cssText = `position:absolute;inset:auto;right:auto;bottom:auto;width:${D}px;height:${D}px;left:${(w - D)/2}px;top:${(h - D)/2}px;transition:transform ${orient==='brujula' ? '.25s linear' : '.6s'}`; mapa.dragging.disable(); mapa.invalidateSize({animate:false}); }
+    if(giro===null || el.dataset.dims!==dims){ el.dataset.dims = dims; el.style.cssText = `position:absolute;inset:auto;right:auto;bottom:auto;width:${D}px;height:${D}px;left:${(w - D)/2}px;top:${(h - D)/2}px`; mapa.dragging.disable(); mapa.invalidateSize({animate:false}); }
     // el ángulo se acumula por el camino más corto (de 359° a 1° gira 2°, no una vuelta entera)
     rotAcum = rotAcum===null ? -az : rotAcum + ((((-az - rotAcum)%360) + 540)%360 - 180);
+    // con la brújula la carta sigue al teléfono sin animación (las lecturas ya vienen suavizadas; con animación se sentía pegada, v0.99.32)
+    el.style.transition = orient==='brujula' && rumboDisp ? 'none' : 'transform .6s';
     giro = az; el.style.transform = 'rotate(' + rotAcum + 'deg)'; flecha();
   }
   let rotAcum = null;

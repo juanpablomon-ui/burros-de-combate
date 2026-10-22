@@ -979,3 +979,26 @@ details.puestos-ome:not([open])>h3{display:none}
 @media (orientation:landscape) and (max-height:380px){ .s-nav .s-grande .s-anillo{width:60px;height:60px} .s-nav #sGps{font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .s-nav .s-estado{font-size:12px} }
 @media (orientation:landscape) and (max-height:540px){ .s-nav .s-grande .s-anillo{width:64px;height:64px} .s-nav #sGps{white-space:nowrap;overflow:hidden;text-overflow:ellipsis} }
 @media (orientation:landscape) and (max-height:380px){ .s-nav .s-grande .s-anillo{width:58px;height:58px} }
+/* v0.99.32: brújula fluida (sin animación encima del suavizado) y márgenes seguros en horizontal (la isla del iPhone) */
+.con-brujula .s-flecha,.con-brujula .an-gira,.con-brujula .s-flecha-g{transition:none!important}
+main{padding-left:max(14px, env(safe-area-inset-left));padding-right:max(14px, env(safe-area-inset-right))}
+/* Ir a un punto · Datos: datos de abajo en tres cajas; en horizontal, el anillo al lado del rumbo y más grande */
+.s-nav-solo .bcs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}
+.s-nav-solo .bc{border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:7px 10px;min-width:0}
+.s-nav-solo .bc span{display:block;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--suave,#9c9a8a)}
+.s-nav-solo .bc b{display:block;font-family:var(--mono,monospace);font-size:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.s-nav-solo .bc small{display:block;color:var(--suave,#9c9a8a);font-size:12px}
+@media (orientation:landscape) and (max-height:540px){
+  .s-nav-solo .s-grande{grid-template-columns:auto auto auto;align-items:center}
+  .s-nav-solo .s-grande .s-anillo{grid-column:auto;justify-self:start;width:clamp(86px,14vw,150px);height:clamp(86px,14vw,150px)}
+}
+.s-nav-solo .s-acc{grid-template-columns:1fr}.s-nav-solo #sSoloFin{width:100%}
+@media (orientation:landscape) and (max-height:540px){
+  .s-nav-solo .s-prox{margin-top:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.s-nav-solo .s-prox b{font-size:22px}
+  .s-nav-solo .s-grande{margin:4px 0}
+  .s-nav-solo .bcs{margin-top:6px;gap:6px}.s-nav-solo .bc{padding:4px 8px}.s-nav-solo .bc span{font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .s-nav-solo .bc b{font-size:15px}.s-nav-solo .bc small{font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+}
+@media (orientation:landscape) and (max-height:380px){ .s-nav-solo .s-grande .s-anillo{width:80px;height:80px} .s-nav-solo .s-grande b{font-size:26px} }
+@media (orientation:landscape) and (max-height:540px){ #seguir .s-nav-solo .tarjeta#sCab{display:block} .s-nav-solo .s-prox b{font-size:20px} }
+@media (orientation:landscape) and (max-height:380px){ .s-nav-solo .s-grande .s-anillo{width:110px;height:110px} }
