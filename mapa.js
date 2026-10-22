@@ -33,12 +33,18 @@ const Mapa = (function(){
     cont.innerHTML = `<div class="mapa-env">
       <div id="mapa"></div>
       <div class="m-sup">
-        <div class="seg m-bases">${Object.entries(BASES).map(([k, b])=>`<button data-base="${k}" class="${pref.base===k ? 'on' : ''}">${b.n}</button>`).join('')}</div>
-        <button class="btn mini ${pref.grid ? 'on' : ''}" id="mGrid" title="Cuadrícula UTM">▦ UTM</button>
-        <button class="btn mini ${pref.curvas ? 'on' : ''}" id="mCurvas" title="Curvas de nivel sobre cualquier capa">〰 Curvas</button>
-        <button class="btn mini" id="mCartas" title="Cartas propias">🗺 Cartas</button>
-        <button class="btn mini" id="mZonas" title="Guardar mapas para usar sin señal">⬇ Sin señal</button>
+        <button class="btn mini m-capas-b${capasAb ? ' on' : ''}" id="mCapas" title="Tipo de mapa, cuadrícula, curvas, cartas y mapas sin señal">▤ Capas</button>
         ${recorridos(m).length ? `<button class="btn mini${verReal!==null ? ' on' : ''}" id="mRec" title="Ver el recorrido realizado (GPS)">👣 Recorrido</button>` : ''}
+        <div class="m-capas" id="mCapasP" style="display:${capasAb ? 'block' : 'none'}">
+          <div class="mc-f">Mapa</div>
+          <div class="seg m-bases">${Object.entries(BASES).map(([k, b])=>`<button data-base="${k}" class="${pref.base===k ? 'on' : ''}">${b.n}</button>`).join('')}</div>
+          <div class="mc-f">Sobre el mapa</div>
+          <button class="mc-sw${pref.grid ? ' on' : ''}" id="mGrid" title="Cuadrícula UTM">Cuadrícula UTM<span class="sw"></span></button>
+          <button class="mc-sw${pref.curvas ? ' on' : ''}" id="mCurvas" title="Curvas de nivel sobre cualquier capa">Curvas de nivel<span class="sw"></span></button>
+          <button class="mc-ir" id="mCartas" title="Cartas propias">🗺 Mis cartas (IGM, PDF, .gcarta) ›</button>
+          <div class="mc-f">Sin señal</div>
+          <button class="mc-ir" id="mZonas" title="Guardar mapas para usar sin señal">⬇ Guardar esta zona para usar sin señal ›</button>
+        </div>
       </div>
       <div class="m-lectura mono" id="mLect"></div>
       <div class="m-cruz"></div>
@@ -82,6 +88,8 @@ const Mapa = (function(){
     $('#mYo').onclick = miPosicion;
     $('#mCartas').onclick = dialogoCartas;
     $('#mZonas').onclick = dialogoZonas;
+    // un solo botón «Capas» (v0.99.29, revisión de la app: antes eran 8 botones sobre la carta)
+    $('#mCapas').onclick = ()=>{ capasAb = !capasAb; $('#mCapasP').style.display = capasAb ? 'block' : 'none'; $('#mCapas').classList.toggle('on', capasAb); };
     if($('#mRec')) $('#mRec').onclick = ()=>{ const L2 = recorridos(A.actual());
       if(verReal!==null) return mostrarRec(null);
       if(L2.length===1) return mostrarRec(L2[0].i);
@@ -209,9 +217,11 @@ const Mapa = (function(){
       mk.on('dragend', e=>{ const ll = e.target.getLatLng(); ids.forEach(i=>mover(i, ll, true)); A.guardar(); ruta(); ids.forEach(i=>cotaAuto(i)); if(ids.includes(sel)) abrirHoja(sel); });
     });
     resumen(R);
+    if(A.alCambiarRuta) A.alCambiarRuta(R);   // el asistente de marcha nueva cuenta los puntos (v0.99.29)
     if(pref.perfil){ clearTimeout(ruta._t); ruta._t = setTimeout(perfil, 400); }
   }
 
+  let capasAb = (()=>{ try { return localStorage.getItem('burros_capas')==='1'; } catch(e){ return false; } })();   // en las pruebas va abierto
   /* ---------- recorrido realizado (v0.99.11, pedido del usuario: «cuando quiero ver el recorrido realizado aparece así») ----------
      El actual (m.ejec) y los guardados al «Hacer de nuevo» (m.recorridos). Con «👣 Recorrido» se ve uno encima de la ruta tenue. */
   let verReal = null, pedido = null;

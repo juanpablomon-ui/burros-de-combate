@@ -891,3 +891,37 @@ details.puestos-ome:not([open])>h3{display:none}
 /* teléfonos chicos en horizontal (iPhone SE): sin las dos medias para que quepa todo */
 @media (orientation:landscape) and (max-height:380px){ .s-nav .s-vel>div:nth-child(n+5){display:none} .s-nav .s-prox small{display:none} }
 @media (orientation:landscape) and (max-height:540px) and (max-width:720px){ .s-nav .s-vel .vg{grid-template-columns:1fr}.s-nav .s-vel .vg i{display:none}.s-nav .s-vel>div>small{font-size:10.5px} }
+/* v0.99.29: Mapa con un solo botón «Capas» y su panel */
+.m-sup .m-capas-b.on{border-color:var(--ocre);color:var(--ocre)}
+.m-capas{flex-basis:100%;max-width:300px;background:var(--panel,#1d1e18);border:1px solid #4a4b40;border-radius:12px;padding:10px 12px;box-shadow:0 4px 16px #000a}
+.m-capas .mc-f{font-family:var(--mono,monospace);font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--suave,#9c9a8a);margin:8px 0 4px}
+.m-capas .mc-f:first-child{margin-top:0}
+.m-capas .seg{display:flex;flex-wrap:wrap;box-shadow:none}.m-capas .seg button{flex:1 1 45%;padding:7px 4px;font-size:13px}
+.mc-sw,.mc-ir{display:flex;align-items:center;justify-content:space-between;width:100%;background:none;border:0;border-bottom:1px solid rgba(255,255,255,.07);color:inherit;font:inherit;font-size:14px;padding:9px 2px;text-align:left;cursor:pointer}
+.mc-ir{color:var(--ocre,#e3a63a)}
+.mc-sw .sw{width:34px;height:18px;border-radius:9px;background:#4a4b40;position:relative;flex:none;transition:background .2s}
+.mc-sw .sw::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#e9e6d8;transition:left .2s}
+.mc-sw.on .sw{background:var(--ocre,#e3a63a)}.mc-sw.on .sw::after{left:18px}
+/* Seguir antes de partir: los controles de la carta sobre el pie (no detrás de «Ir a un punto») */
+.s-previo .s-ctrl{bottom:calc(150px + env(safe-area-inset-bottom))}
+/* v0.99.29: asistente para crear una marcha */
+.asis h3{margin:4px 0 10px}
+.as-pasos{display:flex;gap:4px;margin-bottom:6px}.as-pasos i{flex:1;height:4px;border-radius:2px;background:#33342b}.as-pasos i.on{background:var(--ocre,#e3a63a)}
+.as-pt{font-family:var(--mono,monospace);font-size:11px;letter-spacing:1px;color:var(--suave,#9c9a8a)}
+.asis .mt-op b{font-size:15px}
+.a1-bus{margin:8px 0}.a1-res button{display:block;width:100%;text-align:left;background:none;border:1px solid transparent;border-radius:6px;color:inherit;font:inherit;padding:7px 6px;cursor:pointer}
+.a1-res button.on{border-color:var(--ocre,#e3a63a);background:rgba(227,166,58,.08)}
+.a3-t{display:flex;margin-top:4px}.a3-t button{flex:1}
+.a4-k{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:6px 0 10px}.a4-k div{border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:8px 10px}
+.a4-k span{display:block;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--suave,#9c9a8a)}.a4-k b{font-family:var(--mono,monospace);font-size:20px}.a4-k b.o{color:var(--ocre,#e3a63a)}
+.a4-p{padding:10px;margin:0 0 10px}.a4-p b{display:block;margin-bottom:4px}.a4-p div{color:var(--suave,#9c9a8a)}
+.a4-b{flex-direction:column;align-items:stretch}
+#asisBar{position:fixed;left:0;right:0;z-index:3000;background:#1d1e18;border-bottom:2px solid var(--ocre,#e3a63a);padding:8px 14px 6px;box-shadow:0 2px 8px rgba(0,0,0,.5)}
+#asisBar .tb-t b{display:block;font-size:14px;color:var(--ocre,#e3a63a)}#asisBar .tb-t span{display:block;font-size:13px;color:var(--suave,#9c9a8a)}
+#asisBar .ab-c{font-family:var(--mono,monospace);color:var(--texto,#e9e6d8)!important;font-size:14px!important;margin-top:2px}
+#asisBar .tb-b{display:flex;justify-content:space-between;gap:8px;margin-top:6px}
+#asisBar .tb-b button{border:1px solid #4a4b40;background:none;color:inherit;border-radius:8px;padding:7px 14px;font:inherit;font-size:13px;cursor:pointer}
+#asisBar .tb-b button[data-ab=sig]{background:var(--ocre,#e3a63a);color:#1a1408;border-color:var(--ocre,#e3a63a);font-weight:600}
+#asisBar .tb-b button[disabled]{opacity:.4}
+.con-asis .m-sup{top:calc(52px + var(--asisH,90px))}.con-asis .leaflet-top{top:var(--asisH,90px)}
+.asis a{color:var(--ocre,#e3a63a)}

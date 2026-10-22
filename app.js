@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.99.28', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.99.29', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -112,6 +112,101 @@
       if(k==='sal' || (k==='sig' && ult)){ tour = null; tourGuardar(); ir('marchas'); return aviso(k==='sal' ? 'Saliste del ejemplo guiado' : '✔ Terminaste el ejemplo guiado: crea tu marcha con «＋ Nueva marcha»'); }
       tour.k += k==='sig' ? 1 : -1; tourGuardar(); tourIr(); });
   }
+  /* ---------- asistente para crear una marcha (v0.99.29, revisión de la app, maquetas aprobadas): 1. ¿Dónde? (mi ubicación, buscar un
+     lugar en OpenStreetMap o importar una ruta), 2. marcar la ruta en el Mapa con una franja que cuenta puntos, km y desnivel, 3. ¿Cuándo y
+     quiénes? (lo mínimo para calcular), 4. marcha lista (resumen y lo que falta). `burros_asistente` = '0' lo apaga (pruebas). ---------- */
+  let asis = null;
+  const asisActivo = ()=>{ try { return localStorage.getItem('burros_asistente')!=='0'; } catch(e){ return true; } };
+  const asisBarras = n=>`<div class="as-pasos">${[1, 2, 3, 4].map(i=>`<i class="${i<=n ? 'on' : ''}"></i>`).join('')}</div><div class="as-pt">PASO ${n} DE 4</div>`;
+  function nuevaMarcha(){ if(!asisActivo()){ nueva(); return ir('mapa'); } asis = {paso:1, id:null, centro:null}; asisPaso1(); }
+  function asisCancelar(){ const m = asis && S.marchas.find(x=>x.id===asis.id);
+    if(m && !M.calcular(m).puntos.some(p=>p.ok)){ S.marchas = S.marchas.filter(x=>x!==m); if(S.actual===m.id) S.actual = null; guardar(); }
+    asis = null; const b = $('#asisBar'); if(b) b.remove(); cerrarDialogo(); ir('marchas'); }
+  function asisPaso1(){
+    asis.paso = 1; const b0 = $('#asisBar'); if(b0) b0.remove();
+    dialogo(`<div class="asis">${asisBarras(1)}<h3>¿Dónde es la marcha?</h3>
+      <button class="mt-op" id="a1Yo"><span class="rd"></span><span><b>◎ Usar mi ubicación</b><small id="a1YoT">el mapa se acerca a donde estás</small></span></button>
+      <div class="a1-bus"><label class="c ancho">O busca un lugar<input id="a1Q" placeholder="Cerro Manquehue, Peldehue, Chena…" autocomplete="off"></label><div id="a1R" class="a1-res"></div></div>
+      <button class="mt-op" id="a1Imp"><span class="rd"></span><span><b>⤓ Importar una ruta</b><small>GPX, KML o una marcha que te enviaron</small></span></button>
+      <p class="nota" style="margin-top:10px"><a href="#" id="a1Sin">Empezar sin el asistente</a> (el mapa sin pasos)</p>
+      <div class="btns"><button class="btn" id="a1No">Cancelar</button><button class="btn pri" id="a1Si">Siguiente ›</button></div></div>`, d=>{
+      const marcar = el=>{ d.querySelectorAll('.mt-op, .a1-res button').forEach(x=>x.classList.remove('on')); if(el) el.classList.add('on'); };
+      if(asis.centro) marcar(asis.centro.yo ? d.querySelector('#a1Yo') : null);
+      d.querySelector('#a1Yo').onclick = ()=>{ const t = d.querySelector('#a1YoT'); if(!navigator.geolocation) return t.textContent = 'este equipo no tiene GPS';
+        t.textContent = 'buscando tu ubicación…';
+        navigator.geolocation.getCurrentPosition(p=>{ asis.centro = {c:[p.coords.latitude, p.coords.longitude], z:15, yo:true}; t.textContent = '✔ ubicación encontrada (±' + Math.round(p.coords.accuracy) + ' m)'; marcar(d.querySelector('#a1Yo')); },
+          e=>{ t.textContent = e.code===1 ? 'sin permiso para la ubicación: busca el lugar' : 'no se encontró la ubicación: busca el lugar'; }, {enableHighAccuracy:true, timeout:15000, maximumAge:60000}); };
+      let tB = null; const q = d.querySelector('#a1Q'), res = d.querySelector('#a1R');
+      const buscar = async()=>{ const v = q.value.trim(); if(v.length<3){ res.innerHTML = ''; return; } res.innerHTML = '<p class="nota">Buscando…</p>';
+        try { const r = await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&accept-language=es&q=' + encodeURIComponent(v)); if(!r.ok) throw 0; const L = await r.json();
+          if(q.value.trim()!==v) return;
+          res.innerHTML = L.length ? L.map((x, i)=>`<button data-lug="${i}">› ${esc(String(x.display_name).split(', ').slice(0, 3).join(', '))}</button>`).join('') : '<p class="nota">Sin resultados: prueba con otro nombre o usa tu ubicación.</p>';
+          res.querySelectorAll('[data-lug]').forEach(b=>b.onclick = ()=>{ const x = L[+b.dataset.lug]; asis.centro = {c:[+x.lat, +x.lon], z:14, nombre:String(x.name || x.display_name.split(',')[0])}; marcar(b); }); }
+        catch(e){ res.innerHTML = '<p class="nota">Sin conexión: usa tu ubicación o, en el mapa, acércate a mano.</p>'; } };
+      q.oninput = ()=>{ clearTimeout(tB); tB = setTimeout(buscar, 600); }; q.onkeydown = e=>{ if(e.key==='Enter'){ clearTimeout(tB); buscar(); } };
+      d.querySelector('#a1Imp').onclick = ()=>{ asis = null; cerrarDialogo(); importarArchivo(); };
+      d.querySelector('#a1Sin').onclick = e=>{ e.preventDefault(); asis = null; cerrarDialogo(); nueva(); ir('mapa'); };
+      d.querySelector('#a1No').onclick = asisCancelar;
+      d.querySelector('#a1Si').onclick = ()=>{ let m = asis.id && S.marchas.find(x=>x.id===asis.id);
+        if(!m){ m = nueva(); asis.id = m.id; }
+        if(asis.centro){ apiMapa.vistaMapa = {c:asis.centro.c, z:asis.centro.z}; if(asis.centro.nombre && m.nombre==='Nueva marcha') m.nombre = 'Marcha ' + asis.centro.nombre; }
+        S.actual = m.id; guardar(); asis.paso = 2; cerrarDialogo(); ir('mapa'); };
+    });
+  }
+  // paso 2: franja fija bajo el encabezado mientras se marca la ruta en el Mapa
+  function asisBarra(R){
+    let b = $('#asisBar'); const on = asis && asis.paso===2 && S.v==='mapa' && S.actual===asis.id;
+    document.body.classList.toggle('con-asis', !!on);
+    if(!on){ if(b) b.remove(); return; }
+    const m = actual(); R = R || M.calcular(m); const n = m.puntos.filter((x, i)=>R.puntos[i] && R.puntos[i].ok).length, okR = R.tramos.length>0;
+    if(!b){ b = document.createElement('div'); b.id = 'asisBar'; document.body.appendChild(b); }
+    b.innerHTML = `<div class="tb-t"><b>Nueva marcha · paso 2 de 4 · Marca la ruta</b><span>Toca el mapa en orden: partida, puntos de control y llegada.</span>
+      <span class="ab-c">${n} punto${n===1 ? '' : 's'}${okR ? ' · ' + f(R.res.dist/1000, 1) + ' km · +' + f(R.res.sube) + ' m' : ''}</span></div>
+      <div class="tb-b"><button data-ab="ant">‹ Atrás</button><button data-ab="sig"${n>=2 ? '' : ' disabled'}>Siguiente ›</button></div>`;
+    const h = document.querySelector('.barra-sup'); if(h) b.style.top = Math.max(0, h.getBoundingClientRect().bottom) + 'px';
+    document.documentElement.style.setProperty('--asisH', b.offsetHeight + 'px');   // los controles del mapa bajan bajo la franja
+    b.querySelector('[data-ab=ant]').onclick = ()=>{ asis.paso = 1; b.remove(); asisPaso1(); };
+    b.querySelector('[data-ab=sig]').onclick = ()=>{ if(n<2) return aviso('Marca al menos la partida y la llegada'); b.remove(); asisPaso3(); };
+  }
+  function asisPaso3(){
+    asis.paso = 3; const m = actual(), p = m.par, civil = Uso.civil();
+    const TIPOS = civil ? [['montana', 'Montaña'], ['general', 'General'], ['mide', 'MIDE']] : [['montana', 'Montaña'], ['general', 'General'], ['forzada', 'Forzada'], ['battle', 'Carrera']];
+    dialogo(`<div class="asis">${asisBarras(3)}<h3>¿Cuándo y quiénes?</h3>
+      <div class="campos"><label class="c ancho">Nombre<input id="a3N" value="${esc(m.nombre)}"></label>
+        <label class="c">Fecha<input type="date" id="a3F" value="${esc(m.fecha)}"></label><label class="c">Hora de partida<input type="time" id="a3H" value="${esc(m.hora)}"></label>
+        <label class="c">${civil ? 'Cuántas personas van' : 'Cuántos van (efectivo)'}<input class="num" id="a3E" inputmode="numeric" value="${esc(p.efectivo || '')}" placeholder="${civil ? '8' : '30'}"></label>
+        <label class="c">Carga por ${civil ? 'persona' : 'hombre'} (kg)<input class="num" id="a3C" inputmode="decimal" value="${p.cargaManual ? esc(p.carga) : ''}" placeholder="${esc(p.carga || 20)}"></label></div>
+      <div class="c" style="margin-top:6px"><span class="nota">Tipo de marcha</span><div class="seg a3-t">${TIPOS.map(([k, n])=>`<button data-a3t="${k}" class="${p.metodo===k ? 'on' : ''}">${n}</button>`).join('')}</div></div>
+      <p class="nota">Lo demás (calor, material, nombres clave) se ajusta después en Datos de la marcha.</p>
+      <div class="btns"><button class="btn" id="a3At">‹ Atrás</button><button class="btn pri" id="a3Si">Calcular ›</button></div></div>`, d=>{
+      let met = p.metodo; d.querySelectorAll('[data-a3t]').forEach(b=>b.onclick = ()=>{ met = b.dataset.a3t; d.querySelectorAll('[data-a3t]').forEach(x=>x.classList.toggle('on', x===b)); });
+      const leer = ()=>{ m.nombre = d.querySelector('#a3N').value.trim() || m.nombre; m.fecha = d.querySelector('#a3F').value || m.fecha; m.hora = d.querySelector('#a3H').value || m.hora;
+        const e = d.querySelector('#a3E').value.trim(); if(e) p.efectivo = String(Math.max(1, Math.round(+e.replace(',', '.') || 1)));
+        const c = d.querySelector('#a3C').value.trim().replace(',', '.'); if(c && +c>0){ p.carga = c; p.cargaManual = true; p.cargaGeneral = true; }
+        if(met!==p.metodo){ p.metodo = met; if(met==='battle' && !p.brPreset) Object.assign(p, (q=>{ delete q.n; return q; })(Object.assign({}, M.PRESETS_BR.d100))); }
+        guardar(); };
+      d.querySelector('#a3At').onclick = ()=>{ leer(); asis.paso = 2; cerrarDialogo(); ir('mapa'); };
+      d.querySelector('#a3Si').onclick = ()=>{ leer(); asisPaso4(); };
+    });
+  }
+  async function asisPaso4(){
+    asis.paso = 4; const m = actual(); let R = M.calcular(m);
+    const sinCota = m.puntos.filter((x, i)=>R.puntos[i] && R.puntos[i].ok && x.cota==='').length;
+    const ok = R.tramos.length>0, G = ok ? Guia.estado(m, ctxGuia(m)).filter(x=>x.falta && (x.est==='r' || x.est==='a')).slice(0, 4) : [];
+    dialogo(`<div class="asis">${asisBarras(4)}<h3>${ok ? 'Marcha lista' : 'Falta un dato'}</h3>
+      ${ok ? `<div class="a4-k"><div><span>Distancia</span><b>${f(R.res.dist/1000, 1)} km</b></div><div><span>Desnivel</span><b>+${f(R.res.sube)} m</b></div>
+        <div><span>Duración</span><b>${M.verDur(R.res.total)}</b></div><div><span>Llegada</span><b class="o">${M.verHora(R.res.partida + R.res.total)}</b></div></div>`
+        : `<p class="nota">${sinCota ? 'Faltan las cotas de ' + sinCota + ' punto' + (sinCota===1 ? '' : 's') + ' (sin señal no se pudieron traer del terreno).' : 'La ruta necesita al menos dos puntos con coordenadas y cota.'}</p>
+        ${sinCota ? '<div class="btns"><button class="btn pri" id="a4Cot">⛰ Completar las cotas desde el terreno</button></div>' : ''}`}
+      ${G.length ? `<div class="tarjeta a4-p"><b>Pendiente</b>${G.map(x=>`<div>· ${esc(x.falta.t)}</div>`).join('')}</div>` : ''}
+      <div class="btns a4-b"><button class="btn" id="a4Cu">Ver el cuadro de marcha</button>${Uso.civil() ? '' : '<button class="btn" id="a4Ma">Revisar el material</button>'}</div>
+      <div class="btns"><button class="btn" id="a4At">‹ Atrás</button><button class="btn pri" id="a4Ir">Ir a la marcha ›</button></div></div>`, d=>{
+      const fin = v=>{ asis = null; cerrarDialogo(); if(v==='marchas'){ try { localStorage.setItem('burros_guia', '1'); } catch(e){} } ir(v); };
+      d.querySelector('#a4Cu').onclick = ()=>fin('cuadro'); const ma = d.querySelector('#a4Ma'); if(ma) ma.onclick = ()=>fin('material');
+      d.querySelector('#a4Ir').onclick = ()=>fin('marchas'); d.querySelector('#a4At').onclick = ()=>asisPaso3();
+      const ct = d.querySelector('#a4Cot'); if(ct) ct.onclick = async()=>{ ct.disabled = true; ct.textContent = 'Buscando las cotas…'; await completarCotas(m); asisPaso4(); };
+    });
+  }
   function abrirEjemplo(v){ let e = S.marchas.find(x=>/\(EJEMPLO\)/.test(x.nombre)); if(!e) e = ejemplo(); S.actual = e.id; guardar(); ir(v); aviso('Abriste la marcha de ejemplo; vuelve a la tuya en Marchas'); }
   function enlazarAyuda(cont, v, enDialogo){
     cont.querySelectorAll('[data-ay]').forEach(b=>b.onclick = ()=>{ const k = b.dataset.ay;
@@ -144,6 +239,8 @@
       const sub = vista.querySelector('.subv'); if(sub) sub.insertAdjacentHTML('afterend', Guia.tarjeta(S.v)); else vista.insertAdjacentHTML('afterbegin', Guia.tarjeta(S.v));
       enlazarAyuda(vista, S.v, false); }
     tourBarra();
+    if(asis && asis.paso===2 && S.v!=='mapa' && S.v!=='marchas') asis = null;   // se fue a otra pestaña: el asistente se deja
+    asisBarra();
   }
 
   /* =====================================================================  MARCHAS  */
@@ -206,7 +303,7 @@
     vista.querySelectorAll('[data-uso]').forEach(b=>b.onclick = ()=>{ S.uso = b.dataset.uso; Uso.poner(S.uso); guardar(); pintar(); aviso(Uso.civil() ? '🥾 Uso civil' : '🪖 Uso militar'); });
     vista.querySelectorAll('[data-gpaso]').forEach(b=>b.onclick = e=>{ e.stopPropagation(); const x = G.pasos.find(y=>y.k===+b.dataset.gpaso); if(x) irA(x.ir); });
     $('#bModoAy').onclick = ()=>{ Guia.poner(!Guia.encendida()); aviso(Guia.encendida() ? '❔ Modo ayuda encendido: en cada pantalla aparece qué hacer' : 'Modo ayuda apagado (el botón ? sigue arriba)'); pintar(); };
-    $('#bNueva').onclick = ()=>{ nueva(); ir('mapa'); };
+    $('#bNueva').onclick = nuevaMarcha;
     $('#bEjemplo').onclick = ()=>{ ejemplo(); ir('cuadro'); };
     [$('#bTour'), $('#bTour2')].forEach(b=>{ if(b) b.onclick = ()=>tourIniciar(); });
     $('#mMas').addEventListener('toggle', e=>{ if(!primera) try { localStorage.setItem('burros_mas', e.target.open ? '1' : ''); } catch(x){} });
@@ -338,7 +435,7 @@
   const apiMapa = {actual, guardar, punto, aviso, dialogo, cerrarDialogo, confirmar, copiar, descargar, esc, f, calcular:m=>M.calcular(m), vistaMapa:null,
     M, evento:c=>evento(c), tablaCuadro:(m, R)=>tablaCuadro(m, R), apoyo:R=>apoyo(R), material:(m, R)=>{ const pm = R.carga || pesoMaterial(m, R);
       return (pm ? `<p class="doc-nota"><b>Carga por hombre: ${f(pm.total, 1)} kg</b> (1.ª línea ${f(pm.lineas[1], 1)} + 2.ª línea ${f(pm.lineas[2], 1)} + 3.ª línea ${f(pm.lineas[3], 1)}${pm.sinMochila ? ', <b>se deja</b>' : ''}${pm.base ? ' + otro peso ' + f(pm.base, 1) : ''}).</p>` : '') + htmlMaterial(m, R, true).html; },
-    resultado:m=>resultadoHtml(m, true), paquete:()=>dialogoPaquete(), navegarA:d=>{ Seguir.irA(d); ir('seguir'); }, marchas:()=>S.marchas, svgPerfil:(R, T, c)=>svgPerfil(R, T, c), terrenoDe:R=>terrenoDe(R), ir:v=>ir(v), rutaDeRecorrido:(m, e)=>rutaDeRecorrido(m, e)};
+    resultado:m=>resultadoHtml(m, true), paquete:()=>dialogoPaquete(), navegarA:d=>{ Seguir.irA(d); ir('seguir'); }, marchas:()=>S.marchas, svgPerfil:(R, T, c)=>svgPerfil(R, T, c), terrenoDe:R=>terrenoDe(R), ir:v=>ir(v), rutaDeRecorrido:(m, e)=>rutaDeRecorrido(m, e), alCambiarRuta:R=>asisBarra(R)};
   // documento para imprimir o PDF (orden gráfica militar o civil); se abre desde cada pantalla con la sección que corresponde
   function documento(secUnica){ const m = actual(); if(!m) return;
     if(secUnica){ m.doc = m.doc || {}; m.doc.sec = Object.assign({mapa:false, perfil:false, cuadro:false, matriz:false, luz:false, claves:false, apoyo:false, carga:false, material:false, lista:false, horiz:false, resultado:false}, {[secUnica]:true}); }

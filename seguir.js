@@ -646,7 +646,7 @@ const Seguir = (function(){
     if(!P) return pintarSinRuta(false);
     if(!E){ // antes de partir: la carta a pantalla completa con el plan encima y el botón de inicio abajo
       document.body.classList.add('con-mapa');
-      c.innerHTML = `<div class="mapa-env s-carta"><div id="sMapa"></div>
+      c.innerHTML = `<div class="mapa-env s-carta s-previo"><div id="sMapa"></div>
         <div class="s-hud" id="sPrevio"></div>
         <div class="s-ctrl">${modoVistaBtn()}<button class="btn" id="sOrient" title="Norte arriba o destino arriba" aria-label="Orientación"></button><button class="btn" id="sCapa" title="Cambiar el mapa" aria-label="Mapa">${ic('capa', 'Mapa')}</button><button class="btn" id="sCentrar" title="Centrar en mi posición" aria-label="Centrar">${ic('centro', 'Centrar')}</button></div>
         <div class="s-pie"><div class="s-ini"><button class="btn pri grande" id="sIni">▶ Iniciar marcha</button><button class="btn" id="sIrSolo">🧭 Ir a un punto</button></div>
