@@ -335,7 +335,7 @@ const Seguir = (function(){
   }
   const avisoMochila = e=>({deja:'DEJAR LA MOCHILA DE SOSTENIMIENTO', dejaTodo:'DEJAR LAS DOS MOCHILAS', recogeB:'RECOGER LA MOCHILA DE SOSTENIMIENTO',
     recogeA:'RECOGER LA MOCHILA DE ASALTO', recoge:'RECOGER LAS DOS MOCHILAS'})[e] || '';
-  function llegar(k, auto){
+  function llegar(k, auto, sinTarjeta){
     const m = A.actual(), E = m.ejec, P = plan(m); if(!E || E.llegadas[k]) return;
     if(!P.pts[k].ev){ E.llegadas[k] = ahora(); A.guardar(); pintarVivo();   // quiebre de la ruta: sin mensaje (solo el aviso de la mochila)
       if(P.pts[k].mochila){ if(navigator.vibrate) navigator.vibrate([200, 100, 200]); A.aviso('🎒 ' + avisoMochila(P.pts[k].mochila) + ' aquí'); } return; }
@@ -343,10 +343,55 @@ const Seguir = (function(){
     E.llegadas[k] = ahora();
     const d = (E.llegadas[k] - E.inicio)/60000 - P.pts[k].lleg*60, p = P.pts[k];
     if(navigator.vibrate) navigator.vibrate([200, 100, 200]);
-    A.aviso((auto ? '📍 ' : '✔ ') + verbo() + ' ' + rotulo(p) + ' — ' + dif(d) + (p.mochila ? ' · 🎒 ' + avisoMochila(p.mochila) : ''));
-    mensaje('PC', {pc:p.nombre, clave:p.clave || '', n:k, h:hh(E.llegadas[k]), dif:Math.round(d)});
+    const msgPC = mensaje('PC', {pc:p.nombre, clave:p.clave || '', n:k, h:hh(E.llegadas[k]), dif:Math.round(d)});
+    if(k<P.pts.length - 1 && !sinTarjeta && tarjetaPaso(m, P, k, d, msgPC)) {}
+    else A.aviso((auto ? '📍 ' : '✔ ') + verbo() + ' ' + rotulo(p) + ' — ' + dif(d) + (p.mochila ? ' · 🎒 ' + avisoMochila(p.mochila) : ''));
     if(k===P.pts.length - 1) terminar(true); else { A.guardar(); pintar(); }
   }
+  /* ---------- línea de avance (v0.99.30, revisión de la app, etapa 2, estilo sobrio): los puntos de control en orden (pasados llenos, el
+     próximo con anillo, los que faltan en gris, saltados con ×); el tramo en curso se llena con lo recorrido por la ruta; con más de 7
+     puntos se ven los cercanos al próximo. Abajo: km recorridos de la ruta, puntos pasados y adelanto/atraso (o hora de término). */
+  function lineaAvance(m, P, E, at, conTermino){
+    const ev = P.pts.map((p, j)=>j).filter(j=>P.pts[j].ev), acum = [0]; for(let j=1; j<P.pts.length; j++) acum[j] = acum[j - 1] + P.pts[j].tramo.dist;
+    if(ev.length<2) return '';
+    const d = recorrido(m, P), tot = acum[acum.length - 1], ke = proxEv(m, P), iN = ke===null ? ev.length - 1 : ev.indexOf(ke);
+    let a = 0, b = ev.length - 1; if(ev.length>7){ a = Math.max(0, Math.min(iN - 2, ev.length - 7)); b = a + 6; }
+    let h = '';
+    for(let i=a; i<=b; i++){ const j = ev[i], ll = E.llegadas[j], est = j===0 || ll>0 ? 'v' : ll===-1 ? 'sal' : j===ke ? 'prox' : 'pend';
+      if(i>a){ const j0 = ev[i - 1], f = est==='v' || est==='sal' ? 1 : Math.max(0, Math.min(1, (d - acum[j0])/Math.max(1, acum[j] - acum[j0])));
+        h += `<span class="av-s"><i style="width:${Math.round(f*100)}%"></i></span>`; }
+      h += `<span class="av-p ${est}"><small>${A.esc(rotulo(P.pts[j]) || P.pts[j].nombre)}</small></span>`; }
+    const hechos = ev.filter(j=>j && E.llegadas[j]>0).length, cls = at===null ? '' : at>5 ? 'mal' : at< -5 ? 'bien' : '';
+    const der = conTermino ? (at===null ? '' : 'termina ' + hh(E.inicio + (P.R.res.total*60 + at)*60000))
+      : at===null ? '' : `<span class="${cls}">${Math.abs(at)<1 ? 'a la hora' : (at<0 ? '▲ ' : '▼ ') + Math.round(Math.abs(at)) + ' min'}</span>`;
+    return `<div class="avance${a>0 ? ' corta-i' : ''}${b<ev.length - 1 ? ' corta-d' : ''}"><div class="av-ln">${h}</div>
+      <div class="av-tx"><span>${A.f(Math.min(d, tot)/1000, 1)} de ${A.f(tot/1000, 1)} km · ${hechos} de ${ev.length - 1} puntos</span><span>${der}</span></div></div>`;
+  }
+  /* ---------- confirmación al pasar un punto (v0.99.30): tarjeta grande que se cierra sola en 5 s; no tapa los botones de abajo
+     (el fondo deja pasar los toques). «Enviar al C2» abre el envío del mensaje PASANDO. `burros_confirma` = '0' la apaga (pruebas). */
+  let tTarjeta = null;
+  function tarjetaPaso(m, P, k, d, msg){
+    let on = true; try { on = localStorage.getItem('burros_confirma')!=='0'; } catch(e){}
+    if(!on || !$('#seguir')) return false;
+    const E = m.ejec, p = P.pts[k], ev = P.pts.map((q, j)=>j).filter(j=>P.pts[j].ev && j), hechos = ev.filter(j=>E.llegadas[j]>0).length;
+    const sig = P.pts.findIndex((q, j)=>j>k && q.ev), q = sig>0 ? P.pts[sig] : null, r = q ? M.rumboEntre(p, q, P.R.zona, P.R.decl.valor) : null;
+    let dist = 0; if(q) for(let j=k + 1; j<=sig; j++) dist += P.pts[j].tramo.dist;
+    const at = Math.round(d), cl = Math.abs(at)<=5 ? 'bien' : at>0 ? 'mal' : 'bien';
+    let el = $('#sOk'); if(el) el.remove(); clearTimeout(tTarjeta);
+    el = document.createElement('div'); el.id = 'sOk';
+    el.innerHTML = `<div class="ok-t"><div class="ok-c">✓</div><b>${A.esc(verbo() + ' ' + rotulo(p))}</b>
+      <div class="ok-h ${cl}">${hh(E.llegadas[k])} · ${Math.abs(at)<1 ? 'a la hora' : Math.abs(at) + ' min ' + (at<0 ? 'adelantado' : 'atrasado')}</div>
+      <div class="ok-s">${hechos} de ${ev.length} puntos${p.mochila ? ' · 🎒 ' + A.esc(avisoMochila(p.mochila)) : ''}</div>
+      ${q ? `<div class="ok-n">Próximo: <b>${A.esc(rotulo(q))}</b> · ${dist>=1000 ? A.f(dist/1000, 2) + ' km' : A.f(dist) + ' m'} · ${A.f(r.azM, 0)}°<br>llega ${hh(E.inicio + q.lleg*36e5)}</div>` : ''}
+      <div class="ok-b"><button class="btn" data-ok="env">Enviar al C2</button><button class="btn" data-ok="ok">Seguir</button></div></div>`;
+    document.body.appendChild(el);
+    const cerrar = ()=>{ clearTimeout(tTarjeta); el.remove(); };
+    el.querySelector('[data-ok=ok]').onclick = cerrar;
+    el.querySelector('[data-ok=env]').onclick = ()=>{ cerrar(); enviar(msg, verbo() + ' ' + rotulo(p)); };
+    tTarjeta = setTimeout(cerrar, 5000);
+    return true;
+  }
+
   /* ---------- recorrido real: ida y regreso (v0.99.10, pedido del usuario: el regreso de otro color aunque pise la ida) ----------
      El regreso empieza en el punto anterior al primero marcado «Regreso» (los que deja «Volver por la ida»); si no hay, en el punto más
      lejano del inicio (si es el último, no hay regreso). Lo grabado después de llegar ahí (o a uno posterior) es regreso. */
@@ -615,7 +660,7 @@ const Seguir = (function(){
     A.dialogo(`<h3>📡 Enviar</h3><div class="s-mas">${k!==null ? `<button class="btn pri" id="ePas">✔ ${A.esc(tl)}: marcar y enviar</button>` : ''}
         <button class="btn" id="eMat">${ic('lista', 'Enviar la matriz completa (sin marcar)')}</button><button class="btn" id="ePos">${ic('pos', 'Enviar mi posición (sin marcar)')}</button></div>
       <div class="btns"><button class="btn" data-cerrar>Cancelar</button></div>`, d=>{
-      if(d.querySelector('#ePas')) d.querySelector('#ePas').onclick = ()=>{ A.cerrarDialogo(); llegar(k, false);
+      if(d.querySelector('#ePas')) d.querySelector('#ePas').onclick = ()=>{ A.cerrarDialogo(); llegar(k, false, true);
         const x = (A.actual().ejec.msgs || []).filter(y=>y.k==='PC').pop(); if(x) setTimeout(()=>enviar(x.msg, tl), 250); };
       d.querySelector('#eMat').onclick = ()=>{ A.cerrarDialogo(); setTimeout(()=>enviar(textoMatriz(), 'Matriz de eventos'), 250); };
       d.querySelector('#ePos').onclick = ()=>{ A.cerrarDialogo(); setTimeout(()=>enviar(mensaje('POS', {}), 'Posición'), 250); }; });
@@ -687,7 +732,7 @@ const Seguir = (function(){
     } else if(modo==='nav'){
       // en vertical: selector, datos y botones uno debajo del otro; en horizontal (v0.99.26, pedido del usuario): datos a la izquierda y
       // selector y botones en una columna a la derecha, para que todo quepa sin desplazar la pantalla
-      c.innerHTML = `<div class="s-nav"><div class="s-nav-d"><div class="tarjeta" id="sCab"></div></div><div class="s-nav-b">${sel}${acc}</div></div>`;
+      c.innerHTML = `<div class="s-nav"><div class="s-nav-d"><div class="tarjeta" id="sCab"></div></div><div class="s-nav-b">${sel}<div class="tarjeta s-avc" id="sAvance"></div>${acc}</div></div>`;
     } else {
       c.innerHTML = `${sel}<h2>Matriz de eventos</h2>
         <p class="nota">Todos los eventos de la marcha en orden: los planificados (paso por cada punto con su nombre clave y hora prevista) y lo que va ocurriendo
@@ -745,10 +790,12 @@ const Seguir = (function(){
       const chips = [intervalo(m, P, true) || '', ultAlto ? `<span class="ch pausa">⏸ Alto: ${A.esc(ultAlto.motivo)} · ${dur(t - ultAlto.ini)}</span>` : '',
         quiebre ? `<span class="ch">↪ ${quiebre.split(' · ')[0]}</span>` : '', fueraD ? `<span class="ch mal">Fuera de la ruta: ${A.f(fueraD)} m</span>` : '', !pos ? `<span class="ch">${navigator.geolocation ? 'Esperando GPS…' : 'Sin GPS'}</span>` : (pos.acc || 0)>30 ? `<span class="ch">GPS ±${Math.round(pos.acc)} m</span>` : ''].filter(Boolean).join('');
       const fila = chips ? `<div class="bchips">${chips}</div>` : '';
-      if(modo==='atak'){ c.innerHTML = `<div class="pcs">${celdas}</div>${fila}`; const fr = $('#sFranja'); if(fr) fr.innerHTML = `<b class="clave-tx">${nom}</b><span>${dist}</span><b class="ocre">${rumbo}</b>`; }
+      const av = O ? '' : lineaAvance(m, P, E, at);
+      if(modo==='atak'){ c.innerHTML = `${av}<div class="pcs">${celdas}</div>${fila}`; const fr = $('#sFranja'); if(fr) fr.innerHTML = `<b class="clave-tx">${nom}</b><span>${dist}</span><b class="ocre">${rumbo}</b>`; }
       else c.innerHTML = plegada ? `<div class="b1">${O ? '🧭 ' : ''}<b>${nom}</b> · ${dist} · <b class="ocre">${rumbo}</b>${at!==null && !O ? ' · ' + atC : ''}<span class="bmas">▾</span></div>${fila}`
-        : `<div class="bcs">${celdas}</div>${fila}`;
+        : `<div class="bcs">${celdas}</div>${av}${fila}`;
     } else {
+      const sa = $('#sAvance'); if(sa){ const h = O ? '' : lineaAvance(m, P, E, at, true); sa.innerHTML = h; sa.style.display = h ? '' : 'none'; }
       c.innerHTML = `<div class="s-estado"><span>⏱ ${dur(t - E.inicio)} de marcha</span><span class="hud-est ${cls}">${at===null ? '' : dif(at)}</span></div>${enAlto}
         ${p || O ? `<div class="s-prox">${O ? `🧭 <b class="clave-tx">${O.vuelta ? 'VOLVER A LA RUTA' : 'IR A ' + A.esc(O.nombre)}</b><small>${A.esc(O.modo)} · en línea recta</small>` : `PRÓXIMO <b class="clave-tx">${A.esc(rotulo(p))}</b><small>${A.esc(p.clave ? p.nombre + (p.obs ? ' · ' + p.obs : '') : p.obs || '')}</small>`}</div>
         <div class="s-grande"><div><span>Distancia</span><b>${dist}</b></div><div><span>Rumbo mag.</span><b class="ocre">${rumbo}</b><small>${mils}</small></div>
@@ -827,22 +874,46 @@ const Seguir = (function(){
         <td class="${x.dif===null || x.dif===undefined ? '' : x.dif>5 ? 'sube' : x.dif< -5 ? 'baja' : ''}">${x.dif===null || x.dif===undefined ? '' : difCorta(x.dif)}</td><td class="tx ev">${A.esc(x.ev)}</td></tr>`).join('')}
       </tbody></table></div>`;
   }
+  /* ---------- informe de fin de marcha (v0.99.30, revisión de la app, etapa 2, estilo sobrio): recorrido en una carta chica (ida azul,
+     regreso rojo, ruta tenue), duración real y plan, cumplimiento del horario, distancia GPS, puntos alcanzados y cada punto con su hora
+     plan, real y diferencia; botones: mensaje de fin al C2, resultado y reseña, y «Más…» (GPX, ruta nueva, imprimir, hacer de nuevo,
+     descartar y la matriz completa; `burros_finmas` = '1' lo deja abierto). */
+  let mapaFin = null;
   function pintarFin(c, m, P){
     const E = m.ejec, durReal = E.fin - E.inicio, altos = E.altos.reduce((a, x)=>a + ((x.fin || E.fin) - x.ini), 0);
     const km = distGps(E.track, m);
-    const dTot = durReal/3600000 - P.R.res.total;
-    c.innerHTML = `<h2>Marcha terminada</h2>
-      <div class="kpis"><div class="kpi"><div class="k">Duración real</div><div class="v">${dur(durReal)}</div></div>
-        <div class="kpi"><div class="k">Plan</div><div class="v">${M.verDur(P.R.res.total)}</div></div>
-        <div class="kpi ${dTot*60>5 ? '' : 'ocre'}"><div class="k">Diferencia</div><div class="v">${difCorta(dTot*60)}</div></div>
-        <div class="kpi"><div class="k">Recorrido GPS</div><div class="v">${E.track.length>1 ? A.f(km/1000, 2) + ' <small>km</small>' : '—'}</div></div></div>
-      ${(()=>{ const ev = P.pts.map((p, j)=>({p, j})).filter(x=>x.j && x.p.ev), hechos = ev.filter(x=>E.llegadas[x.j]>0), sal = ev.filter(x=>E.llegadas[x.j]===-1), no = ev.filter(x=>!E.llegadas[x.j]);
-        return `<div class="${no.length || sal.length ? 'alerta' : 'info'}">Puntos de control: <b>${hechos.length} de ${ev.length}</b>${sal.length ? ' · saltados: ' + sal.map(x=>A.esc(rotulo(x.p))).join(', ') : ''}${no.length ? ' · no alcanzados: ' + no.map(x=>A.esc(rotulo(x.p))).join(', ') : ''}</div>`; })()}
-      <div class="desglose"><span>partida <b>${hh(E.inicio)}</b></span><span>término <b>${hh(E.fin)}</b></span><span>altos <b>${dur(altos)}</b> (${E.altos.length})</span><span>novedades <b>${E.nov.length}</b></span></div>
-      <h2>Matriz de eventos</h2><div id="sFicha"></div>
-      <div class="btns"><button class="btn pri" id="fMsg">📡 Mensaje de fin al C2</button><button class="btn" id="fRes">📊 Resultado y reseña</button><button class="btn" id="fGpx">⬇ Recorrido (GPX)</button><button class="btn" id="fRuta">🧭 Guardar el recorrido como ruta nueva</button><button class="btn" id="fImp">🖨 Imprimir</button><button class="btn peligro" id="fRe">↺ Hacer de nuevo</button><button class="btn peligro" id="fDesc">🗑 Descartar (que no quede registrada)</button></div>
-      <p class="nota">En <b>Cuadro → Resultado</b> está la comparación de lo planificado con lo ejecutado (horas, velocidades, altos) y la reseña.</p>`;
+    const dTot = durReal/3600000 - P.R.res.total, dMin = Math.round(dTot*60);
+    const ev = P.pts.map((p, j)=>({p, j})).filter(x=>x.j && x.p.ev), hechos = ev.filter(x=>E.llegadas[x.j]>0), sal = ev.filter(x=>E.llegadas[x.j]===-1), no = ev.filter(x=>!E.llegadas[x.j]);
+    const fecha = d=>{ const x = new Date(d); return String(x.getDate()).padStart(2, '0') + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + x.getFullYear(); };
+    let masAb = false; try { masAb = localStorage.getItem('burros_finmas')==='1'; } catch(e){}
+    const filas = ev.map(({p, j})=>{ const r = E.llegadas[j], pl = E.inicio + p.lleg*36e5, d = r>0 ? Math.round((r - pl)/60000) : null;
+      return `<tr><td class="tx"><b>${A.esc(rotulo(p))}</b></td><td>${hh(pl)}</td><td>${r>0 ? (E.estim && E.estim[j] ? '≈' : '') + hh(r) : r===-1 ? 'saltado' : '—'}</td><td class="${d===null ? '' : Math.abs(d)<=5 ? 'in-ok' : d>0 ? 'in-tarde' : 'in-antes'}">${d===null ? '' : difCorta(d)}</td></tr>`; }).join('');
+    c.innerHTML = `<div class="informe"><div class="in-t">Informe de fin de marcha</div>
+      <div class="in-n">${A.esc(m.nombre || 'Marcha')} · ${no.length || sal.length ? 'incompleta' : 'completa'}</div>
+      <div class="nota">${fecha(E.inicio)} · ${hh(E.inicio)} → ${hh(E.fin)}${m.unidad ? ' · ' + A.esc(m.unidad) : ''}</div>
+      ${E.track.length>1 ? '<div id="fMapa" class="in-mapa"></div>' : ''}
+      <div class="kpis in-k"><div class="kpi"><div class="k">Duración</div><div class="v">${dur(durReal)}</div><div class="s">plan ${M.verDur(P.R.res.total)}</div></div>
+        <div class="kpi"><div class="k">Horario</div><div class="v ${Math.abs(dMin)<=5 ? 'in-ok' : dMin>0 ? 'in-tarde' : 'in-antes'}">${Math.abs(dMin)<1 ? 'a la hora' : difCorta(dMin)}</div><div class="s">${Math.abs(dMin)<=5 ? 'dentro de 5 min' : dMin>0 ? 'atrasado' : 'adelantado'}</div></div>
+        <div class="kpi"><div class="k">Distancia GPS</div><div class="v">${E.track.length>1 ? A.f(km/1000, 2) + ' <small>km</small>' : '—'}</div><div class="s">ruta ${A.f(P.R.res.dist/1000, 1)} km</div></div>
+        <div class="kpi"><div class="k">Puntos</div><div class="v">${hechos.length} de ${ev.length}</div><div class="s">${sal.length ? sal.length + ' saltado' + (sal.length===1 ? '' : 's') : no.length ? no.length + ' sin pasar' : 'todos'}</div></div></div>
+      <div class="${no.length || sal.length ? 'alerta' : 'info'}">Puntos de control: <b>${hechos.length} de ${ev.length}</b>${sal.length ? ' · saltados: ' + sal.map(x=>A.esc(rotulo(x.p))).join(', ') : ''}${no.length ? ' · no alcanzados: ' + no.map(x=>A.esc(rotulo(x.p))).join(', ') : ''}</div>
+      <div class="tabla-env"><table class="t in-tb"><thead><tr><th class="tx">Punto</th><th>Plan</th><th>Real</th><th>Dif.</th></tr></thead><tbody>${filas}</tbody></table></div>
+      <div class="desglose"><span>altos <b>${dur(altos)}</b> (${E.altos.length})</span><span>novedades <b>${E.nov.length}</b></span></div>
+      <div class="btns in-b"><button class="btn pri" id="fMsg">📡 Mensaje de fin al C2</button><button class="btn" id="fRes">📊 Resultado y reseña</button></div>
+      <details class="tarjeta in-mas"${masAb ? ' open' : ''}><summary>Más…</summary>
+        <div class="btns"><button class="btn" id="fGpx">⬇ Recorrido (GPX)</button><button class="btn" id="fRuta">🧭 Guardar el recorrido como ruta nueva</button><button class="btn" id="fImp">🖨 Imprimir</button>
+          <button class="btn" id="fRe">↺ Hacer de nuevo</button><button class="btn peligro" id="fDesc">🗑 Descartar (que no quede registrada)</button></div>
+        <h3>Matriz de eventos</h3><div id="sFicha"></div></details></div>`;
     ficha();
+    // la carta chica con el recorrido (sin tocar ni mover)
+    const fm = $('#fMapa');
+    if(fm && typeof L!=='undefined'){ const pr = prefMapa(), b = Mapa.BASES[pr.base] ? Mapa.BASES[pr.base] : Mapa.BASES.topo;
+      mapaFin = L.map(fm, {zoomControl:false, attributionControl:false, dragging:false, scrollWheelZoom:false, doubleClickZoom:false, touchZoom:false, boxZoom:false, keyboard:false});
+      L.tileLayer(b.url, Object.assign({crossOrigin:'anonymous'}, b.o)).addTo(mapaFin);
+      L.polyline(P.pts.map(q=>[q.lat, q.lon]), {color:'#e3a63a', weight:2, opacity:.7, dashArray:'6 6'}).addTo(mapaFin);
+      const T = partes(m, P); [[T.ida, COL_IDA], [T.reg, COL_REG]].forEach(([l, col])=>{ if(l.length) L.polyline(l, {color:col, weight:4}).addTo(mapaFin); });
+      mapaFin.fitBounds(L.latLngBounds(E.track.map(t=>[t[0], t[1]]).concat(P.pts.map(q=>[q.lat, q.lon]))), {padding:[14, 14], animate:false});
+      const este = mapaFin; setTimeout(()=>{ if(mapaFin===este) mapaFin.invalidateSize({animate:false}); }, 50); }
     $('#fMsg').onclick = ()=>verMensaje((E.msgs || []).filter(x=>x.k==='FIN').pop()?.msg || mensaje('FIN', {}));
     $('#fGpx').onclick = ()=>{ if(E.track.length<2) return A.aviso('No hay recorrido GPS registrado');
       A.descargar((m.nombre || 'marcha').replace(/[^\w-]+/g, '_') + '_recorrido.gpx', `<?xml version="1.0" encoding="UTF-8"?>
@@ -1007,7 +1078,7 @@ ${T.map(t=>`<trkpt lat="${t[0]}" lon="${t[1]}"><time>${new Date(t[2]).toISOStrin
       mapa.setView([pos.lat, pos.lon], Math.max(12, Math.min(17, z)), {animate:false}); }
     else mapa.panTo([pos.lat, pos.lon], {animate:false});
   }
-  function cerrarMapa(){ if(mapa){ try { mapa.remove(); } catch(e){} mapa = null; capas = null; } capaS = null; curvasS = null; giro = null; zoomListo = false; explorando = false; }
+  function cerrarMapa(){ if(mapaFin){ try { mapaFin.remove(); } catch(e){} mapaFin = null; } if(mapa){ try { mapa.remove(); } catch(e){} mapa = null; capas = null; } capaS = null; curvasS = null; giro = null; zoomListo = false; explorando = false; }
 
   function cerrar(){ cerrarMapa(); const m = A && A.actual(); if(!(m && m.ejec && m.ejec.estado!=='fin')) pararGps(); }
   // desde el Mapa: «Navegar hasta aquí» (con una marcha en curso, como desvío que vuelve a la ruta)

@@ -925,3 +925,42 @@ details.puestos-ome:not([open])>h3{display:none}
 #asisBar .tb-b button[disabled]{opacity:.4}
 .con-asis .m-sup{top:calc(52px + var(--asisH,90px))}.con-asis .leaflet-top{top:var(--asisH,90px)}
 .asis a{color:var(--ocre,#e3a63a)}
+/* v0.99.30: línea de avance, confirmación al pasar un punto e informe de fin de marcha */
+.avance{padding:8px 14px 6px;border-top:1px solid #2c2d24}
+.av-ln{display:flex;align-items:center;padding:0 10px 16px}
+.av-p{width:13px;height:13px;border-radius:50%;flex:none;border:2px solid var(--ocre,#e3a63a);background:var(--ocre,#e3a63a);position:relative}
+.av-p.prox{background:#14150f;box-shadow:0 0 0 3px rgba(227,166,58,.35)}.av-p.pend{border-color:#55564c;background:#14150f}
+.av-p.sal{border-color:#77766a;background:#14150f}.av-p.sal::after{content:"×";position:absolute;inset:-4px 0 0;text-align:center;font-size:12px;line-height:13px;color:#9c9a8a}
+.av-p small{position:absolute;top:14px;left:50%;transform:translateX(-50%);font-family:var(--mono,monospace);font-size:9.5px;color:var(--suave,#9c9a8a);white-space:nowrap}
+.av-p.prox small{color:var(--ocre,#e3a63a);font-weight:700}
+.av-s{flex:1;height:3px;background:#33342b;position:relative;min-width:8px}.av-s i{position:absolute;left:0;top:0;bottom:0;background:var(--ocre,#e3a63a)}
+.corta-i .av-ln::before,.corta-d .av-ln::after{content:"…";color:var(--suave,#9c9a8a);margin:0 4px}
+.av-tx{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--suave,#bdbaa9)}.av-tx .bien{color:var(--verde,#7bbf6a)}.av-tx .mal{color:var(--rojo,#d9534f)}
+.s-bsup.plegada .avance{display:none}
+#seguir .tarjeta#sCab>.avance{grid-column:1/-1;border-top:0;padding:0 0 8px;margin-bottom:6px;border-bottom:1px solid #2c2d24}
+.s-pcab .avance{border-top:0;padding:4px 2px 8px}
+#sOk{position:fixed;inset:0;z-index:4000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45);pointer-events:none}
+#sOk .ok-t{pointer-events:auto;width:min(88vw,360px);background:#1d1e18;border:2px solid var(--verde,#7bbf6a);border-radius:16px;padding:16px;text-align:center;box-shadow:0 8px 30px #000c}
+#sOk .ok-c{width:48px;height:48px;border-radius:50%;background:var(--verde,#7bbf6a);color:#14150f;font-size:26px;display:flex;align-items:center;justify-content:center;margin:0 auto 8px}
+#sOk b{display:block;font-size:22px;letter-spacing:1px}
+#sOk .ok-h{font-family:var(--mono,monospace);font-size:15px;margin:4px 0}#sOk .ok-h.bien{color:var(--verde,#7bbf6a)}#sOk .ok-h.mal{color:var(--rojo,#d9534f)}
+#sOk .ok-s{color:var(--suave,#9c9a8a)}
+#sOk .ok-n{color:var(--suave,#bdbaa9);border-top:1px solid #33342b;margin-top:10px;padding-top:10px}#sOk .ok-n b{display:inline;font-size:15px;color:var(--ocre,#e3a63a)}
+#sOk .ok-b{display:flex;gap:8px;margin-top:12px}#sOk .ok-b .btn{flex:1}
+.informe .in-t{font-family:var(--mono,monospace);font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--suave,#9c9a8a)}
+.informe .in-n{margin:2px 0}
+.in-mapa{height:170px;border-radius:10px;overflow:hidden;margin:10px 0;border:1px solid #33342b}
+.in-k{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media (min-width:700px){ .in-k{grid-template-columns:repeat(4,minmax(0,1fr))} }
+.in-tb td,.in-tb th{padding:6px 8px}
+.in-mas{margin-top:12px}.in-mas>summary{cursor:pointer;font-weight:600}
+.informe .in-n{font-size:20px;font-weight:700;margin:2px 0}
+.informe .in-ok{color:var(--verde,#7bbf6a)!important}.informe .in-tarde{color:var(--rojo,#d9534f)!important}.informe .in-antes{color:var(--ocre,#e3a63a)!important}
+/* línea de avance en Datos: arriba en vertical; en horizontal en la columna de la derecha, bajo los botones */
+.s-avc{padding:8px 4px 4px}.s-avc .avance{border-top:0;padding:0 8px}
+.s-nav .s-modos{order:0}.s-nav #sAvance{order:1}.s-nav-d{order:2}.s-nav .s-acc{order:3}
+@media (orientation:landscape) and (max-height:540px){ .s-nav #sAvance{order:5;margin:0}.s-nav-b .s-modos{order:0}.s-nav-b .s-acc{order:1}.s-avc .av-p small{font-size:8.5px} }
+@media (orientation:landscape) and (max-height:540px){
+  .s-avc{padding:4px 2px 2px}.s-avc .av-ln{padding-bottom:12px}.s-avc .av-tx{font-size:11px}.s-avc .av-p{width:11px;height:11px}.s-avc .av-p small{top:11px}
+  .s-nav .s-acc{gap:4px}.s-nav .s-acc .btn{min-height:34px;padding:4px}.s-nav .s-acc #sLleg{padding:8px}
+}
