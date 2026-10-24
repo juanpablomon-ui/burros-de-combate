@@ -9,7 +9,7 @@ const Documento = (function(){
   const $ = s=>document.querySelector(s);
   const SECCIONES = [['mapa', 'Mapa de la ruta (orden gráfica)'], ['perfil', 'Perfil del itinerario'], ['cuadro', 'Cuadro de marcha y navegación'],
     ['matriz', 'Matriz de eventos'], ['luz', 'Luz y visibilidad (sol, crepúsculos, luna)'], ['claves', 'Nombres clave y eventos para la radio'], ['horiz', 'Vuelta al horizonte (puntos de referencia)'], ['resultado', 'Resultado de la marcha (plan / real) y reseña'],
-    ['apoyo', 'Columna, calor y agua'], ['carga', 'Carga por hombre'], ['material', 'Material para la marcha'], ['lista', 'Lista de verificación']];
+    ['apoyo', 'Columna, calor y agua'], ['carga', 'Carga por hombre'], ['material', 'Material para la marcha'], ['lista', 'Lista de verificación']].filter(([k])=>!(typeof EDICION!=='undefined' && EDICION.tienda && k==='material'));   // tienda: sin la lista de material
   // colores del documento: paleta (títulos, tarjetas, líneas), color de la ruta en el mapa
   const PALETAS = {oliva:'Verde oliva', azul:'Azul', gris:'Gris (blanco y negro)', arena:'Arena'};
   const RUTAS = {azul:['Azul', '#0b3d91'], rojo:['Rojo', '#b3261e'], negro:['Negro', '#111111'], magenta:['Magenta', '#b0127a']};
@@ -145,7 +145,7 @@ const Documento = (function(){
     if(S.horiz && (m.horizontes || []).length) partes.push(sec('Vuelta al horizonte', horizontes(m, R, d.figuras==='oscuras'), partes.length>0));
     if(S.apoyo) partes.push(sec('Columna, calor y agua', A.apoyo(R) || '<p>Sin datos de columna ni de calor (pestaña Datos).</p>', partes.length>0));
     if(S.carga) partes.push(sec('Carga por hombre', carga(m, R), partes.length>0));
-    if(S.material) partes.push(sec('Material para la marcha', A.material(m, R), partes.length>0));
+    if(S.material && !(typeof EDICION!=='undefined' && EDICION.tienda)) partes.push(sec('Material para la marcha', A.material(m, R), partes.length>0));
     if(S.lista) partes.push(sec('Lista de verificación', lista(m), partes.length>0));
     const firmas = mil ? `<div class="doc-firmas">${String(d.firmas || '').split(/\n+/).map(x=>x.trim()).filter(Boolean).map(x=>`<div><div class="linea"></div>${esc(x)}</div>`).join('')}</div>
         ${d.elab ? `<div class="doc-ref">Elaborado por: ${esc(d.elab)}</div>` : ''}
@@ -262,6 +262,18 @@ const Documento = (function(){
   function carga(m, R){
     const esc = A.esc, f = A.f, pm = R.carga || (typeof pesoMaterial!=='undefined' ? pesoMaterial(m, R) : null);
     if(!pm) return `<p>Carga escrita a mano: <b>${f(+R.par.carga || 0, 1)} kg</b> por hombre.</p>`;
+    // edición tienda (Ruck Planner): un peso por persona + el agua, o el peso de cada integrante en la balanza
+    if(pm.persona) return `<div class="doc-res doc-carga">
+        <div class="dr dest"><div><span>Carga al partir</span><b>${f(pm.inicial!==undefined ? pm.inicial : pm.total, 1)} kg</b><small>por persona, usada en el cálculo de tiempos</small></div></div>
+        <div class="dr"><div><span>Peso por persona</span><b>${f(pm.kgPersona, 1)} kg</b><small>sin el agua</small></div></div>
+        <div class="dr"><div><span>Agua</span><b>${f(pm.agua, 1)} kg</b><small>${f(pm.litros, 1)} L, según la duración y el calor</small></div></div>
+        ${pm.final!==undefined ? `<div class="dr"><div><span>Al llegar</span><b>${f(pm.final, 1)} kg</b><small>el agua se bebe en el camino</small></div></div>` : ''}</div>`;
+    if(pm.balanza && typeof EDICION!=='undefined' && EDICION.tienda) return `<div class="doc-res doc-carga">
+        <div class="dr dest"><div><span>El más cargado</span><b>${f(pm.total, 1)} kg</b><small>${pm.mas ? esc(pm.mas.nombre) + ': con esta carga se calcula el tiempo' : ''}</small></div></div>
+        <div class="dr"><div><span>Promedio</span><b>${f(pm.promedio, 1)} kg</b><small>${pm.n} integrante${pm.n===1 ? '' : 's'}</small></div></div></div>
+      <table class="t"><thead><tr><th class="tx">Integrante</th><th>Con todo (kg)</th><th>Sin equipo (kg)</th><th>Carga (kg)</th></tr></thead><tbody>
+        ${pm.integrantes.map(x=>`<tr><td class="tx">${esc(x.nombre)}${pm.mas===x ? ' <b>(el más cargado)</b>' : ''}</td><td>${x.con ? f(x.con, 1) : '—'}</td><td>${x.sin ? f(x.sin, 1) : '—'}</td><td><b>${f(x.total, 1)}</b></td></tr>`).join('')}
+      </tbody></table>`;
     const its = pm.items.filter(x=>x.porHombre>0.005);
     return `<div class="doc-res doc-carga">
         <div class="dr dest"><div><span>Total por hombre</span><b>${f(pm.comun!==undefined ? pm.comun : pm.total, 1)} kg</b><small>${pm.mas ? 'fusilero o patrullero' : R.carga ? 'usada en el cálculo de tiempos' : 'no usada en el cálculo (carga a mano ' + f(+R.par.carga || 0, 1) + ' kg)'}</small></div></div>

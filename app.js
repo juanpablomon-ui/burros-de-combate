@@ -175,14 +175,14 @@
       <div class="campos"><label class="c ancho">Nombre<input id="a3N" value="${esc(m.nombre)}"></label>
         <label class="c">Fecha<input type="date" id="a3F" value="${esc(m.fecha)}"></label><label class="c">Hora de partida<input type="time" id="a3H" value="${esc(m.hora)}"></label>
         <label class="c">${civil ? 'Cuántas personas van' : 'Cuántos van (efectivo)'}<input class="num" id="a3E" inputmode="numeric" value="${esc(p.efectivo || '')}" placeholder="${civil ? '8' : '30'}"></label>
-        <label class="c">Carga por ${civil ? 'persona' : 'hombre'} (kg)<input class="num" id="a3C" inputmode="decimal" value="${p.cargaManual ? esc(p.carga) : ''}" placeholder="${esc(p.carga || 20)}"></label></div>
+        <label class="c">Carga por ${civil ? 'persona' : 'hombre'} (kg)<input class="num" id="a3C" inputmode="decimal" value="${EDICION.tienda ? esc(p.cargaPersona || '') : p.cargaManual ? esc(p.carga) : ''}" placeholder="${esc(EDICION.tienda ? 20 : p.carga || 20)}"></label></div>
       <div class="c" style="margin-top:6px"><span class="nota">Tipo de marcha</span><div class="seg a3-t">${TIPOS.map(([k, n])=>`<button data-a3t="${k}" class="${p.metodo===k ? 'on' : ''}">${n}</button>`).join('')}</div></div>
       <p class="nota">Lo demás (calor, material, nombres clave) se ajusta después en Datos de la marcha.</p>
       <div class="btns"><button class="btn" id="a3At">‹ Atrás</button><button class="btn pri" id="a3Si">Calcular ›</button></div></div>`, d=>{
       let met = p.metodo; d.querySelectorAll('[data-a3t]').forEach(b=>b.onclick = ()=>{ met = b.dataset.a3t; d.querySelectorAll('[data-a3t]').forEach(x=>x.classList.toggle('on', x===b)); });
       const leer = ()=>{ m.nombre = d.querySelector('#a3N').value.trim() || m.nombre; m.fecha = d.querySelector('#a3F').value || m.fecha; m.hora = d.querySelector('#a3H').value || m.hora;
         const e = d.querySelector('#a3E').value.trim(); if(e) p.efectivo = String(Math.max(1, Math.round(+e.replace(',', '.') || 1)));
-        const c = d.querySelector('#a3C').value.trim().replace(',', '.'); if(c && +c>0){ p.carga = c; p.cargaManual = true; p.cargaGeneral = true; }
+        const c = d.querySelector('#a3C').value.trim().replace(',', '.'); if(c && +c>0){ if(EDICION.tienda){ p.cargaPersona = c; p.modoCarga = 'persona'; } else { p.carga = c; p.cargaManual = true; p.cargaGeneral = true; } }
         if(met!==p.metodo){ p.metodo = met; if(met==='battle' && !p.brPreset) Object.assign(p, (q=>{ delete q.n; return q; })(Object.assign({}, M.PRESETS_BR.d100))); }
         guardar(); };
       d.querySelector('#a3At').onclick = ()=>{ leer(); asis.paso = 2; cerrarDialogo(); ir('mapa'); };
@@ -199,7 +199,7 @@
         : `<p class="nota">${sinCota ? 'Faltan las cotas de ' + sinCota + ' punto' + (sinCota===1 ? '' : 's') + ' (sin señal no se pudieron traer del terreno).' : 'La ruta necesita al menos dos puntos con coordenadas y cota.'}</p>
         ${sinCota ? '<div class="btns"><button class="btn pri" id="a4Cot">⛰ Completar las cotas desde el terreno</button></div>' : ''}`}
       ${G.length ? `<div class="tarjeta a4-p"><b>Pendiente</b>${G.map(x=>`<div>· ${esc(x.falta.t)}</div>`).join('')}</div>` : ''}
-      <div class="btns a4-b"><button class="btn" id="a4Cu">Ver el cuadro de marcha</button>${Uso.civil() ? '' : '<button class="btn" id="a4Ma">Revisar el material</button>'}</div>
+      <div class="btns a4-b"><button class="btn" id="a4Cu">Ver el cuadro de marcha</button>${EDICION.tienda ? '<button class="btn" id="a4Ma">Revisar la carga</button>' : Uso.civil() ? '' : '<button class="btn" id="a4Ma">Revisar el material</button>'}</div>
       <div class="btns"><button class="btn" id="a4At">‹ Atrás</button><button class="btn pri" id="a4Ir">Ir a la marcha ›</button></div></div>`, d=>{
       const fin = v=>{ asis = null; cerrarDialogo(); if(v==='marchas'){ try { localStorage.setItem('burros_guia', '1'); } catch(e){} } ir(v); };
       d.querySelector('#a4Cu').onclick = ()=>fin('cuadro'); const ma = d.querySelector('#a4Ma'); if(ma) ma.onclick = ()=>fin('material');
@@ -219,7 +219,7 @@
   // Perfil y Lista van dentro de la pestaña Cuadro
   // Perfil y Lista van dentro de Cuadro; Material va dentro de Datos de la marcha (pedido del usuario)
   const PESTANA = {libro:'marchas', perfil:'cuadro', lista:'cuadro', resultado:'cuadro', matriz:'cuadro', material:'ruta'};
-  const subDatos = ()=>`<div class="seg subv no-imp">${[['ruta', 'Ruta y cálculo'], ['material', 'Material y carga']].map(([k, n])=>`<button data-sv="${k}" class="${S.v===k ? 'on' : ''}">${n}</button>`).join('')}</div>`;
+  const subDatos = ()=>`<div class="seg subv no-imp">${[['ruta', 'Ruta y cálculo'], ['material', EDICION.tienda ? 'Carga' : 'Material y carga']].map(([k, n])=>`<button data-sv="${k}" class="${S.v===k ? 'on' : ''}">${n}</button>`).join('')}</div>`;
   const subCuadro = ()=>`<div class="seg subv no-imp">${[['cuadro', 'Cuadro de marcha y navegación'], ['perfil', 'Perfil'], ['matriz', 'Matriz'], ['lista', 'Lista'], ['resultado', 'Resultado']].map(([k, n])=>`<button data-sv="${k}" class="${S.v===k ? 'on' : ''}">${n}</button>`).join('')}</div>`;
   vista.addEventListener('click', e=>{ const b = e.target.closest('[data-sv]'); if(b) ir(b.dataset.sv); });
   function pintar(){
@@ -1107,7 +1107,7 @@
     const pm = R.carga || pesoMaterial(m, R); if(!pm || !pm.unidad) return '';
     if(!pm.hay) return '<div class="tarjeta vacio">Indica el efectivo (Datos → Unidad y columna) para tener una fila por integrante.</div>';
     const U = m.pesoUnidad || [], Ls = [1, 2, 5, 3], forma = formaUnidad(m);
-    const seg = `<div class="seg" style="margin-bottom:8px"><button data-uforma="balanza" class="${forma==='balanza' ? 'on' : ''}">En la balanza (total de cada uno)</button><button data-uforma="lineas" class="${forma==='lineas' ? 'on' : ''}">Por líneas</button></div>`;
+    const seg = EDICION.tienda ? '' : `<div class="seg" style="margin-bottom:8px"><button data-uforma="balanza" class="${forma==='balanza' ? 'on' : ''}">En la balanza (total de cada uno)</button><button data-uforma="lineas" class="${forma==='lineas' ? 'on' : ''}">Por líneas</button></div>`;
     if(forma==='balanza') return `<div class="tarjeta">${seg}<p class="nota">Cada integrante se sube a la balanza <b>con todo su equipo</b> (agua, munición, mochilas) y luego <b>sin equipo</b>:
         la diferencia es su carga. Si pesas solo el equipo, escríbelo en «Con todo» y deja «Sin equipo» vacío. El tiempo se calcula con <b>el más cargado</b>.
         Carga promedio de la unidad: <b>${f(pm.promedio, 1)} kg</b>.</p>
@@ -1208,9 +1208,37 @@
         Material de grupo repartido: ${f(pm.colect, 1)} kg por hombre, entre ${pm.hay ? pm.n + ' hombres' : '1 hombre: indica el efectivo en Datos → Unidad y columna'}. Más pesado por hombre: ${top || '—'}.
         Los pesos son <b>sugeridos</b>: cámbialos en «kg» de cada elemento. El agua de reabastecimiento en ruta no se suma.</p></details></div>`;
   }
+  /* carga simple (edición tienda, Ruck Planner; maqueta aprobada): un peso por persona (+ el agua, que se calcula sola) o el peso de cada
+     integrante en la balanza. Sin la lista de equipo por líneas. */
+  function vCarga(m, R){
+    const modo = modoCargaDe(m), pm = R.carga, civil = Uso.civil(), L = LIMITES_CARGA, quien = 'persona';
+    const op = (k, n, d)=>`<button class="mt-op${modo===k ? ' on' : ''}" data-modo-carga="${k}"><span class="rd"></span><span><b>${n}</b><small>${d}</small></span></button>`;
+    vista.innerHTML = `<h2>Carga</h2>
+      <h3 class="mat-parte">¿Cómo se calcula la carga?</h3>
+      <div class="tarjeta mat-tipo">${op('persona', 'Un peso por ' + quien, 'lo que lleva cada uno, todo incluido menos el agua')}${op('unidad', 'Pesar a cada integrante', 'cada uno se sube a la balanza con todo el equipo y sin él')}</div>
+      ${!pm ? `<div class="info">Ahora la carga está escrita a mano en Datos → Ruta y cálculo (${f(+m.par.carga || 0, 1)} kg). Para calcularla aquí, quita «Escribir la carga a mano».</div>`
+        : modo==='persona' ? `<div class="tarjeta cp">
+        <div class="campos"><label class="c">Peso por ${quien} (kg, sin el agua)<input class="num" id="cpKg" inputmode="decimal" value="${esc(m.par.cargaPersona || '')}" placeholder="20"></label></div>
+        <div class="cp-f"><span>Agua (se calcula sola)<small>${pm.agua ? f(pm.litros, 1) + ' L para ' + M.verDur(R.res.total) + ' de marcha' : 'sin agua en la carga'}</small></span><b>+${f(pm.agua, 1)} kg</b></div>
+        <div class="cp-f cp-t"><span>Carga al partir</span><b>${f(pm.inicial!==undefined ? pm.inicial : pm.total, 1)} kg</b></div>
+        ${pm.final!==undefined && pm.final<pm.inicial - 0.05 ? `<div class="cp-f"><span>Al llegar<small>el agua se bebe en el camino</small></span><b>${f(pm.final, 1)} kg</b></div>` : ''}</div>`
+        : `<h3 class="mat-parte">Peso de cada integrante</h3>${unidadHtml(m, R)}`}
+      <div class="info">${civil ? 'Referencia: una mochila de un día pesa de 5 a 10 kg; una de varios días, de 15 a 25 kg.' : `Referencia: carga de combate hasta ${L.combate} kg, de marcha hasta ${L.marcha} kg.`}
+        Con más carga se marcha más lento: el tiempo de cada tramo sale de esta carga.</div>
+      <div class="btns"><button class="btn pri" id="mtDoc">📄 Documento con la carga</button></div>`;
+    vista.querySelectorAll('[data-modo-carga]').forEach(b=>b.onclick = ()=>{ m.par.modoCarga = b.dataset.modoCarga; guardar(); pintar(); });
+    let tC = null; const k = $('#cpKg'); if(k) k.oninput = ()=>{ m.par.cargaPersona = k.value.trim().replace(',', '.'); guardar(); clearTimeout(tC);
+      tC = setTimeout(()=>{ const y = window.scrollY; pintar(); window.scrollTo(0, y); const e = $('#cpKg'); if(e){ e.focus(); const v = e.value; e.value = ''; e.value = v; } }, 700); };
+    let tU = null; const fila = i=>{ const U = m.pesoUnidad || (m.pesoUnidad = []); return U[i] || (U[i] = {}); };
+    vista.querySelectorAll('[data-pu]').forEach(x=>x.oninput = ()=>{ const [i, l] = x.dataset.pu.split('|'); fila(+i)[l] = x.value; guardar(); clearTimeout(tU);
+      tU = setTimeout(()=>{ const y = window.scrollY, foco = x.dataset.pu; pintar(); window.scrollTo(0, y); const e = vista.querySelector('[data-pu="' + foco + '"]'); if(e){ e.focus(); const v = e.value; e.value = ''; e.value = v; } }, 700); });
+    vista.querySelectorAll('[data-pun]').forEach(x=>x.oninput = ()=>{ fila(+x.dataset.pun).nombre = x.value; guardar(); });
+    $('#mtDoc').onclick = ()=>documento('carga');
+  }
   function vMaterial(){
     const m = actual(), R = M.calcular(m);
     if(!R.tramos.length){ vista.innerHTML = '<div class="tarjeta vacio">Completa la ruta para calcular el material.</div>'; return; }
+    if(EDICION.tienda) return vCarga(m, R);
     const H = htmlMaterial(m, R), tot = H.filas.reduce((a, g)=>a + g.its.length, 0), hechos = ()=>H.filas.reduce((a, g)=>a + g.its.filter(it=>(m.material||{})[it.id] && m.material[it.id].ok).length, 0);
     // paso 1: qué marcha es (v0.99.22, etapa 3; pedido del usuario: las patrullas duran de 24 h a los días necesarios → se multiplica por los días)
     const TIPOS = [['patrulla', 'Patrulla', 'raciones, baterías y calcetines por cada día; con pernocta (saco, carpa, cocinilla)'], ['invierno', 'Montaña en invierno', 'como la patrulla, más ropa de frío, gorro, guantes, lentes y polainas'],
@@ -1496,7 +1524,8 @@
   /* Enviar en tres pasos (pedido del usuario): 1) qué marcha(s), 2) a quién (destino, no formato), 3) un solo botón «Enviar».
      En el teléfono abre el menú Compartir con el texto o el archivo; en el computador descarga o copia. Recuerda el último destino (S.envDest). */
   const DESTINOS = {
-    c2:{n:'C2 TOQUI', d:'Archivo KML que el TOQUI abre como calco (botón 🌍 KML/GPX → importar)', mil:true},
+    c2:EDICION.tienda ? {n:'Puesto de mando', d:'Archivo KML con la ruta y los puntos de control (sistema de mando, Google Earth)', mil:true}
+      : {n:'C2 TOQUI', d:'Archivo KML que el TOQUI abre como calco (botón 🌍 KML/GPX → importar)', mil:true},
     msg:{n:'Mensaje por radio o chat', d:'Texto del plan con código (el código lo lee otra Burros) o QR', una:true},
     tel:{n:'Otro teléfono con Burros', d:'La marcha completa (archivo, código o QR)'},
     gps:{n:'GPS de mano o Wikiloc', d:'Archivo GPX'},
@@ -1535,10 +1564,10 @@
         <div id="qr"></div>
         <p class="nota">${navigator.share ? 'En el teléfono se abre el menú Compartir (WhatsApp, correo, AirDrop, Drive…).' : 'En el computador se descarga el archivo o se copia el mensaje.'}
           ${S.envDest==='atak' ? ' En ATAK: Import Manager → archivo local → elige el KML; la ruta y los puntos quedan como capa.' : ''}
-          ${S.envDest==='c2' ? ' En el TOQUI: botón «🌍 KML/GPX» → importar → elige el archivo; la ruta y los puntos de control quedan como calco.' : ''}
+          ${S.envDest==='c2' && EDICION.tienda ? ' En el sistema de mando (o en Google Earth): importar el archivo KML; la ruta y los puntos de control quedan como capa.' : ''}${S.envDest==='c2' && !EDICION.tienda ? ' En el TOQUI: botón «🌍 KML/GPX» → importar → elige el archivo; la ruta y los puntos de control quedan como calco.' : ''}
           ${S.envDest==='tel' ? ' En el otro teléfono: Marchas → «Cargar respaldo» (archivo) o «Recibir plan» (código o QR).' : ''}</p>
       </div>
-      ${civil ? '' : `<details class="tarjeta"><summary>Vínculo con el C2 TOQUI</summary><p class="nota">El TOQUI abre el archivo KML (o GPX o GeoJSON) como calco, con la ruta y los puntos de control. El mensaje con código no lo lee el TOQUI: sirve entre equipos con Burros. La conexión directa por red se hará cuando se defina con el TOQUI.</p></details>`}`;
+      ${civil || EDICION.tienda ? '' : `<details class="tarjeta"><summary>Vínculo con el C2 TOQUI</summary><p class="nota">El TOQUI abre el archivo KML (o GPX o GeoJSON) como calco, con la ruta y los puntos de control. El mensaje con código no lo lee el TOQUI: sirve entre equipos con Burros. La conexión directa por red se hará cuando se defina con el TOQUI.</p></details>`}`;
     vista.querySelectorAll('[data-env]').forEach(c=>c.onchange = ()=>{ const id = c.dataset.env; S.envSel = c.checked ? [...new Set([...S.envSel, id])] : S.envSel.filter(x=>x!==id); guardar(); vEnviar(); });
     vista.querySelectorAll('[data-ver]').forEach(b=>b.onclick = e=>{ e.preventDefault(); S.actual = b.dataset.ver; ir('cuadro'); });
     vista.querySelectorAll('[data-dest]').forEach(b=>b.onclick = ()=>{ S.envDest = b.dataset.dest; guardar(); vEnviar(); });

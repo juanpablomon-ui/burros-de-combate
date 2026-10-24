@@ -340,7 +340,9 @@ function pesoMaterial(m, R){
   // qué líneas se llevan: la mochila de sostenimiento (3) no, si se va «solo con la de asalto» o sin mochila; la de asalto (5) no, si sin mochila
   const llevaL = l=>l===1 || l===2 || (l===5 && !sinMochila) || (l===3 && !sinMochila && modoMo!=='solo'), lleva = x=>llevaL(x.linea);
   // modo «por peso de la unidad» (pedido del usuario): solo los kg de cada línea de cada integrante (m.pesoUnidad[i][l]); nada más
-  if((m.par || {}).modoCarga==='unidad') return pesoUnidad(m, c, llevaL, sinMochila, modoMo);
+  const modoC = modoCargaDe(m);
+  if(modoC==='persona') return pesoPersona(m, c, items, llevaL);
+  if(modoC==='unidad') return pesoUnidad(m, c, llevaL, sinMochila, modoMo);
   // equipo de la unidad: o rota entre todos, o lo llevan los portadores de un puesto
   const grupos = {};
   const solo = c.hay && c.n<=1;   // marcha de un solo hombre (p. ej. entrenamiento): todo el equipo de la unidad lo lleva él
@@ -391,9 +393,23 @@ function pesoMaterial(m, R){
     comun, especial, portadores, fusileros:Math.max(0, c.n - portadores), fusilero, mas:mas && mas.total>comun ? mas : null, total:mas && mas.total>comun ? mas.total : comun,   // el tiempo se calcula con el más cargado
     n:c.n, hay:c.hay, items:items.sort((a, b)=>b.porHombre - a.porHombre)};
 }
+// cómo se calcula la carga: 'detalle' (por elementos), 'sop', 'unidad' o 'persona' (un solo número). En la edición tienda (Ruck Planner) solo
+// hay 'persona' (por defecto) y 'unidad' en la balanza: sin la lista de equipo por líneas
+const tiendaEd = ()=>typeof EDICION!=='undefined' && EDICION.tienda;
+function modoCargaDe(m){ const v = (m.par || {}).modoCarga || 'detalle'; return tiendaEd() ? (v==='unidad' ? 'unidad' : 'persona') : v; }
+// un peso por persona (edición tienda): los kg que lleva cada uno sin el agua (par.cargaPersona; vacío = 20) + el agua, que sale sola de la
+// duración y del calor y se bebe en el camino (cargasTramo)
+function pesoPersona(m, c, items, llevaL){
+  const v = (m.par || {}).cargaPersona, kg = v!==undefined && v!==null && String(v).trim()!=='' ? numCant(v) : 20;
+  const ag = items.find(x=>x.id==='agua' && !x.no); if(ag) ag.lleva = llevaL(ag.linea);
+  const agua = ag && ag.lleva ? ag.porHombre : 0, total = Math.round((kg + agua)*10)/10, L = {1:0, 2:kg, 5:0, 3:0, 4:0}; if(agua) L[ag.linea] += agua;
+  return {persona:true, kgPersona:kg, agua, litros:ag && ag.lleva ? ag.q : 0, base:0, indiv:total, colect:0, lineas:L, lineasCalc:Object.assign({}, L), pesoLinea:{},
+    sinMochila:false, mochilaModo:'dentro', puestos:[], especial:[], portadores:0, fusileros:c.n, fusilero:null, combate:total, marcha:total, comun:total, promedio:total,
+    mas:null, total, n:c.n, hay:c.hay, items:ag && ag.lleva ? [ag] : []};
+}
 // forma del peso de la unidad: 'balanza' (cada uno se pesa con todo y sin equipo; v0.76, pedido del usuario) o 'lineas' (kg de cada línea).
 // Sin elegir: 'lineas' si ya hay kg por línea escritos (marchas antiguas), si no 'balanza'
-const formaUnidad = m=>(m.par || {}).unidadForma || ((m.pesoUnidad || []).some(f=>f && [1, 2, 5, 3].some(l=>numCant(f[l])>0)) ? 'lineas' : 'balanza');
+const formaUnidad = m=>tiendaEd() ? 'balanza' : (m.par || {}).unidadForma || ((m.pesoUnidad || []).some(f=>f && [1, 2, 5, 3].some(l=>numCant(f[l])>0)) ? 'lineas' : 'balanza');
 function pesoUnidad(m, c, llevaL, sinMochila, modoMo){
   const U = m.pesoUnidad || [], n = Math.max(1, c.n), L0 = ()=>({1:0, 2:0, 5:0, 3:0, 4:0}), bal = formaUnidad(m)==='balanza';
   const integrantes = Array.from({length:n}, (_, i)=>{ const f = U[i] || {}, li = L0(); if(!bal) [1, 2, 5, 3].forEach(l=>{ li[l] = numCant(f[l]); });
@@ -443,7 +459,7 @@ function pesoSOP(m, R, c, items, grupos, llevaL, base, sinMochila, modoMo){
     combate:base + lineas[1] + lineas[2], marcha:base + lineas[1] + lineas[2] + lineas[5] + lineas[3], comun, especial, portadores, fusileros:nFus, fusilero,
     mas:mas && mas.total>comun ? mas : null, total:mas && mas.total>comun ? mas.total : comun, n:c.n, hay:c.hay, items:items.sort((a, b)=>b.porHombre - a.porHombre), aguaKg, aguaL};
 }
-if(typeof globalThis!=='undefined'){ globalThis.PESOS = PESOS; globalThis.pesoMaterial = pesoMaterial; globalThis.LINEAS = LINEAS; globalThis.PUESTOS = PUESTOS; globalThis.OMES = OMES; globalThis.omesDe = omesDe; globalThis.ORDEN_LINEAS = ORDEN_LINEAS; globalThis.portDe = portDe; globalThis.ESPECIAL = ESPECIAL; globalThis.LIMITES_CARGA = LIMITES_CARGA; globalThis.LINEAS_TXT = LINEAS_TXT; globalThis.lineaDe = lineaDe; }
+if(typeof globalThis!=='undefined'){ globalThis.PESOS = PESOS; globalThis.pesoMaterial = pesoMaterial; globalThis.modoCargaDe = modoCargaDe; globalThis.LINEAS = LINEAS; globalThis.PUESTOS = PUESTOS; globalThis.OMES = OMES; globalThis.omesDe = omesDe; globalThis.ORDEN_LINEAS = ORDEN_LINEAS; globalThis.portDe = portDe; globalThis.ESPECIAL = ESPECIAL; globalThis.LIMITES_CARGA = LIMITES_CARGA; globalThis.LINEAS_TXT = LINEAS_TXT; globalThis.lineaDe = lineaDe; }
 
 /* Siglas y términos que usa la app (tarjeta en Marchas) */
 const GLOSARIO = [

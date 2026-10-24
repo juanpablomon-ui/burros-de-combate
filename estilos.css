@@ -1018,3 +1018,9 @@ main{padding-left:max(14px, env(safe-area-inset-left));padding-right:max(14px, e
 .lb-n{flex:1;min-width:0}.lb-n b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.lb-n small{color:var(--suave,#9c9a8a);font-size:13px}
 .lb-d{text-align:right;flex:none;font-family:var(--mono,monospace)}.lb-d b{display:block;font-size:14px}.lb-d small{color:var(--suave,#9c9a8a);font-size:12px}
 .lb-ficha .lb-t{font-family:var(--mono,monospace);font-size:12px;color:var(--suave,#9c9a8a)}.lb-ficha h3{margin:2px 0 6px}
+/* carga simple (edición tienda, Ruck Planner; v0.99.35) */
+.cp .campos{margin-bottom:6px}
+.cp-f{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:7px 0;border-top:1px solid var(--linea)}
+.cp-f small{display:block;color:var(--suave);font-size:12px}
+.cp-f b{font-family:var(--mono);white-space:nowrap}
+.cp-t span{font-weight:600}.cp-t b{color:var(--ocre);font-size:18px}

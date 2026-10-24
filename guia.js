@@ -24,16 +24,21 @@ const Guia = (function(){
     else paso(1, 'A', 'Ruta en el mapa', 'v', m.puntos.length + ' puntos', {v:'mapa'});
     paso(2, 'A', 'Cálculo de tiempos', hayRuta ? 'v' : 'g', hayRuta ? (M.METODOS[p.metodo] || '').split(':')[0].replace(/\s*\(.*$/, '').toLowerCase() : '', {v:'ruta', sec:'Cálculo de tiempos'});
     const conMaterial = Object.keys(m.material || {}).length>0 || p.cargaManual;   // se tocó algo del material, o la carga se escribió a mano
-    if(!(+p.efectivo>0)) paso(3, 'A', 'Unidad y material', 'r', 'falta efectivo', {v:'ruta', sec:'Unidad y columna'}, {t:'Falta el efectivo', p:'Sin él no se calcula la columna ni la carga de cada uno'});
+    // edición tienda (Ruck Planner): «Unidad y carga»; con un peso por persona se revisa que esté escrito (sin él: 20 kg)
+    const tienda = typeof EDICION!=='undefined' && EDICION.tienda, mc = typeof modoCargaDe!=='undefined' ? modoCargaDe(m) : p.modoCarga, nom3 = tienda ? 'Unidad y carga' : 'Unidad y material';
+    const kgP = String(p.cargaPersona || '').trim();
+    if(tienda && mc==='persona') paso(3, 'A', nom3, kgP ? 'v' : 'a', kgP ? fmt(kgP.replace(',', '.'), 1) + ' kg por persona' : 'carga sin revisar', {v:'material'},
+      kgP ? undefined : {t:'Carga sin revisar', p:'Se usan 20 kg por persona más el agua: escribe lo que lleva cada uno'});
+    else if(!(+p.efectivo>0)) paso(3, 'A', nom3, 'r', 'falta efectivo', {v:'ruta', sec:'Unidad y columna'}, {t:'Falta el efectivo', p:'Sin él no se calcula la columna ni la carga de cada uno'});
     // qué se revisa depende de cómo se calcula la carga (v0.99.25, pedido del usuario): por elementos → el material; por SOP → los kilos del
     // SOP; por peso de la unidad (balanza) → que estén anotados los pesos, no el material
-    else if(p.modoCarga==='unidad'){ const n = Math.max(1, Math.round(+p.efectivo)), k = (m.pesoUnidad || []).slice(0, n).filter(x=>x && Object.values(x).some(v=>v!=='' && v!==null && v!==undefined)).length;
-      if(k>=n) paso(3, 'A', 'Unidad y material', 'v', 'pesos de ' + n + (civil ? ' personas' : ' hombres'), {v:'material'});
-      else paso(3, 'A', 'Unidad y material', 'a', k ? k + ' de ' + n + ' pesados' : 'faltan los pesos', {v:'material'}, {t:k ? 'Faltan pesos de la unidad: ' + k + ' de ' + n : 'Faltan los pesos de la unidad', p:'Anota el peso de cada integrante (en la balanza o por líneas); con eso se calcula la marcha'}); }
-    else if(p.modoCarga==='sop'){ if(Object.keys(m.sop || {}).length) paso(3, 'A', 'Unidad y material', 'v', 'pesos según SOP', {v:'material'});
-      else paso(3, 'A', 'Unidad y material', 'a', 'SOP sin revisar', {v:'material'}, {t:'Pesos del SOP sin revisar', p:'Revisa los kilos por línea de cada puesto según el SOP de tu unidad (vacío = lo que da el detalle)'}); }
-    else if(!conMaterial) paso(3, 'A', 'Unidad y material', 'a', 'material sin revisar', {v:'material'}, {t:'Material sin revisar', p:'La carga sale de lo escrito (' + fmt(p.carga || 20) + ' kg), no del material que se lleva'});
-    else paso(3, 'A', 'Unidad y material', 'v', fmt(p.efectivo) + (civil ? ' personas' : ' hombres'), {v:'material'});
+    else if(mc==='unidad'){ const n = Math.max(1, Math.round(+p.efectivo)), k = (m.pesoUnidad || []).slice(0, n).filter(x=>x && Object.values(x).some(v=>v!=='' && v!==null && v!==undefined)).length;
+      if(k>=n) paso(3, 'A', nom3, 'v', 'pesos de ' + n + (civil ? ' personas' : ' hombres'), {v:'material'});
+      else paso(3, 'A', nom3, 'a', k ? k + ' de ' + n + ' pesados' : 'faltan los pesos', {v:'material'}, {t:k ? 'Faltan pesos de la unidad: ' + k + ' de ' + n : 'Faltan los pesos de la unidad', p:'Anota el peso de cada integrante (en la balanza o por líneas); con eso se calcula la marcha'}); }
+    else if(mc==='sop'){ if(Object.keys(m.sop || {}).length) paso(3, 'A', nom3, 'v', 'pesos según SOP', {v:'material'});
+      else paso(3, 'A', nom3, 'a', 'SOP sin revisar', {v:'material'}, {t:'Pesos del SOP sin revisar', p:'Revisa los kilos por línea de cada puesto según el SOP de tu unidad (vacío = lo que da el detalle)'}); }
+    else if(!conMaterial) paso(3, 'A', nom3, 'a', 'material sin revisar', {v:'material'}, {t:'Material sin revisar', p:'La carga sale de lo escrito (' + fmt(p.carga || 20) + ' kg), no del material que se lleva'});
+    else paso(3, 'A', nom3, 'v', fmt(p.efectivo) + (civil ? ' personas' : ' hombres'), {v:'material'});
     if(!m.fecha) paso(4, 'A', 'Luz, calor y agua', 'r', 'sin fecha', {v:'ruta', sec:'Fecha, hora y coordenadas'}, {t:'Sin fecha', p:'Sin fecha no se calculan la luz, la luna ni la declinación'});
     else if(!(p.temp!=='' && p.temp!==undefined && p.temp!==null) && !p.wbgt) paso(4, 'A', 'Luz, calor y agua', 'a', 'sin temperatura', {v:'ruta', sec:'Calor y agua'}, {t:'Sin temperatura ni humedad', p:'No se calculan el agua ni los altos por calor (botón «Traer del pronóstico»)'});
     else paso(4, 'A', 'Luz, calor y agua', 'v', p.temp ? fmt(p.temp) + ' °C' : 'listo', {v:'luz'});
@@ -126,6 +131,12 @@ const Guia = (function(){
     {n:'Antes de salir', v:'lista', t:'La lista de verificación de antes, durante y después. Antes de salir, guarda la zona del mapa para usarla sin señal (Mapa → ⬇ Sin señal).'},
     {n:'Seguir la marcha', v:'seguir', t:'Durante la marcha: próximo punto, distancia, rumbo y si se va adelantado o atrasado. Al llegar a cada punto lo marca sola; mantén presionado «PASANDO» para enviar el mensaje.'},
     {n:'Resultado y reseña', v:'resultado', t:'Después: se compara lo planificado con lo que se hizo y se escribe la reseña con las lecciones para la próxima.'}];
+  // edición tienda (Ruck Planner): la carga es un solo número o la balanza, sin la lista de equipo
+  if(typeof EDICION!=='undefined' && EDICION.tienda){
+    AYUDA.material = ['Carga', ['Escribe cuánto lleva cada persona (sin el agua) o pesa a cada integrante con todo su equipo y sin él.',
+      'El agua se calcula sola según la duración y el calor. Con más carga se marcha más lento: el tiempo se calcula con el más cargado.'],
+      'Ejemplo: 24 kg por persona + 3,5 L de agua → 27,5 kg al partir.'];
+    TOUR[2] = Object.assign({}, TOUR[2], {n:'Unidad y carga', t:'Cuántos marchan, en qué formación y a qué distancia. Con el efectivo se calcula la columna; en «Carga» se escribe cuánto lleva cada uno.'}); }
   return {estado, html, AYUDA, encendida, vistos, marcarVisto, poner, tarjeta, TOUR};
 })();
 if(typeof globalThis!=='undefined') globalThis.Guia = Guia;
