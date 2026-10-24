@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.99.32', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.99.33', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -218,20 +218,20 @@
   $('#pestanas').addEventListener('click', e=>{ const b = e.target.closest('button[data-v]'); if(b) ir(b.dataset.v); });
   // Perfil y Lista van dentro de la pestaña Cuadro
   // Perfil y Lista van dentro de Cuadro; Material va dentro de Datos de la marcha (pedido del usuario)
-  const PESTANA = {perfil:'cuadro', lista:'cuadro', resultado:'cuadro', matriz:'cuadro', material:'ruta'};
+  const PESTANA = {libro:'marchas', perfil:'cuadro', lista:'cuadro', resultado:'cuadro', matriz:'cuadro', material:'ruta'};
   const subDatos = ()=>`<div class="seg subv no-imp">${[['ruta', 'Ruta y cálculo'], ['material', 'Material y carga']].map(([k, n])=>`<button data-sv="${k}" class="${S.v===k ? 'on' : ''}">${n}</button>`).join('')}</div>`;
   const subCuadro = ()=>`<div class="seg subv no-imp">${[['cuadro', 'Cuadro de marcha y navegación'], ['perfil', 'Perfil'], ['matriz', 'Matriz'], ['lista', 'Lista'], ['resultado', 'Resultado']].map(([k, n])=>`<button data-sv="${k}" class="${S.v===k ? 'on' : ''}">${n}</button>`).join('')}</div>`;
   vista.addEventListener('click', e=>{ const b = e.target.closest('[data-sv]'); if(b) ir(b.dataset.sv); });
   function pintar(){
-    const m = actual(); if(!m && S.v!=='marchas' && S.v!=='seguir') S.v = 'marchas';
+    const m = actual(); if(!m && S.v!=='marchas' && S.v!=='seguir' && S.v!=='libro') S.v = 'marchas';
     if(S.v==='ficha') S.v = 'cuadro';   // la ficha de navegación ahora está dentro del cuadro
-    if(!({marchas:1, mapa:1, ruta:1, cuadro:1, perfil:1, lista:1, resultado:1, matriz:1, material:1, luz:1, seguir:1, enviar:1})[S.v]) S.v = 'marchas';
+    if(!({marchas:1, mapa:1, ruta:1, cuadro:1, perfil:1, lista:1, resultado:1, matriz:1, libro:1, material:1, luz:1, seguir:1, enviar:1})[S.v]) S.v = 'marchas';
     if(S.v!=='mapa') Mapa.cerrar();
     if(S.v!=='seguir') Seguir.cerrar();
     document.body.classList.toggle('con-mapa', S.v==='mapa');
     document.querySelectorAll('#pestanas button').forEach(b=>{ b.classList.toggle('on', b.dataset.v===(PESTANA[S.v] || S.v)); b.disabled = !m && b.dataset.v!=='marchas' && b.dataset.v!=='seguir'; b.style.opacity = b.disabled ? .35 : 1; });
     $('#subtitulo').textContent = m ? m.nombre + (m.unidad ? ' · ' + m.unidad : '') : 'Planificación de marchas';
-    ({marchas:vMarchas, mapa:vMapa, ruta:vRuta, cuadro:vCuadro, perfil:vPerfil, material:vMaterial, luz:vLuz, lista:vLista, resultado:vResultado, matriz:vMatriz, seguir:vSeguir, enviar:vEnviar})[S.v]();
+    ({marchas:vMarchas, mapa:vMapa, ruta:vRuta, cuadro:vCuadro, perfil:vPerfil, material:vMaterial, luz:vLuz, lista:vLista, resultado:vResultado, matriz:vMatriz, libro:vLibro, seguir:vSeguir, enviar:vEnviar})[S.v]();
     if(S.v==='ruta' || S.v==='material') vista.insertAdjacentHTML('afterbegin', subDatos());
     else if(PESTANA[S.v] || S.v==='cuadro') vista.insertAdjacentHTML('afterbegin', subCuadro());
     // modo ayuda: la primera vez en cada pantalla, qué se hace aquí (no en el Mapa ni en Seguir, que son a pantalla completa: ahí el botón ?)
@@ -288,7 +288,7 @@
           <span class="g-sig">${(()=>{ const sg = G.pasos.find(x=>x.est==='r') || G.pasos.find(x=>x.est==='a'); return sg ? 'Siguiente: ' + sg.k + ' ' + esc(sg.n) + ' · ' : ''; })()}${G.pasos.filter(x=>x.falta && (x.est==='r' || x.est==='a')).length ? G.pasos.filter(x=>x.falta && (x.est==='r' || x.est==='a')).length + ' pendientes · ' : ''}<u>${guiaAb ? 'ocultar' : 'ver la guía'}</u></span></summary>${G.html}</details>` : ''}
       <h2>Mis marchas</h2>
       ${lista}
-      <div class="btns"><button class="btn pri" id="bNueva">＋ Nueva marcha</button><button class="btn" id="bIrA">🧭 Navegar a un punto</button></div>
+      <div class="btns"><button class="btn pri" id="bNueva">＋ Nueva marcha</button><button class="btn" id="bIrA">🧭 Navegar a un punto</button><button class="btn" id="bLibro">📖 Libro de marchas</button></div>
       ${mas}`;
     vista.querySelectorAll('[data-abrir]').forEach(d=>d.onclick = e=>{
       const b = e.target.closest('button');
@@ -311,6 +311,7 @@
     $('#bImportar').onclick = importarArchivo;
     $('#bPaq').onclick = dialogoPaquete;
     $('#bIrA').onclick = ()=>{ Seguir.abrirIrA(); ir('seguir'); };
+    const bl = $('#bLibro'); if(bl) bl.onclick = ()=>ir('libro');
     $('#bRecibir').onclick = recibir;
     $('#bResp').onclick = ()=>descargar('burros_respaldo_' + hoy() + '.json', JSON.stringify({app:'burros', v:1, marchas:S.marchas}, null, 1), 'application/json');
     $('#bCargar').onclick = ()=>elegirArchivo('.json,application/json', t=>{
@@ -1409,6 +1410,66 @@
   }
   // matriz de eventos (v0.99.18, pedido del usuario: verla en Cuadro): cada punto de control con su nombre clave y hora planificada; con
   // la marcha en curso o terminada, la hora real y la diferencia (≈ estimada, saltado), y los altos y novedades registrados
+  /* libro de marchas (v0.99.33, maqueta aprobada; libro.js): totales por mes / año / todo, una línea por marcha y su ficha */
+  function vLibro(){
+    let per = 'anio'; try { per = localStorage.getItem('burros_libroper') || 'anio'; } catch(e){}
+    const todos = Libro.registros(S.marchas), L = Libro.filtrar(todos, per), T = Libro.totales(L), meses = Libro.porMes(todos), mx = Math.max(1, ...meses.map(x=>x.km));
+    const fe = t=>{ const d = new Date(t); return String(d.getDate()).padStart(2, '0') + '-' + String(d.getMonth() + 1).padStart(2, '0'); };
+    const MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+    const cl = d=>d===null ? '' : Math.abs(d)<=5 ? 'lb-ok' : d>0 ? 'lb-tarde' : 'lb-antes';
+    const kp = (k, v, s, c)=>`<div class="kpi"><div class="k">${k}</div><div class="v${c ? ' ' + c : ''}">${v}</div>${s ? `<div class="s">${s}</div>` : ''}</div>`;
+    const anio = new Date().getFullYear(), nPer = per==='mes' ? 'este mes' : per==='anio' ? 'en ' + anio : 'en total';
+    const rec = T.factor && Math.abs(T.factor - 1)>=0.05 ? `En movimiento la unidad marcha <b>${f(Math.abs(T.factor - 1)*100)} % más ${T.factor<1 ? 'lento' : 'rápido'}</b> que el plan. Para las próximas: ritmo «${T.factor<1 ? 'Bajo' : 'Exigente'}» o una velocidad propia.`
+      : T.factor ? 'En movimiento la unidad marcha al ritmo planificado: el cálculo sirve tal cual.' : '';
+    vista.innerHTML = `<h2>Libro de marchas</h2>
+      <div class="seg lb-per">${[['mes', 'Este mes'], ['anio', String(anio)], ['todo', 'Todo']].map(([k, n])=>`<button data-lper="${k}" class="${per===k ? 'on' : ''}">${n}</button>`).join('')}</div>
+      ${!todos.length ? `<div class="tarjeta vacio">Aún no hay marchas hechas.<br>Las marchas que siga con <b>Seguir</b> (o con las horas anotadas a mano en Resultado) quedan aquí solas.</div>` : `
+      <div class="kpis lb-k">${kp('Marchas', T.n, T.incompletas ? T.incompletas + ' incompleta' + (T.incompletas===1 ? '' : 's') : nPer)}${kp('Distancia', f(T.km, 1) + ' <small>km</small>', nPer)}
+        ${kp('Tiempo', M.verDur(T.horas), 'de marcha')}${kp('Desnivel', '+' + f(T.sube) + ' <small>m</small>', 'acumulado')}
+        ${kp('A la hora', T.aHora===null ? '—' : f(T.aHora*100) + ' <small>%</small>', 'llegó con ±5 min', T.aHora===null ? '' : T.aHora>=0.7 ? 'lb-ok' : 'lb-antes')}${kp('Más larga', T.larga ? f(T.larga.km, 1) + ' <small>km</small>' : '—', T.larga ? esc(T.larga.m.nombre || '') : '')}</div>
+      <h3 class="lb-h">Km por mes</h3><div class="lb-bar">${meses.map(x=>`<div title="${MES[x.d.getMonth()]} ${x.d.getFullYear()}: ${f(x.km, 1)} km"><i style="height:${Math.round(x.km/mx*100)}%"></i><span>${MES[x.d.getMonth()]}</span></div>`).join('')}</div>
+      ${rec ? `<div class="info">${rec}</div>` : ''}
+      <h3 class="lb-h">Marchas realizadas</h3>
+      ${L.length ? `<div class="tarjeta lb-lista">${L.map((x, k)=>`<button class="lb-f" data-lb="${k}"><span class="lb-fe">${fe(x.ini)}</span><span class="lb-n"><b>${esc(x.m.nombre || 'Marcha')}</b><small>${f(x.km, 1)} km · +${f(x.sube)} m · ${M.verDur(x.dur)}${x.i>=0 ? ' · anterior' : ''}</small></span>
+        <span class="lb-d"><b class="${cl(x.dif)}">${x.dif===null ? '—' : Math.abs(x.dif)<1 ? '±0' : (x.dif>0 ? '+' : '−') + Math.abs(x.dif) + ' min'}</b><small>${x.hechos}/${x.total}</small></span></button>`).join('')}</div>
+        <p class="nota">Diferencia con el horario al último punto alcanzado: <span class="lb-ok">verde ±5 min</span> · <span class="lb-antes">ocre adelantado</span> · <span class="lb-tarde">rojo atrasado</span>. Puntos de control alcanzados.</p>`
+        : `<div class="tarjeta vacio">Sin marchas ${nPer}.</div>`}
+      <div class="btns"><button class="btn" id="lbCsv">⬇ Exportar (Excel)</button><button class="btn" id="lbImp">🖨 Imprimir</button></div>`}
+      <div class="btns"><button class="btn" id="lbVol">‹ Volver a Marchas</button></div>`;
+    vista.querySelectorAll('[data-lper]').forEach(b=>b.onclick = ()=>{ try { localStorage.setItem('burros_libroper', b.dataset.lper); } catch(e){} pintar(); });
+    vista.querySelectorAll('[data-lb]').forEach(b=>b.onclick = ()=>fichaLibro(L[+b.dataset.lb]));
+    const cs = $('#lbCsv'); if(cs) cs.onclick = ()=>descargar('libro_de_marchas_' + hoy() + '.csv', Libro.csv(L), 'text/csv');
+    const im = $('#lbImp'); if(im) im.onclick = ()=>window.print();
+    $('#lbVol').onclick = ()=>ir('marchas');
+  }
+  // pasar el registro actual a «Recorridos anteriores» (para repetir la marcha)
+  const archivarEjec = m=>{ (m.recorridos = m.recorridos || []).push({inicio:m.ejec.inicio, fin:m.ejec.fin, track:m.ejec.track || [], llegadas:m.ejec.llegadas || {}}); m.recorridos = m.recorridos.slice(-5); delete m.ejec; guardar(); };
+  function fichaLibro(x){
+    const fe = t=>{ const d = new Date(t); return String(d.getDate()).padStart(2, '0') + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + d.getFullYear(); };
+    const rs = x.resena || {}, RES = {cumplida:'Cumplida', parcial:'Cumplida parcialmente', no:'No cumplida'};
+    const cl = x.dif===null ? '' : Math.abs(x.dif)<=5 ? 'lb-ok' : x.dif>0 ? 'lb-tarde' : 'lb-antes';
+    dialogo(`<div class="lb-ficha"><div class="lb-t">${fe(x.ini)} · ${hhmm(x.ini)} → ${hhmm(x.fin)}${x.m.unidad ? ' · ' + esc(x.m.unidad) : ''}</div>
+      <h3>${esc(x.m.nombre || 'Marcha')} · ${x.completa ? 'completa' : 'incompleta'}</h3>
+      ${(x.ej.track || []).length>1 ? '<div id="lbMapa" class="in-mapa"></div>' : ''}
+      <div class="kpis in-k"><div class="kpi"><div class="k">Duración</div><div class="v">${M.verDur(x.dur)}</div><div class="s">plan ${M.verDur(x.durPlan)}</div></div>
+        <div class="kpi"><div class="k">Horario</div><div class="v ${cl}">${x.dif===null ? '—' : Math.abs(x.dif)<1 ? 'a la hora' : (x.dif>0 ? '+' : '−') + Math.abs(x.dif) + ' min'}</div><div class="s">${x.hechos} de ${x.total} puntos</div></div>
+        <div class="kpi"><div class="k">Velocidad</div><div class="v">${x.vReal ? f(x.vReal, 1) + ' <small>km/h</small>' : '—'}</div><div class="s">${x.vPlan ? 'plan ' + f(x.vPlan, 1) + ' km/h' : ''}</div></div>
+        <div class="kpi"><div class="k">${x.carga ? 'Carga' : 'Distancia'}</div><div class="v">${x.carga ? f(x.carga, 1) + ' <small>kg</small>' : f(x.km, 1) + ' <small>km</small>'}</div><div class="s">${x.carga ? f(x.km, 1) + ' km' : ''}</div></div></div>
+      ${rs.resultado || rs.lecciones ? `<div class="tarjeta" style="padding:10px">${rs.resultado ? `<div><b>Resultado:</b> ${esc(RES[rs.resultado] || '')}</div>` : ''}${rs.lecciones ? `<div><b>Lecciones:</b> ${esc(rs.lecciones)}</div>` : ''}</div>` : ''}
+      <div class="btns"><button class="btn" id="lfRes">Ver resultado</button>${(x.ej.track || []).length>1 ? '<button class="btn" id="lfMapa">Ver en el mapa</button>' : ''}<button class="btn" id="lfRep">Repetir marcha</button><button class="btn" data-cerrar>Cerrar</button></div></div>`, d=>{
+      const abrir = v=>{ cerrarDialogo(); S.actual = x.m.id; guardar(); if(v==='mapa') Mapa.verRecorrido(x.i); ir(v); };
+      d.querySelector('#lfRes').onclick = ()=>abrir('resultado'); const mp = d.querySelector('#lfMapa'); if(mp) mp.onclick = ()=>abrir('mapa');
+      d.querySelector('#lfRep').onclick = ()=>{ cerrarDialogo(); S.actual = x.m.id; guardar(); const E = x.m.ejec;
+        if(E && E.estado!=='fin' && !E.manual) return ir('seguir');   // está en curso: se sigue
+        if(E) return confirmar('Para repetirla, el registro actual pasa a «Recorridos anteriores» y la marcha queda lista para partir. ¿Seguir?', ()=>{ archivarEjec(x.m); ir('seguir'); });
+        ir('seguir'); };
+      const lm = d.querySelector('#lbMapa');
+      if(lm && typeof L!=='undefined'){ const b = Mapa.BASES.topo, mp2 = L.map(lm, {zoomControl:false, attributionControl:false, dragging:false, scrollWheelZoom:false, doubleClickZoom:false, touchZoom:false, boxZoom:false, keyboard:false});
+        L.tileLayer(b.url, Object.assign({crossOrigin:'anonymous'}, b.o)).addTo(mp2);
+        const T = Seguir.partes(Object.assign({}, x.m, {ejec:x.ej})); [[T.ida, Seguir.COL_IDA], [T.reg, Seguir.COL_REG]].forEach(([l, c])=>{ if(l.length) L.polyline(l, {color:c, weight:4}).addTo(mp2); });
+        mp2.fitBounds(L.latLngBounds(x.ej.track.map(t=>[t[0], t[1]])), {padding:[12, 12], animate:false}); setTimeout(()=>mp2.invalidateSize({animate:false}), 60);
+        d.addEventListener('close', ()=>{ try { mp2.remove(); } catch(e){} }, {once:true}); } });
+  }
   function vMatriz(){
     const m = actual(), R = M.calcular(m);
     if(!R.tramos.length){ vista.innerHTML = '<div class="tarjeta vacio">Faltan datos: la marcha necesita al menos dos puntos con coordenadas y cota.</div>'; return; }
