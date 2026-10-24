@@ -1,7 +1,7 @@
 /* BURROS DE COMBATE — pantallas: Marchas, Ruta (datos, parámetros y puntos), Cuadro (cuadro de marcha y navegación),
    Perfil (ficha de itinerario) y Enviar (C2 TOQUI, QR, archivos). Todo se guarda en este equipo (localStorage «burros_datos»). */
 (function(){
-  const VERSION = '0.99.33', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
+  const VERSION = '0.99.34', M = MARCHA, $ = s=>document.querySelector(s), vista = $('#vista'), CLAVE = 'burros_datos';
   const esc = s=>String(s===undefined || s===null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f = (x, d)=>x===null || x===undefined || isNaN(x) ? '—' : (+x).toLocaleString('es-CL', {minimumFractionDigits:d||0, maximumFractionDigits:d||0});
   const km = m=>f(m/1000, m<10000 ? 2 : 1);
@@ -233,7 +233,7 @@
     $('#subtitulo').textContent = m ? m.nombre + (m.unidad ? ' · ' + m.unidad : '') : 'Planificación de marchas';
     ({marchas:vMarchas, mapa:vMapa, ruta:vRuta, cuadro:vCuadro, perfil:vPerfil, material:vMaterial, luz:vLuz, lista:vLista, resultado:vResultado, matriz:vMatriz, libro:vLibro, seguir:vSeguir, enviar:vEnviar})[S.v]();
     if(S.v==='ruta' || S.v==='material') vista.insertAdjacentHTML('afterbegin', subDatos());
-    else if(PESTANA[S.v] || S.v==='cuadro') vista.insertAdjacentHTML('afterbegin', subCuadro());
+    else if((PESTANA[S.v] && S.v!=='libro') || S.v==='cuadro') vista.insertAdjacentHTML('afterbegin', subCuadro());
     // modo ayuda: la primera vez en cada pantalla, qué se hace aquí (no en el Mapa ni en Seguir, que son a pantalla completa: ahí el botón ?)
     if(Guia.encendida() && !tour && !Guia.vistos()[S.v] && Guia.AYUDA[S.v] && S.v!=='mapa' && S.v!=='seguir'){
       const sub = vista.querySelector('.subv'); if(sub) sub.insertAdjacentHTML('afterend', Guia.tarjeta(S.v)); else vista.insertAdjacentHTML('afterbegin', Guia.tarjeta(S.v));
