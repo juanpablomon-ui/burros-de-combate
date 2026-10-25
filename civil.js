@@ -49,22 +49,35 @@ const Uso = (function(){
   // PIM / PTM como palabras sueltas (no dentro de otras)
   RE.push([/(^|[^\wÁÉÍÓÚÑáéíóúñ])PIM(?![\wÁÉÍÓÚÑáéíóúñ])/g, 'Inicio'], [/(^|[^\wÁÉÍÓÚÑáéíóúñ])PTM(?![\wÁÉÍÓÚÑáéíóúñ])/g, 'Término']);
   const cambiar = t=>{ let s = t; for(const [r, b] of RE) s = s.replace(r, (x, pre)=>pre + b); return s; };
+  // en pantalla: las palabras civiles y después el inglés (solo en Ruck Planner, idioma.js)
+  const ingles = ()=>typeof Idioma!=='undefined' && Idioma.ingles();
+  const activo = ()=>civil() || ingles();
+  // en inglés se traduce el texto original y después se cambian las palabras militares por civiles, ya en inglés (Idioma.civil)
+  const pantalla = t=>ingles() ? (civil() ? Idioma.civil(Idioma.texto(t), PALABRAS) : Idioma.texto(t)) : civil() ? cambiar(t) : t;
   const SALTAR = new Set(['SCRIPT', 'STYLE', 'TEXTAREA', 'INPUT', 'CODE']);
+  // cada texto se cambia una sola vez: se recuerda lo que quedó (si se vuelve a pasar, no se cambia de nuevo; en inglés 1,026 volvería a 1.026)
+  const hecho = new WeakMap();
+  const nodo = n=>{ if(hecho.get(n)===n.nodeValue) return; const v = pantalla(n.nodeValue); if(v!==n.nodeValue) n.nodeValue = v; hecho.set(n, v); };
+  const atributo = (e, a)=>{ const v = e.getAttribute(a); if(!v) return; const h = hecho.get(e) || {}; if(h[a]===v) return;
+    const c = pantalla(v); if(c!==v) e.setAttribute(a, c); h[a] = c; hecho.set(e, h); };
   function traducir(raiz){
-    if(!civil() || !raiz) return;
-    if(raiz.nodeType===3){ const v = cambiar(raiz.nodeValue); if(v!==raiz.nodeValue) raiz.nodeValue = v; return; }
+    if(!activo() || !raiz) return;
+    if(raiz.nodeType===3){ nodo(raiz); return; }
     if(raiz.nodeType!==1 || SALTAR.has(raiz.tagName) || (raiz.classList && raiz.classList.contains('mensaje'))) return;
     const w = document.createTreeWalker(raiz, NodeFilter.SHOW_TEXT, {acceptNode:n=>{ const p = n.parentElement; return p && !SALTAR.has(p.tagName) && !p.closest('.mensaje,.sin-traducir') ? 1 : 2; }});
     const nodos = []; while(w.nextNode()) nodos.push(w.currentNode);
-    nodos.forEach(n=>{ const v = cambiar(n.nodeValue); if(v!==n.nodeValue) n.nodeValue = v; });
-    raiz.querySelectorAll('[placeholder],[title],[aria-label]').forEach(e=>['placeholder', 'title', 'aria-label'].forEach(a=>{ const v = e.getAttribute(a); if(v){ const c = cambiar(v); if(c!==v) e.setAttribute(a, c); } }));
+    nodos.forEach(nodo);
+    if(ingles()) Idioma.campos(raiz);
+    raiz.querySelectorAll('[placeholder],[title],[aria-label]').forEach(e=>['placeholder', 'title', 'aria-label'].forEach(a=>atributo(e, a)));
   }
   // observa lo que se dibuja y lo traduce al vuelo (pantallas, diálogos, documento, avisos)
   let obs = null;
   function observar(){
     if(obs || typeof MutationObserver==='undefined') return;
-    obs = new MutationObserver(lista=>{ if(!civil()) return; lista.forEach(r=>{ if(r.type==='characterData') return; r.addedNodes.forEach(traducir); }); });
-    obs.observe(document.body, {childList:true, subtree:true});
+    if(ingles()) traducir(document.body);   // lo que ya está dibujado (encabezado, pestañas)
+    // en inglés también los textos que la app cambia sin redibujar (characterData)
+    obs = new MutationObserver(lista=>{ if(!activo()) return; lista.forEach(r=>{ if(r.type==='characterData'){ if(ingles() && r.target.parentElement && !r.target.parentElement.closest('textarea,.mensaje,.sin-traducir')) nodo(r.target); return; } r.addedNodes.forEach(traducir); }); });
+    obs.observe(document.body, {childList:true, subtree:true, characterData:ingles()});
   }
   function poner(m){ modo = m==='civil' ? 'civil' : 'militar'; document.body.classList.toggle('civil', civil()); const b = document.querySelector('#pestanas [data-v=enviar] span'); if(b) b.textContent = civil() ? 'Compartir' : 'Enviar'; }
 
@@ -96,7 +109,7 @@ const Uso = (function(){
 
   /* ---------- glosario civil ---------- */
   const SACAR = new Set(['GDH', 'OPORD / O. Op.', 'C2', 'Evento', '‰ (milésimas)']);
-  const glosario = g=>civil() ? g.filter(([k])=>!SACAR.has(k)).map(([k, v])=>k==='PIM' ? ['Inicio', 'Punto de partida de la ruta.'] : k==='PTM' ? ['Término', 'Punto de llegada de la ruta.'] : [k, cambiar(v)]) : g;
+  const glosario = g=>civil() ? g.filter(([k])=>!SACAR.has(k)).map(([k, v])=>k==='PIM' ? ['Inicio', 'Punto de partida de la ruta.'] : k==='PTM' ? ['Término', 'Punto de llegada de la ruta.'] : [k, ingles() ? v : cambiar(v)]) : g;
 
   // valores por defecto de una marcha nueva en modo civil
   const parCivil = ()=>({claves:'ninguna', verbo:'EN', altos:0.10,

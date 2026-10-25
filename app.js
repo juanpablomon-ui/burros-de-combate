@@ -266,6 +266,7 @@
         <div class="btns"><button class="btn" id="bResp">⬇ Guardar respaldo</button><button class="btn" id="bCargar">⬆ Cargar respaldo</button></div>
         <h3>Paquete para terreno</h3><p class="nota">Arma un solo archivo con las marchas, las <b>cartas ya calzadas</b> y las <b>zonas de mapa sin señal</b>, y pásalo a la unidad por AirDrop, Quick Share, Bluetooth o cable, <b>sin internet</b>. Cada teléfono lo carga y queda listo.</p>
         <div class="btns"><button class="btn" id="bPaq">📦 Armar o cargar un paquete</button></div>
+        ${typeof Idioma!=='undefined' ? `<h3>Idioma · Language</h3><div class="seg seg-idioma sin-traducir"><button data-idioma="es" class="${Idioma.ingles() ? '' : 'on'}">Español</button><button data-idioma="en" class="${Idioma.ingles() ? 'on' : ''}">English</button></div>` : ''}
         <h3>Uso de la app</h3>${primera ? '' : usoSeg}<p class="nota">${Uso.civil() ? 'Montañismo, trekking, scouts, guías y rescate: sin armamento ni términos militares; plan de ruta para tu contacto de emergencia.' : 'Marchas militares: líneas de carga, nombres clave, mensajes al C2 y orden gráfica.'} Cambia cuando quieras: el cálculo es el mismo.</p>
         <div class="btns"><button class="btn mini${Guia.encendida() ? ' on' : ''}" id="bModoAy">❔ Modo ayuda: ${Guia.encendida() ? 'encendido' : 'apagado'}</button></div>
         <details class="tarjeta"><summary>Ver qué significa cada sigla</summary>
@@ -300,6 +301,7 @@
       if(b && b.dataset.borra){ const x = S.marchas.find(x=>x.id===b.dataset.borra);
         return confirmar('¿Borrar la marcha «' + x.nombre + '»? No se puede deshacer.', ()=>{ S.marchas = S.marchas.filter(y=>y!==x); if(S.actual===x.id) S.actual = null; guardar(); pintar(); }); }
       S.actual = d.dataset.abrir; ir('mapa'); });
+    vista.querySelectorAll('[data-idioma]').forEach(b=>b.onclick = ()=>{ if(b.dataset.idioma!==Idioma.leng) Idioma.poner(b.dataset.idioma); });
     vista.querySelectorAll('[data-uso]').forEach(b=>b.onclick = ()=>{ S.uso = b.dataset.uso; Uso.poner(S.uso); guardar(); pintar(); aviso(Uso.civil() ? '🥾 Uso civil' : '🪖 Uso militar'); });
     vista.querySelectorAll('[data-gpaso]').forEach(b=>b.onclick = e=>{ e.stopPropagation(); const x = G.pasos.find(y=>y.k===+b.dataset.gpaso); if(x) irA(x.ir); });
     $('#bModoAy').onclick = ()=>{ Guia.poner(!Guia.encendida()); aviso(Guia.encendida() ? '❔ Modo ayuda encendido: en cada pantalla aparece qué hacer' : 'Modo ayuda apagado (el botón ? sigue arriba)'); pintar(); };
