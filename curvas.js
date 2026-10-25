@@ -94,22 +94,30 @@ const Curvas = (function(){
     const az = 315*Math.PI/180, alt = 45*Math.PI/180, zen = Math.PI/2 - alt;
     const Capa = L.GridLayer.extend({
       createTile(co, hecho){
-        const t = document.createElement('canvas'), N = 129; t.width = t.height = N - 1;
+        const t = document.createElement('canvas'), N = 129; t.width = t.height = 256;
         if(co.z<10){ setTimeout(()=>hecho(null, t), 0); return t; }
-        cotas(co.z, co.x, co.y).then(r=>{
+        // la tesela y sus cuatro vecinas: en el borde la pendiente se calcula con la cota del lado (si no, se nota la costura entre teselas)
+        const n = Math.pow(2, co.z), xv = k=>((co.x + k)%n + n)%n, M = N - 2, C = M + 1;
+        Promise.all([cotas(co.z, co.x, co.y), cotas(co.z, xv(-1), co.y), cotas(co.z, xv(1), co.y), co.y>0 ? cotas(co.z, co.x, co.y - 1) : null, co.y<n - 1 ? cotas(co.z, co.x, co.y + 1) : null]).then(([r, iz, de, ar, ab])=>{
           if(!r){ hecho(null, t); return; }
-          const n = Math.pow(2, co.z), lat = Math.atan(Math.sinh(Math.PI*(1 - 2*(co.y + .5)/n))), celda = 40075016*Math.cos(lat)/n/(N - 1);
-          const g = t.getContext('2d'), img = g.createImageData(N - 1, N - 1), d = img.data, h = (i, j)=>r[Math.max(0, Math.min(N - 1, j))*N + Math.max(0, Math.min(N - 1, i))];
-          for(let j=0; j<N - 1; j++) for(let i=0; i<N - 1; i++){
-            // en el borde de la tesela, diferencia de un solo lado (si no, el borde queda plano y se nota la costura)
-            // (la última fila y columna de la cuadrícula repiten el borde de la imagen: no se usan)
-            const i0 = Math.max(0, i - 1), i1 = Math.min(N - 2, i + 1), j0 = Math.max(0, j - 1), j1 = Math.min(N - 2, j + 1);
-            const dzdx = (h(i1, j) - h(i0, j))/((i1 - i0)*celda), dzdy = (h(i, j1) - h(i, j0))/((j1 - j0)*celda);
+          const lat = Math.atan(Math.sinh(Math.PI*(1 - 2*(co.y + .5)/n))), celda = 40075016*Math.cos(lat)/n/(N - 1);
+          // cota de la celda (i, j) (0 a M = 127; la fila y columna 128 repiten el borde de la imagen: no se usan); fuera, la de la vecina
+          const cl = v=>Math.max(0, Math.min(M, v));
+          const h = (i, j)=>{ if(i<0) return iz ? iz[cl(j)*N + C + i] : r[cl(j)*N]; if(i>M) return de ? de[cl(j)*N + i - C] : r[cl(j)*N + M];
+            if(j<0) return ar ? ar[(C + j)*N + i] : r[i]; if(j>M) return ab ? ab[(j - C)*N + i] : r[M*N + i]; return r[j*N + i]; };
+          // sombra en cada celda de −1 a 128 (con las vecinas) y luego a 256×256 con interpolación bilineal: sin bordes en la tesela
+          const W = C + 2, S = new Float32Array(W*W);
+          for(let j=-1; j<=C; j++) for(let i=-1; i<=C; i++){
+            const dzdx = (h(i + 1, j) - h(i - 1, j))/(2*celda), dzdy = (h(i, j + 1) - h(i, j - 1))/(2*celda);
             const pend = Math.atan(1.5*Math.hypot(dzdx, dzdy)), asp = Math.atan2(dzdy, -dzdx);
             const luz = Math.cos(zen)*Math.cos(pend) + Math.sin(zen)*Math.sin(pend)*Math.cos(az - asp);   // 1 = de frente a la luz
-            const k = (j*(N - 1) + i)*4, sombra = Math.max(0, Math.min(1, (0.85 - luz)*1.4));
-            d[k] = d[k + 1] = d[k + 2] = 20; d[k + 3] = Math.round(sombra*130);
+            S[(j + 1)*W + i + 1] = Math.max(0, Math.min(1, (0.85 - luz)*1.4));
           }
+          const g = t.getContext('2d'), img = g.createImageData(256, 256), d = img.data;
+          for(let py=0; py<256; py++){ const cy = py/2 - .25 + 1, y0 = Math.floor(cy), fy = cy - y0;
+            for(let px=0; px<256; px++){ const cx = px/2 - .25 + 1, x0 = Math.floor(cx), fx = cx - x0, a0 = y0*W + x0;
+              const v = (S[a0]*(1 - fx) + S[a0 + 1]*fx)*(1 - fy) + (S[a0 + W]*(1 - fx) + S[a0 + W + 1]*fx)*fy, k = (py*256 + px)*4;
+              d[k] = d[k + 1] = d[k + 2] = 20; d[k + 3] = Math.round(v*130); } }
           g.putImageData(img, 0, 0); hecho(null, t);
         });
         return t;

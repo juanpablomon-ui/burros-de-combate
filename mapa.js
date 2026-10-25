@@ -17,9 +17,20 @@ const Mapa = (function(){
      necesitan señal), d (descripción), conSenal (sin señal se cambia solo al topográfico), crear (capa propia, p. ej. Google con sesión),
      falta (aún sin la cuenta: se muestra «pronto» y no se elige), claro (curvas claras encima), sinDoc (no va en el documento). */
   const agrupado = ()=>Object.values(BASES).some(b=>b.grupo);
-  const crearCapa = (k, extra)=>{ const b = BASES[k] || BASES.topo; return b.crear ? b.crear(extra) : L.tileLayer(b.url, Object.assign({crossOrigin:'anonymous'}, b.o, extra || {})); };
-  // el mapa que se ve: el elegido o, si necesita señal y no hay, el topográfico (que se puede guardar para usar sin señal)
-  const efectiva = k=>{ const k2 = BASES[k] && !BASES[k].falta ? k : BASES.topo ? 'topo' : Object.keys(BASES)[0]; return BASES[k2].conSenal && navigator.onLine===false && BASES.topo ? 'topo' : k2; };
+  // el mapa de respaldo (sin señal o sin elegir): el topográfico o, si no hay, el primero que funciona sin señal
+  const respaldo = ()=>BASES.topo ? 'topo' : (Object.entries(BASES).find(([, b])=>b.grupo==='sin') || Object.entries(BASES)[0])[0];
+  const crearCapa = (k, extra)=>{ const b = BASES[k] || BASES[respaldo()]; return b.crear ? b.crear(extra) : L.tileLayer(b.url, Object.assign({crossOrigin:'anonymous'}, b.o, extra || {})); };
+  // el mapa que se ve: el elegido o, si necesita señal y no hay, el de respaldo (que funciona sin señal)
+  const efectiva = k=>{ const k2 = BASES[k] && !BASES[k].falta ? k : respaldo(); return BASES[k2].conSenal && navigator.onLine===false ? respaldo() : k2; };
+  /* las cartas propias como capa para cualquier mapa (Seguir, documento, modo «Mis cartas» de Ruck Planner): las visibles, debajo de las
+     curvas de nivel (panel «cartas», 250) */
+  function cartasEn(grupo){
+    grupo.on('add', async e=>{ const m = e.target._map; if(!m) return; if(!m.getPane('cartas')) m.createPane('cartas').style.zIndex = 250;
+      let cs = []; try { cs = await BD.todas(); } catch(er){}
+      cs.filter(c=>c.visible!==false).forEach(c=>grupo.addLayer(L.imageOverlay(c.img, c.bounds, {pane:'cartas', opacity:c.opacidad || .8, interactive:false}))); });
+    return grupo;
+  }
+  const hayCartas = async()=>{ try { return (await BD.todas()).some(c=>c.visible!==false); } catch(e){ return false; } };
   const pref = {base:'topo', grid:true, perfil:false, curvas:true, relieve:false};
   try { Object.assign(pref, JSON.parse(localStorage.getItem('burros_mapa') || '{}')); } catch(e){}
   const guardarPref = ()=>{ try { localStorage.setItem('burros_mapa', JSON.stringify(pref)); } catch(e){} };
@@ -87,7 +98,8 @@ const Mapa = (function(){
     cont.querySelectorAll('[data-base]').forEach(b=>b.onclick = ()=>{ const B = BASES[b.dataset.base];
       if(B && B.falta) return A.aviso(B.falta);
       pref.base = b.dataset.base; guardarPref(); ponerBase(pref.base); curvas();
-      if(B && B.conSenal && navigator.onLine===false) A.aviso('Sin señal: este mapa vuelve cuando haya señal; mientras, el topográfico guardado');
+      if(B && B.conSenal && navigator.onLine===false) A.aviso('Sin señal: este mapa vuelve cuando haya señal; mientras, ' + BASES[respaldo()].n.toLowerCase());
+      if(B && B.cartas) hayCartas().then(h=>{ if(!h) A.aviso('Aún no hay cartas cargadas: se ven las curvas de nivel. Carga una en «Cargar o ver mis cartas»'); });
       cont.querySelectorAll('[data-base]').forEach(x=>x.classList.toggle('on', x===b)); });
     const mr = $('#mRelieve'); if(mr) mr.onclick = e=>{ pref.relieve = !pref.relieve; guardarPref(); e.currentTarget.classList.toggle('on', pref.relieve); relieve();
       if(pref.relieve && map.getZoom()<10) A.aviso('Acerca el mapa para ver el relieve'); };
@@ -109,7 +121,7 @@ const Mapa = (function(){
       if(L2.length===1) return mostrarRec(L2[0].i);
       A.dialogo(`<h3>👣 Recorrido realizado</h3><div class="s-mas">${L2.map(x=>`<button class="btn" data-rec="${x.i}">${A.esc(x.n)}</button>`).join('')}</div>
         <div class="btns"><button class="btn" data-cerrar>Cancelar</button></div>`, d=>d.querySelectorAll('[data-rec]').forEach(b=>b.onclick = ()=>{ A.cerrarDialogo(); mostrarRec(+b.dataset.rec); })); };
-    if(navigator.onLine===false) A.aviso(BASES[pref.base] && BASES[pref.base].conSenal ? 'Sin señal: cambié al mapa topográfico guardado' : 'Sin señal: se ven las zonas de mapa guardadas');
+    if(navigator.onLine===false) A.aviso(BASES[pref.base] && BASES[pref.base].conSenal ? 'Sin señal: cambié a «' + BASES[respaldo()].n + '»' : 'Sin señal: se ven las zonas de mapa guardadas');
     $('#mPerf').onclick = e=>{ pref.perfil = !pref.perfil; guardarPref(); e.currentTarget.classList.toggle('on', pref.perfil); perfil(); };
     if(verReal!==null && !recorridos(m).some(x=>x.i===verReal)) verReal = null;
     cargarCartas(); ruta(); grid(); if(verReal!==null) encuadrarRec(); lectura(map.getCenter()); perfil(); curvas(); relieve(); horizontes();
@@ -128,20 +140,21 @@ const Mapa = (function(){
     if(!map) return; if(capaRelieve){ map.removeLayer(capaRelieve); capaRelieve = null; }
     if(pref.relieve && agrupado() && Curvas.relieve) capaRelieve = Curvas.relieve({pane:'relieve'}).addTo(map);
   }
-  function ponerBase(k){ if(capaBase) map.removeLayer(capaBase); capaBase = crearCapa(efectiva(k)).addTo(map); }
+  function ponerBase(k){ if(capaBase) map.removeLayer(capaBase); capaBase = crearCapa(efectiva(k), {principal:true}).addTo(map); }   // en el Mapa las cartas las pone cargarCartas
   // selector en dos grupos (edición tienda; maqueta aprobada): primero lo que funciona sin señal
   function panelAgrupado(){
-    const op = (k, b)=>`<button class="mt-op mc-op${pref.base===k ? ' on' : ''}${b.falta ? ' falta' : ''}" data-base="${k}"><span class="rd"></span><span><b>${b.n}</b>${b.d ? `<small>${b.d}</small>` : ''}</span>
+    const act = efectiva(pref.base), op = (k, b)=>`<button class="mt-op mc-op${act===k ? ' on' : ''}${b.falta ? ' falta' : ''}" data-base="${k}"><span class="rd"></span><span><b>${b.n}</b>${b.d ? `<small>${b.d}</small>` : ''}</span>
       <span class="mc-tg ${b.falta ? 'pr' : b.conSenal ? 'rq' : 'ok'}">${b.falta ? 'pronto' : b.conSenal ? 'con señal' : 'se guarda'}</span></button>`;
     const g = x=>Object.entries(BASES).filter(([, b])=>b.grupo===x).map(([k, b])=>op(k, b)).join('');
+    const conCartas = Object.values(BASES).some(b=>b.cartas);
     return `<div class="mc-f">Funcionan sin señal</div>${g('sin')}
-      <button class="mt-op mc-op" data-cartas><span class="rd" style="visibility:hidden"></span><span><b>Mis cartas</b><small>las que cargas tú; quedan en el teléfono</small></span><span class="mc-tg ok">›</span></button>
+      ${conCartas ? '<button class="mc-ir" data-cartas>🗺 Cargar o ver mis cartas ›</button>' : `<button class="mt-op mc-op" data-cartas><span class="rd" style="visibility:hidden"></span><span><b>Mis cartas</b><small>las que cargas tú; quedan en el teléfono</small></span><span class="mc-tg ok">›</span></button>`}
       <div class="mc-f">Necesitan señal</div>${g('con')}`;
   }
   // sin señal: los mapas que la necesitan se cambian solos al topográfico; con señal, vuelven
   if(typeof window!=='undefined') ['online', 'offline'].forEach(ev=>window.addEventListener(ev, ()=>{
     if(!map || !BASES[pref.base] || !BASES[pref.base].conSenal) return; ponerBase(pref.base); curvas();
-    if(A) A.aviso(ev==='offline' ? 'Sin señal: cambié al mapa topográfico guardado' : 'Con señal: volvió ' + BASES[pref.base].n); }));
+    if(A) A.aviso(ev==='offline' ? 'Sin señal: cambié a «' + BASES[respaldo()].n + '»' : 'Con señal: volvió ' + BASES[pref.base].n); }));
   function encuadrar(){ const ok = A.calcular(A.actual()).puntos.filter(p=>p.ok); if(!ok.length) return A.aviso('Aún no hay puntos');
     if(ok.length===1) map.setView([ok[0].lat, ok[0].lon], 15); else map.fitBounds(L.latLngBounds(ok.map(p=>[p.lat, p.lon])), {padding:[40, 40]}); }
   function miPosicion(){
@@ -822,6 +835,6 @@ const Mapa = (function(){
   }
 
   function cerrar(){ cerrarMenu(); if(!map) return; const m = map; map = null; capaCursor = null; capaCurvas = null; try { m.stop(); m.off(); m.remove(); } catch(e){} }
-  return {abrir, ruta, cerrar, BASES, capa:crearCapa, efectiva, vueltaHorizonte, comoH, verRecorrido, importarCartas};
+  return {abrir, ruta, cerrar, BASES, capa:crearCapa, efectiva, respaldo, cartasEn, vueltaHorizonte, comoH, verRecorrido, importarCartas};
 })();
 if(typeof globalThis!=='undefined') globalThis.Mapa = Mapa;

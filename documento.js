@@ -325,12 +325,12 @@ const Documento = (function(){
     const el = $('#docMapa'), d = m.doc; if(!el || typeof L==='undefined') return;
     const ok = R.puntos.filter(p=>p.ok), b = L.latLngBounds(ok.map(p=>[p.lat, p.lon]));
     mapaDoc = L.map(el, {zoomControl:false, attributionControl:false, zoomSnap:0, fadeAnimation:false, zoomAnimation:false, inertia:false, dragging:false, scrollWheelZoom:false});
-    const kd = Mapa.BASES[d.capa] && !Mapa.BASES[d.capa].sinDoc && !Mapa.BASES[d.capa].falta ? d.capa : 'topo', base = Mapa.BASES[kd] || Mapa.BASES.topo;
+    const kd = Mapa.BASES[d.capa] && !Mapa.BASES[d.capa].sinDoc && !Mapa.BASES[d.capa].falta ? d.capa : Mapa.respaldo(), base = Mapa.BASES[kd];
     const capa = Mapa.capa(kd).addTo(mapaDoc);
     if(d.escala!=='auto'){ const c = b.getCenter(), mpp = (+d.escala)*0.0254/96, z = Math.log2(156543.03392*Math.cos(c.lat*Math.PI/180)/mpp); mapaDoc.setView(c, z, {animate:false}); }
     else mapaDoc.fitBounds(b, {padding:[40, 40], animate:false});
     let curvas = null;
-    if(d.curvas && typeof Curvas!=='undefined'){ mapaDoc.createPane('curvas').style.zIndex = 300; curvas = Curvas.capa({claro:d.capa==='sat', pane:'curvas'}).addTo(mapaDoc); }
+    if(d.curvas && typeof Curvas!=='undefined'){ mapaDoc.createPane('curvas').style.zIndex = 300; curvas = Curvas.capa({claro:!!base.claro, pane:'curvas'}).addTo(mapaDoc); }
     const este = mapaDoc; let hecho = false;
     const listo = ()=>{ if(hecho || mapaDoc!==este) return; hecho = true; setTimeout(()=>{ if(mapaDoc===este) rasterizar(m, R, base); }, 250); };
     let cargadas = 0; const n = curvas ? 2 : 1, una = ()=>{ if(++cargadas>=n) listo(); };

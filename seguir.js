@@ -965,7 +965,8 @@ ${T.map(t=>`<trkpt lat="${t[0]}" lon="${t[1]}"><time>${new Date(t[2]).toISOStrin
     const c0 = P ? [P.pts[0].lat, P.pts[0].lon] : irSolo ? [irSolo.lat, irSolo.lon] : pos ? [pos.lat, pos.lon] : [-33.45, -70.66];
     mapa = L.map(el, {zoomControl:false, attributionControl:false}).setView(c0, P || irSolo || pos ? 15 : 10);
     let base = 'topo'; try { base = JSON.parse(localStorage.getItem('burros_mapa') || '{}').base || 'topo'; } catch(e){}
-    mapa.createPane('curvas').style.zIndex = 300; mapa.getPane('curvas').style.pointerEvents = 'none'; ponerCapas();
+    mapa.createPane('curvas').style.zIndex = 300; mapa.getPane('curvas').style.pointerEvents = 'none';
+    mapa.createPane('relieve').style.zIndex = 240; mapa.getPane('relieve').style.pointerEvents = 'none'; ponerCapas();
     // con la carta girada no se puede arrastrar bien: al empezar a mover el dedo se endereza (norte arriba) para recorrerla
     { let x0 = null, y0 = null; el.addEventListener('pointerdown', e=>{ x0 = e.clientX; y0 = e.clientY; });
       el.addEventListener('pointermove', e=>{ if(x0===null || giro===null) return; if(Math.hypot(e.clientX - x0, e.clientY - y0)>12){ explorando = true; centrar = false; x0 = null; girar(null); marcarCentrar(); A.aviso('Recorriendo la carta (norte arriba). ◎ para volver a centrar'); } });
@@ -1029,16 +1030,19 @@ ${T.map(t=>`<trkpt lat="${t[0]}" lon="${t[1]}"><time>${new Date(t[2]).toISOStrin
   // rumbo del teléfono respecto del norte geográfico (para girar la carta en el modo brújula)
   const rumboGeo = ()=>rumboDisp ? ((rumboDisp.mag ? rumboDisp.h + decPlan() : rumboDisp.h) + 360)%360 : null;
   const azGiro = az=>orient==='brujula' && rumboDisp ? rumboGeo() : az;
-  let capaS = null, curvasS = null, giro = null;
+  let capaS = null, curvasS = null, relieveS = null, giro = null;
   const prefMapa = ()=>{ try { return JSON.parse(localStorage.getItem('burros_mapa') || '{}'); } catch(e){ return {}; } };
   function ponerCapas(){
     if(!mapa) return; const pr = prefMapa(), base = Mapa.efectiva(pr.base);   // sin señal, los mapas que la necesitan pasan al topográfico
     if(capaS) mapa.removeLayer(capaS); capaS = Mapa.capa(base).addTo(mapa);
     if(curvasS){ mapa.removeLayer(curvasS); curvasS = null; }
     if(pr.curvas!==false && typeof Curvas!=='undefined') curvasS = Curvas.capa({claro:!!Mapa.BASES[base].claro, pane:'curvas'}).addTo(mapa);
+    // relieve sombreado (Ruck Planner, si está encendido en el Mapa)
+    if(relieveS){ mapa.removeLayer(relieveS); relieveS = null; }
+    if(pr.relieve && Mapa.BASES[base].grupo && typeof Curvas!=='undefined' && Curvas.relieve && mapa.getPane('relieve')) relieveS = Curvas.relieve({pane:'relieve'}).addTo(mapa);
   }
   if(typeof window!=='undefined') ['online', 'offline'].forEach(ev=>window.addEventListener(ev, ()=>{ const b = Mapa.BASES[prefMapa().base];
-    if(!mapa || !b || !b.conSenal) return; ponerCapas(); A.aviso(ev==='offline' ? 'Sin señal: cambié al mapa topográfico guardado' : 'Con señal: volvió ' + b.n); }));
+    if(!mapa || !b || !b.conSenal) return; ponerCapas(); A.aviso(ev==='offline' ? 'Sin señal: cambié a «' + Mapa.BASES[Mapa.respaldo()].n + '»' : 'Con señal: volvió ' + b.n); }));
   const modoVistaBtn = ()=>(irSolo || (A && A.actual() && A.actual().ejec && A.actual().ejec.estado!=='fin')) ? `<button class="btn" id="sVista" title="Tipo de pantalla" aria-label="Pantalla">${ic('lista', 'Pantalla')}</button>` : '';
   function marcarCentrar(){ const b = $('#sCentrar'); if(b) b.classList.toggle('pri', !centrar || explorando); }
   function controles(){
@@ -1056,7 +1060,7 @@ ${T.map(t=>`<trkpt lat="${t[0]}" lon="${t[1]}"><time>${new Date(t[2]).toISOStrin
         <div class="btns"><button class="btn" data-cerrar>Cerrar</button></div>`, d=>{
         const guardarPr = o=>{ try { localStorage.setItem('burros_mapa', JSON.stringify(Object.assign(prefMapa(), o))); } catch(e){} ponerCapas(); };
         d.querySelectorAll('[data-cb]').forEach(b=>b.onclick = ()=>{ const B = Mapa.BASES[b.dataset.cb]; if(B && B.falta) return A.aviso(B.falta);
-          guardarPr({base:b.dataset.cb}); A.cerrarDialogo(); if(B && B.conSenal && navigator.onLine===false) A.aviso('Sin señal: este mapa vuelve cuando haya señal; mientras, el topográfico guardado'); });
+          guardarPr({base:b.dataset.cb}); A.cerrarDialogo(); if(B && B.conSenal && navigator.onLine===false) A.aviso('Sin señal: este mapa vuelve cuando haya señal; mientras, ' + Mapa.BASES[Mapa.respaldo()].n.toLowerCase()); });
         d.querySelector('#cCurv').onchange = e=>guardarPr({curvas:e.target.checked}); }); };
     bz.onclick = ()=>{ centrar = true; explorando = false; marcarCentrar(); zoomListo = false; if(pos && mapa) seguirPos(); else A.aviso('Esperando señal GPS…'); };
     marcarCentrar();
@@ -1084,7 +1088,7 @@ ${T.map(t=>`<trkpt lat="${t[0]}" lon="${t[1]}"><time>${new Date(t[2]).toISOStrin
       mapa.setView([pos.lat, pos.lon], Math.max(12, Math.min(17, z)), {animate:false}); }
     else mapa.panTo([pos.lat, pos.lon], {animate:false});
   }
-  function cerrarMapa(){ if(mapaFin){ try { mapaFin.remove(); } catch(e){} mapaFin = null; } if(mapa){ try { mapa.remove(); } catch(e){} mapa = null; capas = null; } capaS = null; curvasS = null; giro = null; zoomListo = false; explorando = false; }
+  function cerrarMapa(){ if(mapaFin){ try { mapaFin.remove(); } catch(e){} mapaFin = null; } if(mapa){ try { mapa.remove(); } catch(e){} mapa = null; capas = null; } capaS = null; curvasS = null; relieveS = null; giro = null; zoomListo = false; explorando = false; }
 
   function cerrar(){ cerrarMapa(); const m = A && A.actual(); if(!(m && m.ejec && m.ejec.estado!=='fin')) pararGps(); }
   // desde el Mapa: «Navegar hasta aquí» (con una marcha en curso, como desvío que vuelve a la ruta)
