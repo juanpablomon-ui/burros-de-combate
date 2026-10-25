@@ -1024,3 +1024,9 @@ main{padding-left:max(14px, env(safe-area-inset-left));padding-right:max(14px, e
 .cp-f small{display:block;color:var(--suave);font-size:12px}
 .cp-f b{font-family:var(--mono);white-space:nowrap}
 .cp-t span{font-weight:600}.cp-t b{color:var(--ocre);font-size:18px}
+/* selector de mapas en dos grupos (edición tienda; v0.99.38) y relieve sombreado */
+.m-capas .mc-op{margin:4px 0;padding:7px 8px}.m-capas .mc-op b{font-size:13px}.m-capas .mc-op small{font-size:12px}
+.mc-op.falta{opacity:.75}
+.mc-tg{margin-left:auto;font-size:11px;border-radius:5px;padding:2px 6px;white-space:nowrap;border:1px solid var(--linea);color:var(--suave)}
+.mc-tg.ok{color:var(--verde);border-color:rgba(143,191,90,.45)}.mc-tg.pr{color:var(--ocre);border-color:rgba(227,166,58,.45)}
+.leaflet-tile.relieve,.relieve canvas{image-rendering:auto}

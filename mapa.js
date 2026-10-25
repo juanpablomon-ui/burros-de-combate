@@ -7,13 +7,20 @@ const Mapa = (function(){
   const M = MARCHA;
   const BASES = {
     topo:  {n:'Topográfica', url:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', o:{maxZoom:17, subdomains:'abc', attribution:'© OpenTopoMap (CC-BY-SA) · © OpenStreetMap'}},
-    sat:   {n:'Satélite', url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', o:{maxZoom:19, attribution:'Esri World Imagery'}},
+    sat:   {n:'Satélite', claro:true, url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', o:{maxZoom:19, attribution:'Esri World Imagery'}},
     etopo: {n:'Topo Esri', url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', o:{maxZoom:19, attribution:'Esri World Topo'}},
     calles:{n:'Calles', url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', o:{maxZoom:19, attribution:'© OpenStreetMap'}}
   };
   let capaHoriz = null; const vistas = new Map();
   let map = null, A = null, capaBase = null, capaRuta = null, capaGrid = null, cartasCapa = {}, agregar = false, sel = null, deshacer = [];
-  const pref = {base:'topo', grid:true, perfil:false, curvas:true};
+  /* Cada mapa puede traer (edición tienda, fuentes/ruck/mapas.js; v0.99.38): grupo 'sin' / 'con' (selector en dos grupos: funcionan sin señal /
+     necesitan señal), d (descripción), conSenal (sin señal se cambia solo al topográfico), crear (capa propia, p. ej. Google con sesión),
+     falta (aún sin la cuenta: se muestra «pronto» y no se elige), claro (curvas claras encima), sinDoc (no va en el documento). */
+  const agrupado = ()=>Object.values(BASES).some(b=>b.grupo);
+  const crearCapa = (k, extra)=>{ const b = BASES[k] || BASES.topo; return b.crear ? b.crear(extra) : L.tileLayer(b.url, Object.assign({crossOrigin:'anonymous'}, b.o, extra || {})); };
+  // el mapa que se ve: el elegido o, si necesita señal y no hay, el topográfico (que se puede guardar para usar sin señal)
+  const efectiva = k=>{ const k2 = BASES[k] && !BASES[k].falta ? k : BASES.topo ? 'topo' : Object.keys(BASES)[0]; return BASES[k2].conSenal && navigator.onLine===false && BASES.topo ? 'topo' : k2; };
+  const pref = {base:'topo', grid:true, perfil:false, curvas:true, relieve:false};
   try { Object.assign(pref, JSON.parse(localStorage.getItem('burros_mapa') || '{}')); } catch(e){}
   const guardarPref = ()=>{ try { localStorage.setItem('burros_mapa', JSON.stringify(pref)); } catch(e){} };
   const $ = (s, r)=>(r || document).querySelector(s);
@@ -36,12 +43,13 @@ const Mapa = (function(){
         <button class="btn mini m-capas-b${capasAb ? ' on' : ''}" id="mCapas" title="Tipo de mapa, cuadrícula, curvas, cartas y mapas sin señal">▤ Capas</button>
         ${recorridos(m).length ? `<button class="btn mini${verReal!==null ? ' on' : ''}" id="mRec" title="Ver el recorrido realizado (GPS)">👣 Recorrido</button>` : ''}
         <div class="m-capas" id="mCapasP" style="display:${capasAb ? 'block' : 'none'}">
-          <div class="mc-f">Mapa</div>
-          <div class="seg m-bases">${Object.entries(BASES).map(([k, b])=>`<button data-base="${k}" class="${pref.base===k ? 'on' : ''}">${b.n}</button>`).join('')}</div>
+          ${agrupado() ? panelAgrupado() : `<div class="mc-f">Mapa</div>
+          <div class="seg m-bases">${Object.entries(BASES).map(([k, b])=>`<button data-base="${k}" class="${pref.base===k ? 'on' : ''}">${b.n}</button>`).join('')}</div>`}
           <div class="mc-f">Sobre el mapa</div>
           <button class="mc-sw${pref.grid ? ' on' : ''}" id="mGrid" title="Cuadrícula UTM">Cuadrícula UTM<span class="sw"></span></button>
           <button class="mc-sw${pref.curvas ? ' on' : ''}" id="mCurvas" title="Curvas de nivel sobre cualquier capa">Curvas de nivel<span class="sw"></span></button>
-          <button class="mc-ir" id="mCartas" title="Cartas propias">🗺 Mis cartas (IGM, PDF, .gcarta) ›</button>
+          ${agrupado() && Curvas.relieve ? `<button class="mc-sw${pref.relieve ? ' on' : ''}" id="mRelieve" title="Relieve sombreado del terreno">Relieve sombreado<span class="sw"></span></button>` : ''}
+          ${agrupado() ? '' : '<button class="mc-ir" id="mCartas" title="Cartas propias">🗺 Mis cartas (IGM, PDF, .gcarta) ›</button>'}
           <div class="mc-f">Sin señal</div>
           <button class="mc-ir" id="mZonas" title="Guardar mapas para usar sin señal">⬇ Guardar esta zona para usar sin señal ›</button>
         </div>
@@ -68,6 +76,7 @@ const Mapa = (function(){
     ponerBase(pref.base, true);
     map.createPane('cartas').style.zIndex = 250;
     map.createPane('curvas').style.zIndex = 300; map.getPane('curvas').style.pointerEvents = 'none';
+    map.createPane('relieve').style.zIndex = 240; map.getPane('relieve').style.pointerEvents = 'none';
     capaGrid = L.layerGroup().addTo(map); capaHoriz = L.layerGroup().addTo(map); capaRuta = L.layerGroup().addTo(map);
     map.on('moveend', ()=>{ A.vistaMapa = {c:map.getCenter(), z:map.getZoom()}; grid(); lectura(map.getCenter()); });
     map.on('mousemove', e=>lectura(e.latlng, true));
@@ -75,8 +84,13 @@ const Mapa = (function(){
     map.on('contextmenu', e=>{ L.DomEvent.preventDefault(e); menuLugar(e.latlng, e.originalEvent); });
     map.on('movestart zoomstart', cerrarMenu);
     // botones
-    cont.querySelectorAll('[data-base]').forEach(b=>b.onclick = ()=>{ pref.base = b.dataset.base; guardarPref(); ponerBase(pref.base); curvas();
+    cont.querySelectorAll('[data-base]').forEach(b=>b.onclick = ()=>{ const B = BASES[b.dataset.base];
+      if(B && B.falta) return A.aviso(B.falta);
+      pref.base = b.dataset.base; guardarPref(); ponerBase(pref.base); curvas();
+      if(B && B.conSenal && navigator.onLine===false) A.aviso('Sin señal: este mapa vuelve cuando haya señal; mientras, el topográfico guardado');
       cont.querySelectorAll('[data-base]').forEach(x=>x.classList.toggle('on', x===b)); });
+    const mr = $('#mRelieve'); if(mr) mr.onclick = e=>{ pref.relieve = !pref.relieve; guardarPref(); e.currentTarget.classList.toggle('on', pref.relieve); relieve();
+      if(pref.relieve && map.getZoom()<10) A.aviso('Acerca el mapa para ver el relieve'); };
     $('#mCurvas').onclick = e=>{ pref.curvas = !pref.curvas; guardarPref(); e.currentTarget.classList.toggle('on', pref.curvas); curvas();
       if(pref.curvas && map.getZoom()<10) A.aviso('Acerca el mapa para ver las curvas de nivel'); };
     $('#mGrid').onclick = e=>{ pref.grid = !pref.grid; guardarPref(); e.currentTarget.classList.toggle('on', pref.grid); grid(); };
@@ -86,7 +100,7 @@ const Mapa = (function(){
     $('#mDeshacer').onclick = ()=>{ const u = deshacer.pop(); if(!u) return A.aviso('Nada que deshacer'); A.actual().puntos = u; A.guardar(); cerrarHoja(); ruta(); };
     $('#mEncuadrar').onclick = encuadrar;
     $('#mYo').onclick = miPosicion;
-    $('#mCartas').onclick = dialogoCartas;
+    cont.querySelectorAll('#mCartas, [data-cartas]').forEach(b=>b.onclick = dialogoCartas);
     $('#mZonas').onclick = dialogoZonas;
     // un solo botón «Capas» (v0.99.29, revisión de la app: antes eran 8 botones sobre la carta)
     $('#mCapas').onclick = ()=>{ capasAb = !capasAb; $('#mCapasP').style.display = capasAb ? 'block' : 'none'; $('#mCapas').classList.toggle('on', capasAb); };
@@ -95,21 +109,39 @@ const Mapa = (function(){
       if(L2.length===1) return mostrarRec(L2[0].i);
       A.dialogo(`<h3>👣 Recorrido realizado</h3><div class="s-mas">${L2.map(x=>`<button class="btn" data-rec="${x.i}">${A.esc(x.n)}</button>`).join('')}</div>
         <div class="btns"><button class="btn" data-cerrar>Cancelar</button></div>`, d=>d.querySelectorAll('[data-rec]').forEach(b=>b.onclick = ()=>{ A.cerrarDialogo(); mostrarRec(+b.dataset.rec); })); };
-    if(navigator.onLine===false) A.aviso('Sin señal: se ven las zonas de mapa guardadas');
+    if(navigator.onLine===false) A.aviso(BASES[pref.base] && BASES[pref.base].conSenal ? 'Sin señal: cambié al mapa topográfico guardado' : 'Sin señal: se ven las zonas de mapa guardadas');
     $('#mPerf').onclick = e=>{ pref.perfil = !pref.perfil; guardarPref(); e.currentTarget.classList.toggle('on', pref.perfil); perfil(); };
     if(verReal!==null && !recorridos(m).some(x=>x.i===verReal)) verReal = null;
-    cargarCartas(); ruta(); grid(); if(verReal!==null) encuadrarRec(); lectura(map.getCenter()); perfil(); curvas(); horizontes();
+    cargarCartas(); ruta(); grid(); if(verReal!==null) encuadrarRec(); lectura(map.getCenter()); perfil(); curvas(); relieve(); horizontes();
     ubicando = null; if(A.ubicar!==undefined && A.ubicar!==null){ const k = A.ubicar; A.ubicar = null; agregar = false; const b = $('#mAgregar'); if(b) b.classList.remove('pri'); modoUbicar(k); }
     const este = map; setTimeout(()=>{ if(map===este) map.invalidateSize({animate:false}); }, 50);
     return map;
   }
   // curvas de nivel calculadas del modelo de terreno (claras sobre el satélite, café sobre los mapas)
-  let capaCurvas = null;
+  let capaCurvas = null, capaRelieve = null;
   function curvas(){
     if(!map) return; if(capaCurvas){ map.removeLayer(capaCurvas); capaCurvas = null; }
-    if(pref.curvas) capaCurvas = Curvas.capa({claro:pref.base==='sat', pane:'curvas'}).addTo(map);
+    if(pref.curvas) capaCurvas = Curvas.capa({claro:!!(BASES[efectiva(pref.base)] || {}).claro, pane:'curvas'}).addTo(map);
   }
-  function ponerBase(k){ if(capaBase) map.removeLayer(capaBase); const b = BASES[k] || BASES.topo; capaBase = L.tileLayer(b.url, Object.assign({crossOrigin:'anonymous'}, b.o)).addTo(map); }
+  // relieve sombreado (edición tienda): del mismo modelo de terreno
+  function relieve(){
+    if(!map) return; if(capaRelieve){ map.removeLayer(capaRelieve); capaRelieve = null; }
+    if(pref.relieve && agrupado() && Curvas.relieve) capaRelieve = Curvas.relieve({pane:'relieve'}).addTo(map);
+  }
+  function ponerBase(k){ if(capaBase) map.removeLayer(capaBase); capaBase = crearCapa(efectiva(k)).addTo(map); }
+  // selector en dos grupos (edición tienda; maqueta aprobada): primero lo que funciona sin señal
+  function panelAgrupado(){
+    const op = (k, b)=>`<button class="mt-op mc-op${pref.base===k ? ' on' : ''}${b.falta ? ' falta' : ''}" data-base="${k}"><span class="rd"></span><span><b>${b.n}</b>${b.d ? `<small>${b.d}</small>` : ''}</span>
+      <span class="mc-tg ${b.falta ? 'pr' : b.conSenal ? 'rq' : 'ok'}">${b.falta ? 'pronto' : b.conSenal ? 'con señal' : 'se guarda'}</span></button>`;
+    const g = x=>Object.entries(BASES).filter(([, b])=>b.grupo===x).map(([k, b])=>op(k, b)).join('');
+    return `<div class="mc-f">Funcionan sin señal</div>${g('sin')}
+      <button class="mt-op mc-op" data-cartas><span class="rd" style="visibility:hidden"></span><span><b>Mis cartas</b><small>las que cargas tú; quedan en el teléfono</small></span><span class="mc-tg ok">›</span></button>
+      <div class="mc-f">Necesitan señal</div>${g('con')}`;
+  }
+  // sin señal: los mapas que la necesitan se cambian solos al topográfico; con señal, vuelven
+  if(typeof window!=='undefined') ['online', 'offline'].forEach(ev=>window.addEventListener(ev, ()=>{
+    if(!map || !BASES[pref.base] || !BASES[pref.base].conSenal) return; ponerBase(pref.base); curvas();
+    if(A) A.aviso(ev==='offline' ? 'Sin señal: cambié al mapa topográfico guardado' : 'Con señal: volvió ' + BASES[pref.base].n); }));
   function encuadrar(){ const ok = A.calcular(A.actual()).puntos.filter(p=>p.ok); if(!ok.length) return A.aviso('Aún no hay puntos');
     if(ok.length===1) map.setView([ok[0].lat, ok[0].lon], 15); else map.fitBounds(L.latLngBounds(ok.map(p=>[p.lat, p.lon])), {padding:[40, 40]}); }
   function miPosicion(){
@@ -790,6 +822,6 @@ const Mapa = (function(){
   }
 
   function cerrar(){ cerrarMenu(); if(!map) return; const m = map; map = null; capaCursor = null; capaCurvas = null; try { m.stop(); m.off(); m.remove(); } catch(e){} }
-  return {abrir, ruta, cerrar, BASES, vueltaHorizonte, comoH, verRecorrido, importarCartas};
+  return {abrir, ruta, cerrar, BASES, capa:crearCapa, efectiva, vueltaHorizonte, comoH, verRecorrido, importarCartas};
 })();
 if(typeof globalThis!=='undefined') globalThis.Mapa = Mapa;

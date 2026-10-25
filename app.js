@@ -1496,8 +1496,8 @@
         if(E) return confirmar('Para repetirla, el registro actual pasa a «Recorridos anteriores» y la marcha queda lista para partir. ¿Seguir?', ()=>{ archivarEjec(x.m); ir('seguir'); });
         ir('seguir'); };
       const lm = d.querySelector('#lbMapa');
-      if(lm && typeof L!=='undefined'){ const b = Mapa.BASES.topo, mp2 = L.map(lm, {zoomControl:false, attributionControl:false, dragging:false, scrollWheelZoom:false, doubleClickZoom:false, touchZoom:false, boxZoom:false, keyboard:false});
-        L.tileLayer(b.url, Object.assign({crossOrigin:'anonymous'}, b.o)).addTo(mp2);
+      if(lm && typeof L!=='undefined'){ const mp2 = L.map(lm, {zoomControl:false, attributionControl:false, dragging:false, scrollWheelZoom:false, doubleClickZoom:false, touchZoom:false, boxZoom:false, keyboard:false});
+        Mapa.capa('topo').addTo(mp2);
         const T = Seguir.partes(Object.assign({}, x.m, {ejec:x.ej})); [[T.ida, Seguir.COL_IDA], [T.reg, Seguir.COL_REG]].forEach(([l, c])=>{ if(l.length) L.polyline(l, {color:c, weight:4}).addTo(mp2); });
         mp2.fitBounds(L.latLngBounds(x.ej.track.map(t=>[t[0], t[1]])), {padding:[12, 12], animate:false}); setTimeout(()=>mp2.invalidateSize({animate:false}), 60);
         d.addEventListener('close', ()=>{ try { mp2.remove(); } catch(e){} }, {once:true}); } });

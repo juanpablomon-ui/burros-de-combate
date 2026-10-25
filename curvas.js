@@ -87,6 +87,36 @@ const Curvas = (function(){
     });
     return new Capa({maxNativeZoom:15, maxZoom:20, minZoom:10, opacity:1, pane:op.pane || 'overlayPane', zIndex:5});
   }
-  return {capa, equidistancia, segmentos};
+  /* relieve sombreado (v0.99.38, edición tienda; maqueta aprobada): luz desde el noroeste (azimut 315°, 45° de altura) sobre la misma
+     cuadrícula de cotas; las laderas en sombra se oscurecen y las que dan a la luz quedan casi transparentes */
+  function relieve(op){
+    op = Object.assign({}, op || {});
+    const az = 315*Math.PI/180, alt = 45*Math.PI/180, zen = Math.PI/2 - alt;
+    const Capa = L.GridLayer.extend({
+      createTile(co, hecho){
+        const t = document.createElement('canvas'), N = 129; t.width = t.height = N - 1;
+        if(co.z<10){ setTimeout(()=>hecho(null, t), 0); return t; }
+        cotas(co.z, co.x, co.y).then(r=>{
+          if(!r){ hecho(null, t); return; }
+          const n = Math.pow(2, co.z), lat = Math.atan(Math.sinh(Math.PI*(1 - 2*(co.y + .5)/n))), celda = 40075016*Math.cos(lat)/n/(N - 1);
+          const g = t.getContext('2d'), img = g.createImageData(N - 1, N - 1), d = img.data, h = (i, j)=>r[Math.max(0, Math.min(N - 1, j))*N + Math.max(0, Math.min(N - 1, i))];
+          for(let j=0; j<N - 1; j++) for(let i=0; i<N - 1; i++){
+            // en el borde de la tesela, diferencia de un solo lado (si no, el borde queda plano y se nota la costura)
+            // (la última fila y columna de la cuadrícula repiten el borde de la imagen: no se usan)
+            const i0 = Math.max(0, i - 1), i1 = Math.min(N - 2, i + 1), j0 = Math.max(0, j - 1), j1 = Math.min(N - 2, j + 1);
+            const dzdx = (h(i1, j) - h(i0, j))/((i1 - i0)*celda), dzdy = (h(i, j1) - h(i, j0))/((j1 - j0)*celda);
+            const pend = Math.atan(1.5*Math.hypot(dzdx, dzdy)), asp = Math.atan2(dzdy, -dzdx);
+            const luz = Math.cos(zen)*Math.cos(pend) + Math.sin(zen)*Math.sin(pend)*Math.cos(az - asp);   // 1 = de frente a la luz
+            const k = (j*(N - 1) + i)*4, sombra = Math.max(0, Math.min(1, (0.85 - luz)*1.4));
+            d[k] = d[k + 1] = d[k + 2] = 20; d[k + 3] = Math.round(sombra*130);
+          }
+          g.putImageData(img, 0, 0); hecho(null, t);
+        });
+        return t;
+      }
+    });
+    return new Capa({tileSize:256, maxNativeZoom:15, maxZoom:20, minZoom:10, pane:op.pane || 'overlayPane', zIndex:4, className:'relieve'});
+  }
+  return {capa, relieve, equidistancia, segmentos};
 })();
 if(typeof globalThis!=='undefined') globalThis.Curvas = Curvas;

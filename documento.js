@@ -65,7 +65,7 @@ const Documento = (function(){
         <div class="doc-secs">${SECCIONES.map(([k, n])=>`<label><input type="checkbox" data-sec="${k}" ${d.sec[k] ? 'checked' : ''}> ${n}</label>`).join('')}</div>
         ${d.sec.mapa ? `<h2>Mapa</h2><div class="campos">
           ${sel('escala', 'Escala', {auto:'Ajustar a la ruta', 10000:'1:10.000', 25000:'1:25.000', 50000:'1:50.000', 100000:'1:100.000'})}
-          ${sel('capa', 'Capa', Object.fromEntries(Object.entries(Mapa.BASES).map(([k, b])=>[k, b.n])))}
+          ${sel('capa', 'Capa', Object.fromEntries(Object.entries(Mapa.BASES).filter(([, b])=>!b.sinDoc && !b.falta).map(([k, b])=>[k, b.n])))}
           ${sel('ruta', 'Color de la ruta', Object.fromEntries(Object.entries(RUTAS).map(([k, v])=>[k, v[0]])))}
           <label class="c"><span><input type="checkbox" data-docb="curvas" ${d.curvas ? 'checked' : ''} style="width:auto"> Curvas de nivel</span></label>
           <label class="c"><span><input type="checkbox" data-docb="grilla" ${d.grilla ? 'checked' : ''} style="width:auto"> Cuadrícula UTM</span></label></div>` : ''}
@@ -325,8 +325,8 @@ const Documento = (function(){
     const el = $('#docMapa'), d = m.doc; if(!el || typeof L==='undefined') return;
     const ok = R.puntos.filter(p=>p.ok), b = L.latLngBounds(ok.map(p=>[p.lat, p.lon]));
     mapaDoc = L.map(el, {zoomControl:false, attributionControl:false, zoomSnap:0, fadeAnimation:false, zoomAnimation:false, inertia:false, dragging:false, scrollWheelZoom:false});
-    const base = Mapa.BASES[d.capa] || Mapa.BASES.topo;
-    const capa = L.tileLayer(base.url, Object.assign({crossOrigin:'anonymous'}, base.o)).addTo(mapaDoc);
+    const kd = Mapa.BASES[d.capa] && !Mapa.BASES[d.capa].sinDoc && !Mapa.BASES[d.capa].falta ? d.capa : 'topo', base = Mapa.BASES[kd] || Mapa.BASES.topo;
+    const capa = Mapa.capa(kd).addTo(mapaDoc);
     if(d.escala!=='auto'){ const c = b.getCenter(), mpp = (+d.escala)*0.0254/96, z = Math.log2(156543.03392*Math.cos(c.lat*Math.PI/180)/mpp); mapaDoc.setView(c, z, {animate:false}); }
     else mapaDoc.fitBounds(b, {padding:[40, 40], animate:false});
     let curvas = null;
