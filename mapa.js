@@ -99,6 +99,7 @@ const Mapa = (function(){
       if(B && B.falta) return A.aviso(B.falta);
       pref.base = b.dataset.base; guardarPref(); ponerBase(pref.base); curvas();
       if(B && B.conSenal && navigator.onLine===false) A.aviso('Sin señal: este mapa vuelve cuando haya señal; mientras, ' + BASES[respaldo()].n.toLowerCase());
+      if(B && B.sinCurvas && pref.curvas && !(B.conSenal && navigator.onLine===false)) A.aviso(B.n + ' trae sus propias curvas de nivel: las de la app se ocultan mientras lo uses');
       if(B && B.cartas) hayCartas().then(h=>{ if(!h) A.aviso('Aún no hay cartas cargadas: se ven las curvas de nivel. Carga una en «Cargar o ver mis cartas»'); });
       cont.querySelectorAll('[data-base]').forEach(x=>x.classList.toggle('on', x===b)); });
     const mr = $('#mRelieve'); if(mr) mr.onclick = e=>{ pref.relieve = !pref.relieve; guardarPref(); e.currentTarget.classList.toggle('on', pref.relieve); relieve();
@@ -133,7 +134,9 @@ const Mapa = (function(){
   let capaCurvas = null, capaRelieve = null;
   function curvas(){
     if(!map) return; if(capaCurvas){ map.removeLayer(capaCurvas); capaCurvas = null; }
-    if(pref.curvas) capaCurvas = Curvas.capa({claro:!!(BASES[efectiva(pref.base)] || {}).claro, pane:'curvas'}).addTo(map);
+    // un mapa con curvas propias (sinCurvas: Google Terreno) las oculta mientras se usa; al cambiar de mapa vuelven solas
+    const b = BASES[efectiva(pref.base)] || {};
+    if(pref.curvas && !b.sinCurvas) capaCurvas = Curvas.capa({claro:!!b.claro, pane:'curvas'}).addTo(map);
   }
   // relieve sombreado (edición tienda): del mismo modelo de terreno
   function relieve(){
@@ -153,7 +156,7 @@ const Mapa = (function(){
   }
   // sin señal: los mapas que la necesitan se cambian solos al topográfico; con señal, vuelven
   if(typeof window!=='undefined') ['online', 'offline'].forEach(ev=>window.addEventListener(ev, ()=>{
-    if(!map || !BASES[pref.base] || !BASES[pref.base].conSenal) return; ponerBase(pref.base); curvas();
+    if(!map || !BASES[pref.base] || !BASES[pref.base].conSenal) return; ponerBase(pref.base); curvas();   // sin señal vuelven las curvas de la app
     if(A) A.aviso(ev==='offline' ? 'Sin señal: cambié a «' + BASES[respaldo()].n + '»' : 'Con señal: volvió ' + BASES[pref.base].n); }));
   function encuadrar(){ const ok = A.calcular(A.actual()).puntos.filter(p=>p.ok); if(!ok.length) return A.aviso('Aún no hay puntos');
     if(ok.length===1) map.setView([ok[0].lat, ok[0].lon], 15); else map.fitBounds(L.latLngBounds(ok.map(p=>[p.lat, p.lon])), {padding:[40, 40]}); }

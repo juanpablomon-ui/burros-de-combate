@@ -1036,7 +1036,7 @@ ${T.map(t=>`<trkpt lat="${t[0]}" lon="${t[1]}"><time>${new Date(t[2]).toISOStrin
     if(!mapa) return; const pr = prefMapa(), base = Mapa.efectiva(pr.base);   // sin señal, los mapas que la necesitan pasan al topográfico
     if(capaS) mapa.removeLayer(capaS); capaS = Mapa.capa(base).addTo(mapa);
     if(curvasS){ mapa.removeLayer(curvasS); curvasS = null; }
-    if(pr.curvas!==false && typeof Curvas!=='undefined') curvasS = Curvas.capa({claro:!!Mapa.BASES[base].claro, pane:'curvas'}).addTo(mapa);
+    if(pr.curvas!==false && !Mapa.BASES[base].sinCurvas && typeof Curvas!=='undefined') curvasS = Curvas.capa({claro:!!Mapa.BASES[base].claro, pane:'curvas'}).addTo(mapa);   // Google Terreno trae las suyas
     // relieve sombreado (Ruck Planner, si está encendido en el Mapa)
     if(relieveS){ mapa.removeLayer(relieveS); relieveS = null; }
     if(pr.relieve && Mapa.BASES[base].grupo && typeof Curvas!=='undefined' && Curvas.relieve && mapa.getPane('relieve')) relieveS = Curvas.relieve({pane:'relieve'}).addTo(mapa);
