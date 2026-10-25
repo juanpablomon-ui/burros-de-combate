@@ -80,6 +80,8 @@
   function medirAlto(){ const h = document.querySelector('.barra-sup'), t = document.getElementById('pestanas'); if(!h || !t) return;
     const abajo = getComputedStyle(t).position==='fixed' ? t.offsetHeight : 0; document.documentElement.style.setProperty('--alto-libre', Math.max(200, window.innerHeight - h.offsetHeight - abajo) + 'px'); }
   addEventListener('resize', ()=>{ medirAlto(); setTimeout(medirAlto, 300); }); addEventListener('orientationchange', ()=>setTimeout(medirAlto, 400)); setTimeout(medirAlto, 0);
+  // en la app de iPhone el alto de la ventana se asienta un poco después de abrir: se vuelve a medir al cargar y al dibujar cada pantalla
+  addEventListener('load', ()=>setTimeout(medirAlto, 200)); if(window.visualViewport) visualViewport.addEventListener('resize', medirAlto);
   function ir(v){ S.v = v; guardar(); pintar(); window.scrollTo(0, 0); }
   /* guía de la marcha y ayuda (v0.99.20): datos para el semáforo, ir al paso (y a su sección) y «¿Qué hago aquí?» */
   function ctxGuia(m){
@@ -448,8 +450,8 @@
   function vLuz(){ PantallaLuz.pintar(vista, Object.assign({}, apiMapa, {M, evento}));
     vista.insertAdjacentHTML('beforeend', '<div class="btns no-imp"><button class="btn pri" id="bImpL">📄 Documento con la luz y visibilidad</button></div>');
     $('#bImpL').onclick = ()=>documento('luz'); }
-  function vMapa(){ vista.innerHTML = '<div id="mapaCont"></div>'; Mapa.abrir($('#mapaCont'), apiMapa); }
-  function vSeguir(){ vista.innerHTML = '<div id="seguirCont"></div>'; Seguir.abrir($('#seguirCont'), apiMapa); }
+  function vMapa(){ medirAlto(); vista.innerHTML = '<div id="mapaCont"></div>'; Mapa.abrir($('#mapaCont'), apiMapa); }
+  function vSeguir(){ medirAlto(); vista.innerHTML = '<div id="seguirCont"></div>'; Seguir.abrir($('#seguirCont'), apiMapa); }
   function vRuta(){
     const m = actual(), p = m.par, R = M.calcular(m);
     const opc = (o, sel)=>Object.entries(o).map(([k, n])=>`<option value="${k}"${k===sel ? ' selected' : ''}>${esc(n)}</option>`).join('');
