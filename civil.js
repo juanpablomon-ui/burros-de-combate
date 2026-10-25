@@ -54,6 +54,13 @@ const Uso = (function(){
   const activo = ()=>civil() || ingles();
   // en inglés se traduce el texto original y después se cambian las palabras militares por civiles, ya en inglés (Idioma.civil)
   const pantalla = t=>ingles() ? (civil() ? Idioma.civil(Idioma.texto(t), PALABRAS) : Idioma.texto(t)) : civil() ? cambiar(t) : t;
+  // lo que sale de la app (mensajes, textos y archivos): en uso civil, las palabras civiles; en inglés (Ruck Planner), traducido
+  const salida = t=>ingles() ? Idioma.salida(t, civil(), PALABRAS) : civil() ? cambiar(t) : t;
+  function archivo(nombre, texto, tipo){
+    if(!ingles()) return [nombre, texto];
+    const t = typeof texto!=='string' ? texto : /csv/.test(tipo || '') ? Idioma.csv(texto, civil(), PALABRAS) : /xml|kml|gpx/.test(tipo || '') ? Idioma.xml(texto, civil(), PALABRAS) : /^text\//.test(tipo || '') ? salida(texto) : texto;
+    return [Idioma.archivo(nombre), t];
+  }
   const SALTAR = new Set(['SCRIPT', 'STYLE', 'TEXTAREA', 'INPUT', 'CODE']);
   // cada texto se cambia una sola vez: se recuerda lo que quedó (si se vuelve a pasar, no se cambia de nuevo; en inglés 1,026 volvería a 1.026)
   const hecho = new WeakMap();
@@ -116,6 +123,6 @@ const Uso = (function(){
     motivosAlto:'Descanso\nComida\nAgotamiento momentáneo\nLesionado\nMirador / foto\nOrientación\nAgua\nClima',
     novedades:'Lesionado\nPersona atrasada\nRuta cortada\nCambio de ruta\nClima adverso\nSin señal\nMaterial perdido'});
 
-  return {get modo(){ return modo; }, civil, poner, traducir, observar, cambiar, LISTA, glosario, parCivil};
+  return {get modo(){ return modo; }, civil, poner, traducir, observar, cambiar, salida, archivo, LISTA, glosario, parCivil};
 })();
 if(typeof globalThis!=='undefined') globalThis.Uso = Uso;

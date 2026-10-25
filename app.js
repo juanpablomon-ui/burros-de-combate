@@ -66,7 +66,9 @@
   const cerrarDialogo = ()=>dlg.open && dlg.close();
   function confirmar(txt, si){ dialogo(`<h3>${esc(txt)}</h3><div class="btns"><button class="btn peligro" id="dSi">Sí</button><button class="btn" data-cerrar>Cancelar</button></div>`,
     d=>d.querySelector('#dSi').onclick = ()=>{ dlg.close(); si(); }); }
-  function descargar(nombre, texto, tipo){
+  // en inglés (Ruck Planner) el nombre y el contenido del archivo salen traducidos (Uso.archivo); «yaListo» = ya se tradujo
+  function descargar(nombre, texto, tipo, yaListo){
+    if(!yaListo) [nombre, texto] = Uso.archivo(nombre, texto, tipo);
     const b = new Blob([texto], {type:tipo || 'text/plain'}), a = document.createElement('a');
     a.href = URL.createObjectURL(b); a.download = nombre; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
   }
@@ -357,11 +359,11 @@
         e.target.disabled = true; prog('Armando el paquete…', 0);
         try { const b = await Paquete.armar({marchas:ms, cartas:st.cartas && inv.cartas>0, zonas:st.zonas && inv.zonas>0}, prog);
           // listo: compartir o guardar con un toque nuevo (Safari solo permite compartir justo después de tocar un botón)
-          const nombre = 'Paquete_Burros_' + hoy() + '.burros', fl = new File([b], nombre, {type:'application/octet-stream'});
+          const nombre = Uso.archivo('Paquete_Burros_' + hoy() + '.burros', '', '')[0], fl = new File([b], nombre, {type:'application/octet-stream'});
           prog('Listo: paquete de ' + (b.size<1048576 ? f(Math.max(1, b.size/1024)) + ' KB' : fm(b.size/1048576) + ' MB') + '. Ahora compártelo o guárdalo.', 1);
           const ls = d.querySelector('#pqListo'); ls.style.display = '';
           const comp = d.querySelector('#pqComp'); comp.style.display = navigator.canShare && navigator.canShare({files:[fl]}) ? '' : 'none';
-          comp.onclick = async()=>{ try { await navigator.share({files:[fl], title:'Paquete de Burros de Combate'}); aviso('✔ Paquete compartido'); }
+          comp.onclick = async()=>{ try { await navigator.share({files:[fl], title:Uso.salida('Paquete de Burros de Combate')}); aviso('✔ Paquete compartido'); }
             catch(er){ if(er && er.name==='AbortError') return; aviso('No se pudo compartir (' + (er && er.name || 'error') + '): usa «Guardar archivo»'); } };
           d.querySelector('#pqGuar').onclick = ()=>{ descargar(nombre, b, 'application/octet-stream'); aviso('Guardado en Descargas (en el iPhone: app Archivos → Descargas)'); };
         } catch(er){ aviso('No se pudo armar el paquete: ' + er.message); }
@@ -1538,9 +1540,10 @@
     wsp:{n:'WhatsApp o correo', d:'Resumen en texto + archivo GPX'},
     contacto:{n:'Contacto de emergencia', d:'Plan de ruta con hora límite', una:true, civ:true}};
   async function compartirArchivo(nombre, texto, tipo, titulo, mensaje){
+    [nombre, texto] = Uso.archivo(nombre, texto, tipo); if(titulo) titulo = Uso.salida(titulo); if(mensaje) mensaje = Uso.salida(mensaje);
     try { const f = new File([texto], nombre, {type:tipo});
       if(navigator.canShare && navigator.canShare({files:[f]})){ await navigator.share(Object.assign({files:[f], title:titulo}, mensaje ? {text:mensaje} : {})); return 'compartido'; } } catch(e){ if(e && e.name==='AbortError') return 'cancelado'; }
-    descargar(nombre, texto, tipo); if(mensaje) await copiar(mensaje); return 'descargado';
+    descargar(nombre, texto, tipo, true); if(mensaje) await copiar(mensaje); return 'descargado';
   }
   function vEnviar(){
     const civil = Uso.civil(), dests = Object.entries(DESTINOS).filter(([, d])=>civil ? !d.mil : !d.civ);
@@ -1582,10 +1585,10 @@
       catch(e){ $('#qr').innerHTML = '<div class="alerta">La ruta es demasiado larga para un QR: usa el archivo o el código.</div>'; } };
     $('#bEnviar').onclick = async()=>{ const r = await enviar(S.envDest, sel); if(r){ sel.forEach(x=>{ const mm = x && x.m ? x.m : S.marchas.find(y=>y.id===x); if(mm) mm.difundido = Date.now(); }); guardar(); } if(r==='compartido') aviso('✔ Enviado'); else if(r==='descargado') aviso('⬇ Archivo descargado' + (S.envDest==='wsp' ? ' y resumen copiado' : '')); else if(r==='copiado') aviso('📋 Mensaje copiado'); };
   }
-  function textoEnvio(dest, x){ return dest==='contacto' ? planCivil(x.m, x.R) : dest==='wsp' ? BDC.lineaPlan(x.m, x.R) : BDC.mensajePlan(x.m, x.R); }
+  function textoEnvio(dest, x){ return Uso.salida(dest==='contacto' ? planCivil(x.m, x.R) : dest==='wsp' ? BDC.lineaPlan(x.m, x.R) : BDC.mensajePlan(x.m, x.R)); }
   async function enviar(dest, sel){
     const x = sel[0], nom = sel.length===1 ? x.m : {nombre:sel.length + '_marchas'}, tit = sel.length===1 ? 'Marcha — ' + x.m.nombre : sel.length + ' marchas';
-    const textoCompartido = async t=>{ if(navigator.share){ try { await navigator.share({title:tit, text:t}); return 'compartido'; } catch(e){ if(e && e.name==='AbortError') return 'cancelado'; } } await copiar(t); return 'copiado'; };
+    const textoCompartido = async t=>{ if(navigator.share){ try { await navigator.share({title:Uso.salida(tit), text:t}); return 'compartido'; } catch(e){ if(e && e.name==='AbortError') return 'cancelado'; } } await copiar(t); return 'copiado'; };
     if(dest==='msg' || dest==='contacto') return textoCompartido(textoEnvio(dest, x));
     if(dest==='c2') return compartirArchivo(nombreArchivo(nom, 'kml'), BDC.kmlVarias(sel), 'application/vnd.google-earth.kml+xml', tit, sel.map(y=>BDC.lineaPlan(y.m, y.R)).join('\n\n'));
     if(dest==='tel') return compartirArchivo(nombreArchivo(nom, 'json'), JSON.stringify({app:'burros', v:1, marchas:sel.map(y=>y.m)}, null, 1), 'application/json', tit);
@@ -1606,7 +1609,7 @@
       'Distancia ' + km(r.dist) + ' km · subida +' + f(r.sube) + ' m · bajada −' + f(r.baja) + ' m · duración ' + M.verDur(r.total),
       'Ruta y horas estimadas:', ...ev,
       'Punto de partida en el mapa: https://maps.google.com/?q=' + R.puntos[R.eventos[0]].lat.toFixed(5) + ',' + R.puntos[R.eventos[0]].lon.toFixed(5),
-      (m.par.contacto ? 'Contacto del grupo: ' + m.par.contacto + '\n' : '') + 'SI NO HAY NOTICIAS A LAS ' + limite + ', llamar a emergencias: 133 Carabineros · 136 Socorro Andino · 131 SAMU.'].join('\n');
+      (m.par.contacto ? 'Contacto del grupo: ' + m.par.contacto + '\n' : '') + 'SI NO HAY NOTICIAS A LAS ' + limite + (EDICION.tienda ? ', llamar a los servicios de emergencia locales (112 / 911) y al rescate de montaña.' : ', llamar a emergencias: 133 Carabineros · 136 Socorro Andino · 131 SAMU.')].join('\n');
   }
   /* ---------- inicio ---------- */
   pintar();

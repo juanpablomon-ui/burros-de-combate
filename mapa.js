@@ -640,7 +640,7 @@ const Mapa = (function(){
     if(!cs.length) return;
     const fs = cs.map(c=>new File([JSON.stringify(aGcarta(c))], nombreArch(c), {type:'application/json'}));
     if(navigator.canShare && navigator.canShare({files:fs})){
-      try { await navigator.share({files:fs, title:'Carta de Burros de Combate', text:'Carta ya calzada (.gcarta): ábrela en Burros (Mapa → 🗺 Cartas → Cargar carta), en el TOQUI o en LONKO'}); return A.aviso('✔ ' + (fs.length===1 ? 'Carta compartida' : fs.length + ' cartas compartidas')); }
+      try { await navigator.share({files:fs, title:Uso.salida('Carta de Burros de Combate'), text:Uso.salida('Carta ya calzada (.gcarta): ábrela en Burros (Mapa → 🗺 Cartas → Cargar carta), en el TOQUI o en LONKO')}); return A.aviso('✔ ' + (fs.length===1 ? 'Carta compartida' : fs.length + ' cartas compartidas')); }
       catch(e){ if(e && e.name==='AbortError') return; } }
     cs.forEach((c, i)=>setTimeout(()=>A.descargar(nombreArch(c), JSON.stringify(aGcarta(c)), 'application/json'), i*400));
     A.aviso('⬇ ' + (cs.length===1 ? 'Archivo «' + nombreArch(cs[0]) + '» descargado' : cs.length + ' archivos .gcarta descargados') + ': mándalo por WhatsApp o correo');

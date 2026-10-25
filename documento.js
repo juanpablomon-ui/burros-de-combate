@@ -211,6 +211,7 @@ const Documento = (function(){
     btns.forEach(b=>b.disabled = false);
   }
   async function bajar(blob, nombre){
+    nombre = Uso.archivo(nombre, blob, blob.type)[0];   // en inglés, el nombre traducido
     // en el teléfono, si se puede, se ofrece compartir (WhatsApp, correo, Archivos); si no, se descarga
     try { const fl = new File([blob], nombre, {type:blob.type});
       if(navigator.canShare && navigator.canShare({files:[fl]}) && /iPhone|iPad|Android/i.test(navigator.userAgent)){ await navigator.share({files:[fl], title:nombre}); return; } } catch(e){}

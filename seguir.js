@@ -620,7 +620,7 @@ const Seguir = (function(){
       FIN:'FIN DE MARCHA ' + quien + ' ' + hh(E.fin || ahora()) + ' — duración ' + dur((E.fin || ahora()) - E.inicio)})[k] + donde;
     const datos = Object.assign({n:m.nombre, u:m.unidad, h:ahora()}, d, pos ? {lat:+pos.lat.toFixed(6), lon:+pos.lon.toFixed(6), acc:Math.round(pos.acc||0)} : {}, at!==null ? {atr:Math.round(at)} : {});
     // uso civil: texto simple para el contacto (sin código del C2); en posición, enlace al mapa
-    const msg = Uso.civil() ? Uso.cambiar(txt) + (pos ? '\nhttps://maps.google.com/?q=' + pos.lat.toFixed(5) + ',' + pos.lon.toFixed(5) : '') : txt + '\n' + BDC.codigo(k==='INI' ? 'POS' : k, datos);
+    const msg = Uso.civil() ? Uso.salida(txt) + (pos ? '\nhttps://maps.google.com/?q=' + pos.lat.toFixed(5) + ',' + pos.lon.toFixed(5) : '') : Uso.salida(txt) + '\n' + BDC.codigo(k==='INI' ? 'POS' : k, datos);
     E.msgs = (E.msgs || []).concat([{t:ahora(), k, msg}]).slice(-50); A.guardar();
     return msg;
   }
@@ -653,7 +653,7 @@ const Seguir = (function(){
     const L = ['MATRIZ DE EVENTOS «' + (m.nombre || 'marcha') + '»' + (m.unidad ? ' (' + m.unidad + ')' : '') + ' — ' + hh(ahora())];
     eventos(m, P).forEach(x=>L.push((x.real ? (x.est ? '≈' : '') + hh(x.t) + (x.est ? ' (estimada)' : '') : '(' + hh(x.plan) + ')') + ' ' + x.ev + (x.salta ? ' — SALTADO' : !x.real && x.tipo==='pc' ? ' — pendiente' : '') + (x.dif!==null && x.dif!==undefined && x.real ? ' (' + difCorta(x.dif) + ')' : '')));
     if(pos) L.push('Posición ' + utmTxt(pos));
-    return L.join('\n');
+    return Uso.salida(L.join('\n'));
   }
   function pasandoYEnviar(){
     const m = A.actual(), E = m.ejec, P = plan(m); if(!E || E.estado==='fin' || E.desvio) return;
