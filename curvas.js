@@ -24,7 +24,7 @@ const Curvas = (function(){
         }
         res(r); } catch(e){ res(null); } };
       img.onerror = ()=>res(null);
-      img.src = URL.replace('{z}', z).replace('{x}', x).replace('{y}', y);
+      const u = URL.replace('{z}', z).replace('{x}', x).replace('{y}', y); if(typeof Zonas!=='undefined' && Zonas.cargar) Zonas.cargar(img, u); else img.src = u;   // sin service worker, desde lo guardado (zonas.js)
     });
     memo.set(k, p); if(memo.size>400) memo.delete(memo.keys().next().value);
     return p;

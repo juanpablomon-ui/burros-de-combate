@@ -56,6 +56,17 @@ const Zonas = (function(){
     await Promise.all(urls(z).map(norm).filter(u=>!otras.has(u)).map(u=>c.delete(u)));
   }
   async function espacio(){ try { const e = await navigator.storage.estimate(); return {usado:e.usage/1048576, total:e.quota/1048576}; } catch(e){ return null; } }
-  return {CAPAS, CACHE, TOPE, norm, urls, estimar, cajaRuta, lista, anotar, descargar, borrar, espacio};
+  /* sin service worker (la app de iPhone con Capacitor, etapa 4 de Ruck Planner; o el navegador antes de que se active): la tesela del
+     modelo de terreno se busca en las zonas guardadas y en las ya vistas; si no está, se baja y se guarda en las vistas (hasta unas 3.000) */
+  let vistas = 0;
+  async function cargar(img, url){
+    if((navigator.serviceWorker && navigator.serviceWorker.controller) || !hay()){ img.src = url; return; }
+    try { const k = norm(url), v = await caches.open(CACHE + '-vistas'); let r = await (await caches.open(CACHE)).match(k) || await v.match(k);
+      if(!r){ r = await fetch(url); if(r.ok){ await v.put(k, r.clone()); if(++vistas%100===0) v.keys().then(ks=>{ for(let i=0; i<ks.length - 3000; i++) v.delete(ks[i]); }); } }
+      if(!r.ok) throw new Error(r.status);
+      const u = URL.createObjectURL(await r.blob()); img.addEventListener('load', ()=>URL.revokeObjectURL(u), {once:true}); img.src = u;
+    } catch(e){ img.src = url; }
+  }
+  return {CAPAS, CACHE, TOPE, norm, urls, estimar, cajaRuta, lista, anotar, descargar, borrar, espacio, cargar};
 })();
 if(typeof globalThis!=='undefined') globalThis.Zonas = Zonas;

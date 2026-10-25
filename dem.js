@@ -19,7 +19,7 @@ const DEM = (function(){
         for(let i=0; i<65536; i++) a[i] = d[i*4]*256 + d[i*4 + 1] + d[i*4 + 2]/256 - 32768;
         teselas.set(k, a); res(a); } catch(e){ teselas.set(k, null); res(null); } };
       img.onerror = ()=>{ teselas.set(k, null); res(null); };
-      img.src = URL.replace('{z}', Z).replace('{x}', tx).replace('{y}', ty);
+      const u = URL.replace('{z}', Z).replace('{x}', tx).replace('{y}', ty); if(typeof Zonas!=='undefined' && Zonas.cargar) Zonas.cargar(img, u); else img.src = u;   // sin service worker, desde lo guardado (zonas.js)
     }).finally(()=>pendientes.delete(k));
     pendientes.set(k, p); return p;
   }

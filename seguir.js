@@ -267,10 +267,13 @@ const Seguir = (function(){
   }
 
   /* ---------- GPS, brújula y pantalla encendida ---------- */
-  let saltosGps = 0;
+  let saltosGps = 0, watchNat = null;
+  // en la app de iPhone (Ruck Planner con Capacitor, etapa 4): GPS nativo que sigue grabando con la pantalla apagada
+  const gpsNativo = ()=>{ const C = window.Capacitor; return C && C.isNativePlatform && C.isNativePlatform() && C.Plugins && C.Plugins.BackgroundGeolocation ? C.Plugins.BackgroundGeolocation : null; };
   function iniciarGps(){
-    if(watch!==null || !navigator.geolocation) return;
-    watch = navigator.geolocation.watchPosition(p=>{
+    const G = gpsNativo();
+    if(watch!==null || (!navigator.geolocation && !G)) return;
+    const lectura = p=>{
       pos = {lat:p.coords.latitude, lon:p.coords.longitude, acc:p.coords.accuracy, t:ahora(), vel:p.coords.speed, alt:p.coords.altitude};
       hist.push({t:pos.t, lat:pos.lat, lon:pos.lon, alt:pos.alt, acc:pos.acc}); while(hist.length && pos.t - hist[0].t>6*60000) hist.shift();
       const m = A.actual(), E = m && m.ejec;
@@ -294,10 +297,18 @@ const Seguir = (function(){
       else if(k!==null && k!==undefined && E.estado==='marcha'){ const rad = Math.max(40, 15 + (pos.acc||0)), d = M.rumboEntre(pos, P.pts[k], P.R.zona, P.R.decl.valor).dist;
         if(d<=rad) llegar(k, true); else { const j = adelante(m, P, k, rad); if(j!==null) saltar(j, true); } }
       A.guardar(); pintarVivo();
-    }, e=>{ pos = null; const x = $('#sGps'); if(x) x.textContent = e.code===1 ? 'GPS sin permiso: marca las llegadas a mano' : 'Sin señal GPS'; },
-    {enableHighAccuracy:true, maximumAge:5000, timeout:30000});
+    };
+    const fallo = e=>{ pos = null; const x = $('#sGps'); if(x) x.textContent = e.code===1 ? 'GPS sin permiso: marca las llegadas a mano' : 'Sin señal GPS'; };
+    if(G){ watch = 'nativo';
+      G.addWatcher({backgroundTitle:'Ruck Planner', backgroundMessage:Uso.salida('Siguiendo la marcha'), requestPermissions:true, stale:false, distanceFilter:0}, (l, e)=>{
+        if(e) return fallo({code:e.code==='NOT_AUTHORIZED' ? 1 : 2});
+        if(l) lectura({coords:{latitude:l.latitude, longitude:l.longitude, accuracy:l.accuracy, speed:l.speed, altitude:l.altitude}}); })
+        .then(id=>{ if(watch==='nativo') watchNat = id; else G.removeWatcher({id}); }).catch(()=>{ watch = null; });
+      return; }
+    watch = navigator.geolocation.watchPosition(lectura, fallo, {enableHighAccuracy:true, maximumAge:5000, timeout:30000});
   }
-  function pararGps(){ if(watch!==null){ navigator.geolocation.clearWatch(watch); watch = null; } pos = null; }
+  function pararGps(){ if(watch==='nativo'){ const G = gpsNativo(); if(G && watchNat) G.removeWatcher({id:watchNat}); watchNat = null; watch = null; }
+    else if(watch!==null){ navigator.geolocation.clearWatch(watch); watch = null; } pos = null; }
   async function pantalla(on){
     try { if(on && 'wakeLock' in navigator && !wake){ wake = await navigator.wakeLock.request('screen'); wake.addEventListener('release', ()=>wake = null); }
       if(!on && wake){ await wake.release(); wake = null; } } catch(e){}

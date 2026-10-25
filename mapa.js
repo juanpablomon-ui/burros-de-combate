@@ -89,7 +89,7 @@ const Mapa = (function(){
     map.createPane('curvas').style.zIndex = 300; map.getPane('curvas').style.pointerEvents = 'none';
     map.createPane('relieve').style.zIndex = 240; map.getPane('relieve').style.pointerEvents = 'none';
     capaGrid = L.layerGroup().addTo(map); capaHoriz = L.layerGroup().addTo(map); capaRuta = L.layerGroup().addTo(map);
-    map.on('moveend', ()=>{ A.vistaMapa = {c:map.getCenter(), z:map.getZoom()}; grid(); lectura(map.getCenter()); });
+    map.on('moveend', ()=>{ if(!map) return; A.vistaMapa = {c:map.getCenter(), z:map.getZoom()}; grid(); lectura(map.getCenter()); });   // (un movimiento que termina después de cerrar el mapa)
     map.on('mousemove', e=>lectura(e.latlng, true));
     map.on('click', e=>{ cerrarMenu(); if(ubicando!==null) return ponerUbicado(e.latlng); if(agregar) agregarPunto(e.latlng); else cerrarHoja(); });
     map.on('contextmenu', e=>{ L.DomEvent.preventDefault(e); menuLugar(e.latlng, e.originalEvent); });
