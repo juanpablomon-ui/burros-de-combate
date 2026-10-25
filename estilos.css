@@ -1031,3 +1031,5 @@ main{padding-left:max(14px, env(safe-area-inset-left));padding-right:max(14px, e
 .mc-tg.ok{color:var(--verde);border-color:rgba(143,191,90,.45)}.mc-tg.pr{color:var(--ocre);border-color:rgba(227,166,58,.45)}
 /* el relieve ya viene suavizado: al agrandarlo (pantallas de alta densidad) sin mezclar el borde con el vacío, que deja una línea clara */
 .leaflet-relieve-pane canvas{image-rendering:pixelated}
+/* logo de Google sobre el mapa (Ruck Planner, Google Earth y Google Terreno) */
+.g-logo{pointer-events:none;margin:8px 8px 0 0!important}.g-logo img{display:block;filter:drop-shadow(0 0 2px rgba(0,0,0,.5))}
