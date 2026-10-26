@@ -1036,3 +1036,6 @@ main{padding-left:max(14px, env(safe-area-inset-left));padding-right:max(14px, e
 /* teléfonos con la cámara o la hora en un costado (márgenes seguros a la izquierda y derecha): el encabezado y las pestañas no quedan debajo */
 .barra-sup{padding-left:max(14px, env(safe-area-inset-left));padding-right:max(14px, env(safe-area-inset-right))}
 .pestanas{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
+/* panel de capas encima de las coordenadas y de los botones de abajo; si no cabe, se desplaza dentro (v0.99.46, pedido del usuario) */
+.m-sup{z-index:1001}
+.m-capas{max-height:calc(var(--alto-libre, 80dvh) - 70px);overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
