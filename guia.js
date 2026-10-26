@@ -108,7 +108,7 @@ const Guia = (function(){
     luz:['Luz', ['Sol, crepúsculos y luna del día de la marcha en el lugar de la ruta.', 'Sirve para saber cuánto se marcha con luz y cuánto de noche.'],
       'Ejemplo: sale el sol 07:12, se pone 20:05; luna llena: noche clara.'],
     seguir:['Seguir', ['Durante la marcha: la app te dice el próximo punto, la distancia, el rumbo y si vas adelantado o atrasado. Al llegar a un punto lo marca sola (a menos de 40 m).',
-      'Mantén la pantalla encendida. Mantén presionado «PASANDO» para enviar el mensaje por WhatsApp o SMS.'],
+      (window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform() ? 'Puedes apagar la pantalla: la app sigue grabando.' : 'Mantén la pantalla encendida.') + ' Mantén presionado «PASANDO» para enviar el mensaje por WhatsApp o SMS.'],
       'Ejemplo: «Próximo BRAVO · 715 m · 314° · llega 08:34».'],
     enviar:['Enviar', ['Envía el plan: ① elige la marcha, ② a quién (C2 TOQUI, otro teléfono, GPS, Excel…), ③ Enviar.'],
       'Ejemplo: al C2 TOQUI va un archivo KML que se abre como calco con la ruta y los puntos de control.']};

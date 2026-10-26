@@ -707,7 +707,7 @@ const Seguir = (function(){
         <div class="s-hud" id="sPrevio"></div>
         <div class="s-ctrl">${modoVistaBtn()}<button class="btn" id="sOrient" title="Norte arriba o destino arriba" aria-label="Orientación"></button><button class="btn" id="sCapa" title="Cambiar el mapa" aria-label="Mapa">${ic('capa', 'Mapa')}</button><button class="btn" id="sCentrar" title="Centrar en mi posición" aria-label="Centrar">${ic('centro', 'Centrar')}</button></div>
         <div class="s-pie"><div class="s-ini"><button class="btn pri grande" id="sIni">▶ Iniciar marcha</button><button class="btn" id="sIrSolo">🧭 Ir a un punto</button></div>
-          <p class="s-ayuda">Mantén la app abierta y la pantalla encendida durante la marcha. Las llegadas a cada evento se marcan solas a menos de 40 m.</p></div></div>`;
+          <p class="s-ayuda">${gpsNativo() ? 'Puedes apagar la pantalla: la app sigue grabando el recorrido.' : 'Mantén la app abierta y la pantalla encendida durante la marcha.'} Las llegadas a cada evento se marcan solas a menos de 40 m.</p></div></div>`;
       $('#sIni').onclick = iniciar; $('#sIrSolo').onclick = ()=>dialogoIrA(false);
       pintarPrevio(); hacerMapa(P); centrar = false;
       iniciarGps(); pintarPrevio(); return;
