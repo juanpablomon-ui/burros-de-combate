@@ -189,7 +189,7 @@ const Seguir = (function(){
         <div class="s-panel"><div class="s-pcab" id="sCab"></div></div><button class="s-pest" id="sPest" aria-label="Mostrar u ocultar los datos"></button>
         <div class="s-flecha s-flecha-g desvio" id="sFlecha">${punteroCarta}</div>${ctrl}<button class="btn pri s-pasando" id="sSoloFin">${ic('fin', 'Terminar la navegación')}</button></div>`;
       const pe = $('#sPest'), env = c.querySelector('.s-atak'), pp = ()=>{ pe.innerHTML = panelOculto ? '‹' : '›'; env.classList.toggle('oculto', panelOculto); };
-      pp(); pe.onclick = ()=>{ panelOculto = !panelOculto; try { localStorage.setItem('burros_panel', panelOculto ? '1' : ''); } catch(e){} pp(); setTimeout(()=>{ if(mapa) mapa.invalidateSize({animate:false}); }, 300); };
+      pp(); pe.onclick = ()=>{ panelOculto = !panelOculto; try { localStorage.setItem('burros_panel', panelOculto ? '1' : ''); } catch(e){} pp(); setTimeout(()=>{ if(mapa){ mapa.invalidateSize({animate:false}); if(centrar && pos) seguirPos(); } }, 300); };
       $('#sSoloFin').onclick = ()=>{ irSolo = null; pintar(); };
       centrar = true; hacerMapa(null); iniciarGps(); pintarSoloVivo(); return; }
     c.innerHTML = `<div class="mapa-env s-carta s-dos"><div id="sMapa"></div><div class="s-bsup" id="sCab"></div>
@@ -762,7 +762,7 @@ const Seguir = (function(){
       if(E.desvio) return llegarDesvio(false); const k = proxEv(m, P); if(k!==null) llegar(k, false); };
     if(modo==='atak'){ centrar = true; hacerMapa(P); const pe = $('#sPest'), env = c.querySelector('.s-atak');
       const pp = ()=>{ pe.innerHTML = panelOculto ? '‹' : '›'; env.classList.toggle('oculto', panelOculto); };
-      pp(); pe.onclick = ()=>{ panelOculto = !panelOculto; try { localStorage.setItem('burros_panel', panelOculto ? '1' : ''); } catch(e){} pp(); setTimeout(()=>{ if(mapa) mapa.invalidateSize({animate:false}); }, 300); }; }
+      pp(); pe.onclick = ()=>{ panelOculto = !panelOculto; try { localStorage.setItem('burros_panel', panelOculto ? '1' : ''); } catch(e){} pp(); setTimeout(()=>{ if(mapa){ mapa.invalidateSize({animate:false}); if(centrar && pos) seguirPos(); } }, 300); }; }
     if(modo==='carta'){ centrar = true; hacerMapa(P);
       $('#sCab').onclick = ()=>{ plegada = !plegada; try { localStorage.setItem('burros_barra', plegada ? '1' : ''); } catch(e){} $('#sCab').classList.toggle('plegada', plegada); pintarVivo(); }; }
     pintarVivo();
@@ -1030,7 +1030,7 @@ ${T.map(t=>`<trkpt lat="${t[0]}" lon="${t[1]}"><time>${new Date(t[2]).toISOStrin
       L.circleMarker([pos.lat, pos.lon], {radius:8, color:'#fff', weight:3, fillColor:'#2a7fd4', fillOpacity:1}).addTo(capas);
       const dst = O ? O.dest : k!==null ? P.pts[k] : null;
       if(dst){ const az = M.rumboEntre(pos, dst, P.R.zona, 0).azG; girar(azGiro(az)); }
-      if(centrar){ if(primera){ mapa.setView([pos.lat, pos.lon], Math.max(mapa.getZoom(), 16), {animate:false}); primera = false; } else seguirPos(); } }
+      if(centrar){ if(primera){ const z = Math.max(mapa.getZoom(), 16); mapa.setView(centroPara([pos.lat, pos.lon], z), z, {animate:false}); primera = false; } else seguirPos(); } }
   }
   /* ---------- controles de la carta de Seguir (v0.99, pedido del usuario): orientación, capa del mapa y centrado ----------
      Norte arriba (el destino queda donde está en la carta) o destino arriba (la carta gira para que el punto al que se va quede siempre
@@ -1073,7 +1073,10 @@ ${T.map(t=>`<trkpt lat="${t[0]}" lon="${t[1]}"><time>${new Date(t[2]).toISOStrin
         d.querySelectorAll('[data-cb]').forEach(b=>b.onclick = ()=>{ const B = Mapa.BASES[b.dataset.cb]; if(B && B.falta) return A.aviso(B.falta);
           guardarPr({base:b.dataset.cb}); A.cerrarDialogo(); if(B && B.conSenal && navigator.onLine===false) A.aviso('Sin señal: este mapa vuelve cuando haya señal; mientras, ' + Mapa.BASES[Mapa.respaldo()].n.toLowerCase()); });
         d.querySelector('#cCurv').onchange = e=>guardarPr({curvas:e.target.checked}); }); };
-    bz.onclick = ()=>{ centrar = true; explorando = false; marcarCentrar(); zoomListo = false; if(pos && mapa) seguirPos(); else A.aviso('Esperando señal GPS…'); };
+    // «Centrar» (v0.99.48, pedido del usuario al probarlo en su iPhone): mantiene el zoom que había, vuelve a girar la carta hacia el
+    // destino (o la brújula) de inmediato y deja la posición en el centro de lo que se ve de la carta
+    bz.onclick = ()=>{ centrar = true; explorando = false; marcarCentrar(); if(!pos || !mapa) return A.aviso('Esperando señal GPS…');
+      if(irSolo) pintarSoloVivo(); else if(A.actual() && A.actual().ejec && A.actual().ejec.estado!=='fin') mapaVivo(); seguirPos(); };
     marcarCentrar();
   }
   // girar la carta: az = rumbo geográfico al destino (null = norte arriba)
@@ -1090,14 +1093,23 @@ ${T.map(t=>`<trkpt lat="${t[0]}" lon="${t[1]}"><time>${new Date(t[2]).toISOStrin
     giro = az; el.style.transform = 'rotate(' + rotAcum + 'deg)'; flecha();
   }
   let rotAcum = null;
-  addEventListener('resize', ()=>setTimeout(()=>{ if(giro!==null) girar(giro); if(centrar && pos && mapa) mapa.panTo([pos.lat, pos.lon], {animate:false}); }, 350));
+  addEventListener('resize', ()=>setTimeout(()=>{ if(giro!==null) girar(giro); if(centrar && pos && mapa) seguirPos(); }, 350));
   // seguir la posición: centrada; la primera vez, con un acercamiento que deja ver el destino
   let zoomListo = false;
   function seguirPos(dest){
     if(!mapa || !pos) return;
     if(!zoomListo && dest){ zoomListo = true; const dy = dest.lat - pos.lat, dx = dest.lon - pos.lon, z = mapa.getBoundsZoom(L.latLngBounds([[pos.lat - dy, pos.lon - dx], [pos.lat + dy, pos.lon + dx]]), false, L.point(70, 170));
-      mapa.setView([pos.lat, pos.lon], Math.max(12, Math.min(17, z)), {animate:false}); }
-    else mapa.panTo([pos.lat, pos.lon], {animate:false});
+      const zz = Math.max(12, Math.min(17, z)); mapa.setView(centroPara([pos.lat, pos.lon], zz), zz, {animate:false}); }
+    else mapa.setView(centroPara([pos.lat, pos.lon], mapa.getZoom()), mapa.getZoom(), {animate:false});
+  }
+  /* centro de la carta para que la posición quede al medio de lo que se ve (v0.99.48): en la pantalla tipo ATAK el panel de datos tapa la
+     derecha de la carta, así que la posición se corre a la izquierda la mitad del panel. Con la carta girada, ese corrimiento de pantalla se
+     pasa a la carta sin girar (el contenedor está girado rotAcum grados). */
+  function centroPara(ll, z){
+    const env = mapa.getContainer().closest('.s-atak'), pn = env && !env.classList.contains('oculto') ? env.querySelector('.s-panel') : null;
+    const d = pn ? pn.offsetWidth/2 : 0; if(!d) return L.latLng(ll);
+    const a = (giro!==null && rotAcum!==null ? rotAcum : 0)*Math.PI/180, u = L.point(d*Math.cos(a), -d*Math.sin(a));
+    return mapa.unproject(mapa.project(L.latLng(ll), z).add(u), z);
   }
   function cerrarMapa(){ if(mapaFin){ try { mapaFin.remove(); } catch(e){} mapaFin = null; } if(mapa){ try { mapa.remove(); } catch(e){} mapa = null; capas = null; } capaS = null; curvasS = null; relieveS = null; giro = null; zoomListo = false; explorando = false; }
 
