@@ -978,12 +978,20 @@ ${T.map(t=>`<trkpt lat="${t[0]}" lon="${t[1]}"><time>${new Date(t[2]).toISOStrin
     let base = 'topo'; try { base = JSON.parse(localStorage.getItem('burros_mapa') || '{}').base || 'topo'; } catch(e){}
     mapa.createPane('curvas').style.zIndex = 300; mapa.getPane('curvas').style.pointerEvents = 'none';
     mapa.createPane('relieve').style.zIndex = 240; mapa.getPane('relieve').style.pointerEvents = 'none'; ponerCapas();
-    // con la carta girada no se puede arrastrar bien: al empezar a mover el dedo se endereza (norte arriba) para recorrerla
-    { let x0 = null, y0 = null; el.addEventListener('pointerdown', e=>{ x0 = e.clientX; y0 = e.clientY; });
-      el.addEventListener('pointermove', e=>{ if(x0===null || giro===null) return; if(Math.hypot(e.clientX - x0, e.clientY - y0)>12){ explorando = true; centrar = false; x0 = null; girar(null); marcarCentrar(); A.aviso('Recorriendo la carta (norte arriba). ◎ para volver a centrar'); } });
-      el.addEventListener('pointerup', ()=>{ x0 = null; }); }
+    /* con la carta girada Leaflet no sabe arrastrarla (movería la carta torcida): se arrastra aquí, pasando el movimiento del dedo a la carta
+       sin girar. La carta sigue girada (v0.99.49, pedido del usuario: antes se enderezaba al norte y la posición saltaba a otro lado, así no
+       se podía mirar lo que viene más adelante); se suelta «Centrar» y el botón se ilumina para volver. Con dos dedos (zoom) no se arrastra. */
+    { const dedos = new Map(); let x0 = null, y0 = null, movido = false;
+      el.addEventListener('pointerdown', e=>{ dedos.set(e.pointerId, 1); if(dedos.size===1){ x0 = e.clientX; y0 = e.clientY; movido = false; } else x0 = null; });
+      el.addEventListener('pointermove', e=>{ if(x0===null || giro===null || dedos.size!==1 || !mapa) return;
+        const dx = e.clientX - x0, dy = e.clientY - y0; if(!movido && Math.hypot(dx, dy)<8) return;
+        if(!movido){ movido = true; centrar = false; marcarCentrar(); }
+        const a = -(rotAcum || 0)*Math.PI/180, mx = dx*Math.cos(a) - dy*Math.sin(a), my = dx*Math.sin(a) + dy*Math.cos(a);
+        mapa.panBy([-mx, -my], {animate:false}); x0 = e.clientX; y0 = e.clientY; });
+      const fin = e=>{ dedos.delete(e.pointerId); if(!dedos.size){ x0 = null; if(movido) arrastrado = Date.now(); } };
+      el.addEventListener('pointerup', fin); el.addEventListener('pointercancel', fin); }
     capas = L.layerGroup().addTo(mapa);
-    if(!P){ mapa.on('dragstart', ()=>{ centrar = false; marcarCentrar(); }); mapa.on('click', e=>{ if(!eligiendo) return; const el2 = eligiendo; eligiendo = null; empezarIrA({lat:e.latlng.lat, lon:e.latlng.lng, nombre:'el punto marcado'}, el2.enMarcha, el2.modo); });
+    if(!P){ mapa.on('dragstart', ()=>{ centrar = false; marcarCentrar(); }); mapa.on('click', e=>{ if(!eligiendo || Date.now() - arrastrado<400) return; const el2 = eligiendo; eligiendo = null; empezarIrA({lat:e.latlng.lat, lon:e.latlng.lng, nombre:'el punto marcado'}, el2.enMarcha, el2.modo); });
       controles(); primera = true; const este = mapa; setTimeout(()=>{ if(mapa===este) mapa.invalidateSize({animate:false}); }, 50); return; }
     L.polyline(P.pts.map(p=>[p.lat, p.lon]), {color:'#14150f', weight:8, opacity:.5}).addTo(mapa);
     L.polyline(P.pts.map(p=>[p.lat, p.lon]), {color:'#e3a63a', weight:4, opacity:.95, dashArray:'8 6'}).addTo(mapa);
@@ -1001,7 +1009,7 @@ ${T.map(t=>`<trkpt lat="${t[0]}" lon="${t[1]}"><time>${new Date(t[2]).toISOStrin
     mapa.on('dragstart', ()=>{ centrar = false; marcarCentrar(); });
 
     controles();
-    mapa.on('click', e=>{ if(!eligiendo) return; const el = eligiendo; eligiendo = null; empezarIrA({lat:e.latlng.lat, lon:e.latlng.lng, nombre:'el punto marcado'}, el.enMarcha, el.modo); });
+    mapa.on('click', e=>{ if(!eligiendo || Date.now() - arrastrado<400) return; const el = eligiendo; eligiendo = null; empezarIrA({lat:e.latlng.lat, lon:e.latlng.lng, nombre:'el punto marcado'}, el.enMarcha, el.modo); });
     primera = true;
     const este = mapa; setTimeout(()=>{ if(mapa===este) mapa.invalidateSize({animate:false}); }, 50);
   }
@@ -1080,7 +1088,7 @@ ${T.map(t=>`<trkpt lat="${t[0]}" lon="${t[1]}"><time>${new Date(t[2]).toISOStrin
     marcarCentrar();
   }
   // girar la carta: az = rumbo geográfico al destino (null = norte arriba)
-  let explorando = false;
+  let explorando = false, arrastrado = 0;
   function girar(az){
     const el = $('#sMapa'); if(!el || !mapa) return; const cont = el.parentElement;
     if(az===null || az===undefined || orient==='norte' || explorando){ if(giro!==null){ giro = null; rotAcum = null; el.style.cssText = ''; delete el.dataset.dims; mapa.dragging.enable(); mapa.invalidateSize({animate:false}); } return; }
