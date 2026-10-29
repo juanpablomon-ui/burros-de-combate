@@ -33,6 +33,8 @@ const DEM = (function(){
   }
   async function cotaPunto(lat, lon){
     const z = await cota(lat, lon); if(z!==null) return {v:z, src:'SRTM 30 m'};
+    // respaldo de Open-Meteo solo en Burros (su uso gratis no es comercial: Ruck Planner no lo usa)
+    if(typeof EDICION!=='undefined' && EDICION.tienda) return null;
     try { const r = await fetch('https://api.open-meteo.com/v1/elevation?latitude=' + lat.toFixed(5) + '&longitude=' + lon.toFixed(5));
       const j = await r.json(); if(j && j.elevation && isFinite(j.elevation[0])) return {v:+j.elevation[0], src:'Copernicus 90 m'}; } catch(e){}
     return null;

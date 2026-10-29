@@ -142,7 +142,10 @@
           e=>{ t.textContent = e.code===1 ? 'sin permiso para la ubicación: busca el lugar' : 'no se encontró la ubicación: busca el lugar'; }, {enableHighAccuracy:true, timeout:15000, maximumAge:60000}); };
       let tB = null; const q = d.querySelector('#a1Q'), res = d.querySelector('#a1R');
       const buscar = async()=>{ const v = q.value.trim(); if(v.length<3){ res.innerHTML = ''; return; } res.innerHTML = '<p class="nota">Buscando…</p>';
-        try { const r = await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&accept-language=es&q=' + encodeURIComponent(v)); if(!r.ok) throw 0; const L = await r.json();
+        // en la app de iPhone, Apple Maps (Nominatim gratis no permite uso comercial); en la web, OpenStreetMap
+        try { const sv = servicios(); let L;
+          if(sv) L = ((await sv.buscar({q:v})).lugares || []).map(x=>({lat:x.lat, lon:x.lon, name:x.nombre, display_name:[x.nombre].concat(String(x.detalle || '').split(', ').filter(t=>t && t!==x.nombre)).join(', ')}));
+          else { const r = await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&accept-language=es&q=' + encodeURIComponent(v)); if(!r.ok) throw 0; L = await r.json(); }
           if(q.value.trim()!==v) return;
           res.innerHTML = L.length ? L.map((x, i)=>`<button data-lug="${i}">› ${esc(String(x.display_name).split(', ').slice(0, 3).join(', '))}</button>`).join('') : '<p class="nota">Sin resultados: prueba con otro nombre o usa tu ubicación.</p>';
           res.querySelectorAll('[data-lug]').forEach(b=>b.onclick = ()=>{ const x = L[+b.dataset.lug]; asis.centro = {c:[+x.lat, +x.lon], z:14, nombre:String(x.name || x.display_name.split(',')[0])}; marcar(b); }); }
@@ -579,8 +582,8 @@
           <div class="c"><span>&nbsp;</span><button class="btn" id="bPron">🌡 Traer del pronóstico</button></div>
         </div>
         ${p.pron && +p.pron.temp===+String(p.temp).replace(',', '.') ? `<p class="nota">${p.pron.fuente==='pronóstico' ? 'Del <b>pronóstico</b>' : 'Del <b>clima normal</b> (promedio de ' + p.pron.anios + ' años: la fecha está lejos y aún no hay pronóstico)'} para el PIM:
-          ${esc(p.pron.temp)} °C y ${esc(p.pron.hum)} % a las ${esc(p.pron.hora)} (la hora más calurosa de la marcha)${p.pron.viento ? ' · viento hasta ' + esc(p.pron.viento) + ' km/h' : ''}${p.pron.tmin!==undefined ? ' · mínima ' + esc(p.pron.tmin) + ' °C' : ''}.
-          ${+p.pron.viento>=40 ? '<b style="color:var(--rojo)">Viento fuerte: cuidado en filos y cumbres.</b>' : ''}${p.pron.tmin!==undefined && +p.pron.tmin<=0 ? ' <b style="color:var(--azul)">Bajo 0 °C: riesgo de hielo y frío.</b>' : ''}</p>` : ''}
+          ${p.pron.hora ? esc(p.pron.temp) + ' °C y ' + esc(p.pron.hum) + ' % a las ' + esc(p.pron.hora) + ' (la hora más calurosa de la marcha)' : 'máxima ' + esc(p.pron.temp) + ' °C (la humedad no viene en el promedio: revísala)'}${p.pron.viento ? ' · viento hasta ' + esc(p.pron.viento) + ' km/h' : ''}${p.pron.tmin!==undefined ? ' · mínima ' + esc(p.pron.tmin) + ' °C' : ''}.
+          ${+p.pron.viento>=40 ? '<b style="color:var(--rojo)">Viento fuerte: cuidado en filos y cumbres.</b>' : ''}${p.pron.tmin!==undefined && +p.pron.tmin<=0 ? ' <b style="color:var(--azul)">Bajo 0 °C: riesgo de hielo y frío.</b>' : ''}${p.pron.legal ? ` <span class="s">Datos de  Weather · <a href="${esc(p.pron.legal)}" target="_blank" rel="noopener">fuentes</a></span>` : ''}</p>` : ''}
         ${R.calor ? `<div class="info">${R.calor.cat ? `Calor <b>categoría ${esc(R.calor.n)}</b>` : 'Calor <b>sin restricción</b>'} (índice ${f(R.calor.wbgt, 1)} °C${R.calor.fuenteWbgt==='medido' ? ', medido' : ''}).
           ${R.calor.trabajo<60 ? `<br>Cada hora: <b>${R.calor.trabajo} min de marcha y ${R.calor.descanso} min de descanso</b>.` : '<br>Sin descansos extra por calor.'}
           <br>Agua: <b>${f(R.calor.lh, 1)} L por hora</b> por hombre.
@@ -638,9 +641,9 @@
       const pc = vista.querySelector('.punto[data-i="' + inp.dataset.pc + '"] [data-p=clave]'); if(pc) pc.value = inp.value; });
     const ta = vista.querySelector('[data-redibujar-al-salir]'); if(ta) ta.onchange = ()=>{ pintar(); $('#dClaves').open = true; };
     const bp = $('#bPron'); if(bp) bp.onclick = async()=>{ bp.disabled = true; bp.textContent = 'Buscando…';
-      try { const r = await pronostico(m, M.calcular(m)); Object.assign(m.par, {temp:String(r.temp), hum:String(r.hum), pron:r}); guardar();
+      try { const r = await pronostico(m, M.calcular(m)); Object.assign(m.par, {temp:String(r.temp), hum:r.hum===null ? m.par.hum : String(r.hum), pron:r}); guardar();
         const y = window.scrollY; pintar(); window.scrollTo(0, y); vista.querySelectorAll('details').forEach(d=>{ if(/Calor y agua/.test(d.querySelector('summary').textContent)) d.open = true; });
-        aviso('🌡 ' + r.temp + ' °C y ' + r.hum + ' % (' + r.fuente + ')'); }
+        aviso('🌡 ' + r.temp + ' °C' + (r.hum===null ? '' : ' y ' + r.hum + ' %') + ' (' + r.fuente + ')'); }
       catch(e){ bp.disabled = false; bp.textContent = '🌡 Traer del pronóstico'; aviso('⚠ ' + (e.message || 'Sin conexión: escribe la temperatura y la humedad')); } };
     lp('cotas', async()=>{
       const R = M.calcular(m), faltan = m.puntos.map((x, i)=>i).filter(i=>(m.puntos[i].cota==='' || m.puntos[i].cotaAuto) && R.puntos[i].lat!==null && R.puntos[i].lat!==undefined && !isNaN(R.puntos[i].lat));
@@ -649,12 +652,28 @@
   }
   /* temperatura y humedad del pronóstico (Open-Meteo, gratuito, sin clave) en el PIM, en la hora más calurosa de la marcha.
      Hasta 16 días adelante (o hasta 3 meses atrás): pronóstico. Más lejos: promedio de esa fecha en los últimos 5 años (clima normal). */
+  // servicios de Apple de la app de iPhone (Ruck Planner); en la web no existen
+  function servicios(){ const C = window.Capacitor; return C && C.isNativePlatform && C.isNativePlatform() && C.isPluginAvailable && C.isPluginAvailable('Servicios') ? C.Plugins.Servicios : null; }
   async function pronostico(m, R){
     const p0 = R.puntos.find(x=>x.ok); if(!p0) throw new Error('Primero ubica el PIM');
     if(!m.fecha || R.res.partida===null) throw new Error('Falta la fecha o la hora de partida');
     const ini = new Date(m.fecha + 'T00:00:00'), h0 = R.res.partida, h1 = R.res.partida + Math.max(R.res.total || 0, 1);
     const dia = d=>{ const x = new Date(ini.getTime() + d*864e5); return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); };
     const dIni = dia(0), dFin = dia(Math.floor(h1/24)), dias = (ini - new Date(new Date().toDateString()))/864e5;
+    /* en la app de iPhone (Ruck Planner) el pronóstico es de Apple (WeatherKit, complemento «Servicios» de fuentes/ruck/Servicios.swift):
+       Open-Meteo gratis no permite uso comercial (29-oct-2026). Hasta 9 días adelante (o 3 meses atrás) hora por hora; más lejos, el
+       promedio de máximas y mínimas de ese día del año (sin humedad). */
+    const sv = servicios();
+    if(sv){ let j; try { j = await sv.tiempo({lat:p0.lat, lon:p0.lon, inicio:ini.getTime() + h0*36e5, fin:ini.getTime() + h1*36e5}); }
+      catch(e){ throw new Error('El pronóstico no está disponible: escribe la temperatura y la humedad'); }
+      if(j.horas && j.horas.length){ const H = j.horas.filter(x=>x.t>=ini.getTime() + (h0 - 0.5)*36e5 && x.t<=ini.getTime() + (h1 + 0.5)*36e5);
+        if(!H.length) throw new Error('El pronóstico no trae datos para esas horas');
+        const c = H.reduce((a, x)=>x.temp>a.temp ? x : a), d = new Date(c.t);
+        return {temp:Math.round(c.temp), hum:Math.round(c.hum), hora:String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'),
+          viento:Math.round(Math.max(...H.map(x=>x.viento))), tmin:Math.round(Math.min(...H.map(x=>x.temp))), fuente:'pronóstico', legal:j.legal || ''}; }
+      if(j.clima) return {temp:Math.round(j.clima.max), hum:null, hora:'', viento:0, tmin:Math.round(j.clima.min), fuente:'clima normal',
+        anios:Math.max(1, new Date().getFullYear() - j.clima.desde), legal:j.legal || ''};
+      throw new Error('El pronóstico no trae datos: escribe la temperatura y la humedad'); }
     const pedir = async url=>{ const r = await fetch(url); if(!r.ok) throw new Error('El servicio del pronóstico no respondió'); return r.json(); };
     const campos = 'hourly=temperature_2m,relative_humidity_2m,wind_speed_10m&timezone=auto&latitude=' + p0.lat.toFixed(4) + '&longitude=' + p0.lon.toFixed(4);
     // de una respuesta: la hora más calurosa dentro de la marcha
