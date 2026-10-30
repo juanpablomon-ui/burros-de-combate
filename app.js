@@ -463,6 +463,13 @@
     const tropas = Object.fromEntries(Object.entries(M.TROPAS).filter(([k, t])=>k===p.tropa || (Uso.civil() ? t.civil || k==='andina' : !t.civil)).map(([k, t])=>[k, t.n + (t.est ? ' — estimado' : '')]));
     const TT = M.tropaDe(p.tropa);
     const terrenos = Object.fromEntries(Object.entries(M.TERRENOS).map(([k, v])=>[k, v.n]));
+    /* velocidades de subida y bajada: en uso militar a la vista; en civil van en ⚙ Avanzado (pedido del usuario, v0.99.51: «que todo quede
+       separado según el tipo de uso»; para un civil basta el tipo de grupo) */
+    const velCampos = `<label class="c ancho">Velocidades de subida y bajada<select data-par="fuenteVel" data-redibujar>${opc({tabla:'Tabla de la tropa (según tropa, terreno y carga)', mide:'Valores originales MIDE (300 m/h subida · 500 m/h bajada)', propia:'Las de mi unidad (escritas a mano)'}, R.vel.fuente)}</select></label>
+          ${R.vel.fuente==='propia' ? `<label class="c">Subida (m/h)<input class="num" data-par="velSub" inputmode="numeric" value="${esc(p.velSub||'')}" placeholder="${f(vt.sub)}"></label>
+          <label class="c">Bajada (m/h)<input class="num" data-par="velBaj" inputmode="numeric" value="${esc(p.velBaj||'')}" placeholder="${f(vt.baj)}"></label>` : ''}`;
+    const metodos = Object.fromEntries(Object.entries(M.METODOS).filter(([k])=>!Uso.civil() || !['forzada', 'battle'].includes(k) || k===p.metodo)
+      .map(([k, n])=>[k, Uso.civil() && k==='general' ? 'Por caminos y senderos: la velocidad sale del tipo de camino' : n]));
     const sinAl = p.metodo==='battle' || p.metodo==='forzada', vb = M.velBattle(p), carga = `<label class="c">Carga por hombre (kg)${!p.cargaManual && R.carga ? ' <small>del material</small>' : ''}<input class="num" data-par="carga" data-redibujar inputmode="decimal" value="${!p.cargaManual && R.carga ? f(R.carga.total, 1) : esc(p.carga)}" ${!p.cargaManual && R.carga ? 'disabled' : ''}></label>`;
     const campo = (k, n, ph)=>`<label class="c">${n}<input class="num" data-par="${k}" data-redibujar inputmode="decimal" value="${esc(p[k])}"${ph ? ` placeholder="${ph}"` : ''}></label>`;
     const camposBattle = `<label class="c ancho">Patrón preparado<select data-par="brPreset" data-redibujar>${opc(Object.fromEntries(Object.entries(M.PRESETS_BR).map(([k, v])=>[k, v.n])), p.brPreset || 'propio')}</select></label>
@@ -498,17 +505,15 @@
 
       <details class="tarjeta"><summary>Cálculo de tiempos<span class="res">${esc(({montana:'Montaña', mide:'MIDE', general:'Marcha general', forzada:'Marcha forzada', battle:'Carrera de combate'})[p.metodo])} · ${sinAl ? 'sin altos' : 'altos '}${sinAl ? '' : p.altosModo==='regimen' ? esc(p.altoDur) + ' min cada ' + esc(p.altoCada) : pct(p.altos) + ' %'} · imprev. ${pct(p.imprev)} %</span></summary>
         <div class="campos">
-          <label class="c ancho">Método<select data-par="metodo" data-redibujar>${opc(Object.fromEntries(Object.entries(M.METODOS).filter(([k])=>!Uso.civil() || !['forzada', 'battle'].includes(k) || k===p.metodo)), p.metodo)}</select></label>
+          <label class="c ancho">Método<select data-par="metodo" data-redibujar>${opc(metodos, p.metodo)}</select></label>
           ${p.metodo==='battle' ? camposBattle.replace('<!--nota-->', `<div class="c ancho">${notaSinAltos}</div>`) : p.metodo!=='general' && p.metodo!=='forzada' ? `
           <label class="c">Tropa<select data-par="tropa" data-redibujar>${opc(tropas, p.tropa)}</select></label>
           <label class="c">Terreno / modalidad<select data-par="terreno" data-redibujar>${opc(terrenos, p.terreno)}</select></label>
           <label class="c">Carga por hombre (kg)${!p.cargaManual && R.carga ? ' <small>del material</small>' : ''}<input class="num" data-par="carga" data-redibujar inputmode="decimal" value="${!p.cargaManual && R.carga ? f(R.carga.total, 1) : esc(p.carga)}" ${!p.cargaManual && R.carga ? 'disabled' : ''}></label>
-          <label class="c ancho">Velocidades de subida y bajada<select data-par="fuenteVel" data-redibujar>${opc({tabla:'Tabla de la tropa (según tropa, terreno y carga)', mide:'Valores originales MIDE (300 m/h subida · 500 m/h bajada)', propia:'Las de mi unidad (escritas a mano)'}, R.vel.fuente)}</select></label>
+          ${Uso.civil() ? '' : velCampos}
           ${R.vel.fuente==='tabla' ? `<label class="c">Ritmo de la unidad<select data-par="criterio" data-redibujar>${opc({min:'Bajo: el valor más lento de la tabla', media:'Normal: el valor del medio', max:'Exigente: el valor más rápido de la tabla'}, p.criterio)}</select></label>` : ''}
-          ${R.vel.fuente==='propia' ? `<label class="c">Subida (m/h)<input class="num" data-par="velSub" inputmode="numeric" value="${esc(p.velSub||'')}" placeholder="${f(vt.sub)}"></label>
-          <label class="c">Bajada (m/h)<input class="num" data-par="velBaj" inputmode="numeric" value="${esc(p.velBaj||'')}" placeholder="${f(vt.baj)}"></label>` : ''}
           <label class="c">Llano (km/h)<input class="num" data-par="velLlano" inputmode="decimal" value="${esc(p.velLlano)}"></label>`
-          : `<label class="c">Tipo de unidad<select data-par="unidadTipo" data-redibujar>${opc(M.UNIDADES, p.unidadTipo)}</select></label>
+          : `${Uso.civil() && p.unidadTipo!=='montada' ? '' : `<label class="c">Tipo de unidad<select data-par="unidadTipo" data-redibujar>${opc(M.UNIDADES, p.unidadTipo)}</select></label>`}
           <label class="c">Vía principal<select data-par="via" data-redibujar>${opc(Object.fromEntries(Object.entries(M.VIAS).map(([k, n])=>{ const v = (M.VEL_GENERAL[p.unidadTipo] || M.VEL_GENERAL.pie)[k]; return [k, n + (v ? ' (' + f(v.dia, 1) + ' km/h de día · ' + f(v.noche, 1) + ' de noche)' : '')]; })), M.VIAS[p.via] ? p.via : 'camino1')}</select></label>
           <label class="c">Velocidad de día (km/h)<input class="num" data-par="velGeneral" inputmode="decimal" value="${esc(p.velGeneral||'')}" placeholder="${f(M.velGeneral(p.via, false, p.unidadTipo), 1)}"></label>
           ${p.metodo==='forzada' ? `<label class="c">Ritmo más rápido (%)<input class="num" data-par="forzadaPct" inputmode="decimal" value="${esc(p.forzadaPct)}"></label>
@@ -542,6 +547,7 @@
           Imprevistos (10 % por defecto, sobre marcha + altos): reserva para lo inesperado, incluido el agotamiento momentáneo; durante la marcha, los altos no planificados se registran en Seguir con su motivo.
           ${R.vel.fuente==='mide' ? '<br>Valores originales MIDE: 300 m/h de subida y 500 m/h de bajada, sin importar tropa ni carga.' : ''}</p>
         <details class="avanzado"><summary>⚙ Avanzado</summary><div class="campos">
+          ${Uso.civil() && p.metodo!=='general' && !sinAl ? velCampos : ''}
           ${p.metodo==='montana' ? `<label class="c">Pendiente crítica (%)<input class="num" data-par="pteCr" data-pct inputmode="decimal" value="${pct(p.pteCr)}"></label>` : ''}
           <label class="c ancho"><span><input type="checkbox" data-par="ajusteAltura" data-redibujar ${p.ajusteAltura!==false ? 'checked' : ''} style="width:auto;vertical-align:middle"> Más lento en altura (sobre 1.500 m)</span></label></div>
           ${p.metodo==='montana' ? '<p class="nota">Sobre la pendiente crítica el tramo se calcula por el desnivel; bajo ella, por la distancia (5 % por defecto).</p>' : ''}

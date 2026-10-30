@@ -25,6 +25,7 @@ const Uso = (function(){
     ['Equipo especial común de la patrulla', 'Equipo común del grupo'], ['Equipo de cada puesto (OME)', 'Equipo de cada rol'], ['Puestos (OME)', 'Roles del grupo'], ['Equipo especial común', 'Equipo común del grupo'], ['Equipo especial de la patrulla', 'Equipo común del grupo'], ['Fusilero o patrullero', 'Integrante'], ['Comandante o jefe de patrulla', 'Guía o líder del grupo'], ['Radioperador', 'Encargado de radio'], ['Sirviente de ametralladora', 'Portador'], ['el más cargado', 'el más cargado'], ['Mochila de trauma (enfermero u operador de trauma)', 'Botiquín grande del grupo (primeros auxilios avanzados)'],
     ['IFAK: botiquín individual de combate', 'Botiquín individual de emergencia'], ['Ración de combate', 'Comida del día (ración)'], ['ración de combate', 'comida del día'],
     ['la carga de combate habitual (27–36 kg)', 'una carga razonable (revisa el porcentaje de tu peso)'],
+    ['Marcha general', 'Por caminos y senderos'], ['marcha general', 'por caminos y senderos'],
     ['Matriz de eventos', 'Registro de la ruta'], ['matriz de eventos', 'registro de la ruta'],
     ['Nombres clave y eventos para la radio', 'Puntos de control y radio'],
     ['Unidad y columna', 'Grupo y columna'], ['Unidades de marcha', 'Grupos de marcha'], ['unidades de marcha', 'grupos de marcha'], ['unidad de marcha', 'grupo de marcha'],
